@@ -37,7 +37,7 @@ func main() {
 Haste variables follows this syntax.
 ~let [mut] <identifier>[: <type>] [= <expression>];~
 All variables in Haste are immutable by default, for mutability consider using =mut= keyword after =let= keyword.
-after =let= and the optional =mut= Haste's compiler expectes an [[#identifiers][identifier]] followed by a =:= and the [[#type][type]] of the variable, haste could infer the type of any variable if posible. then it expectes either and equal sign === or a semicolon =;=. if it found a semicolon, then it leaves the variable unintialized and leave it for latter assignment. otherwise it expectes an [[#expressions]expression]] and finaly a semicolon.
+after =let= and the optional =mut= Haste's compiler expectes an [[#identifiers][identifier]] followed by a =:= and the [[#type][type]] of the variable, haste could infer the type of any variable if posible. then it expectes either and equal sign ~=~ or a semicolon =;=. if it found a semicolon, then it leaves the variable unintialized and leave it for latter assignment. otherwise it expectes an [[#expressions][expression]] and finaly a semicolon.
 #+begin_src haste
 func main() {
   # Automaticaly x gets infered into int type
