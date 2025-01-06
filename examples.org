@@ -21,11 +21,13 @@
   - [[#sneak-and-peek][Sneak and peek]]
 
 * Introduction
-Haste code is meant to be self-explanatory. If it looks like a function it's a function. If it looks like a macro it's a macro. If looks like a comptime code it's comptime code. if it looks like a run-time code it's a run time code.
+Haste code is meant to be self-explanatory. If it looks like a function, it's a function. If it looks like a macro call, it's a macro call. If it looks like compile-time code, it's compile-time code. If it looks like run-time code, it's run-time code.
 ** Hello World
-In Haste, the entry point is always the =main= function. I'm planing on making it's the first thing that get executed the low-level generated code.
-Any thing that starts with =@= is a macro call, =@println= is a macro that generates more haste code.
-Haste uses the semicolon =;= as statement terminator.
+In Haste, the entry point is always the =main= function, which is intended to be the first thing executed in the low-level generated code.
+
+Any expression that starts with =@= represents a macro call. For example, =@println= is a macro that generates additional Haste code.
+
+Haste uses the semicolon =;= as the statement terminator.
 #+begin_src haste
 func main() {
   @println("Hello World");
@@ -34,10 +36,12 @@ func main() {
 
 * Statements
 ** Variables
-Haste variables follows this syntax.
+Haste variables must follow this syntax:
 ~let [mut] <identifier>[: <type>] [= <expression>];~
-All variables in Haste are immutable by default, for mutability consider using =mut= keyword after =let= keyword.
-after =let= and the optional =mut= Haste's compiler expectes an [[#identifiers][identifier]] followed by a =:= and the [[#type][type]] of the variable, haste could infer the type of any variable if posible. then it expectes either and equal sign ~=~ or a semicolon =;=. if it found a semicolon, then it leaves the variable unintialized and leave it for latter assignment. otherwise it expectes an [[#expressions][expression]] and finaly a semicolon.
+
+All variables in Haste are immutable by default. For mutability, consider using the =mut= keyword after the =let= keyword.
+
+After =let= and the optional =mut=, Haste's compiler expects an [[#identifiers][identifier]] followed by a =:= and the [[#type][type]] of the variable. Haste can infer the type of any variable if possible. Then it expects either an equal sign ~=~ or a semicolon =;=. If it finds a semicolon, the variable is left uninitialized and can be assigned later. Otherwise, it expects an [[#expressions][expression]], followed by a semicolon.
 #+begin_src haste
 func main() {
   # Automaticaly x gets infered into int type
@@ -124,17 +128,15 @@ func main() {
 * Expressions
 ** Literals
 *** Identifiers
-In Haste, identifiers splits into two parts. normal and special ones. at the moment their is no deference between them except for the syntax.
-**** Normal identifier
-A normal identifier is any identifier that fulfies this regular experession =(\$|_|[a-zA-Z])(\$|_|[a-zA-Z0-9])*= and its not a reserved keyword.
-**** Special identifier
-A Special identifier is any identifier that starts with =$"= and ends with ="= /anything/ can go in between.
+In Haste, identifiers are split into two parts: normal and special ones. At the moment, there is no difference between them except for the syntax.
+- *Normal identifier:* A normal identifier is any identifier that is not a reserved keyword and fulfills this regular expression =(\$|_|[a-zA-Z])(\$|_|[a-zA-Z0-9])*=.
+- *Special identifier:* A special identifier is any identifier that starts with =$"= and ends with ="=; /anything/ can go in between.
 *** Char
-In Haste a character starts with ='= and ends with ='= and /one/ character in between.
+In Haste, a character starts with ='= and ends with ='=, with /one/ character in between.
 *** String
-In Haste a string starts with ="= and ends with ="= and almost infinite amout characters in between. strings are just an array of characters.
+In Haste, a string starts with ="= and ends with ="=, with an almost infinite amount of characters in between. Strings are simply an array of characters.
 *** Numbers
-In Haste their is a generic =Number= type that splits into two main types.
+In Haste, there is a generic =Number= type that is divided into two main subtypes.
 - *Integers:* An integer is a number without a fractional or decimal component. It includes all whole numbers, both positive and negative, as well as zero. Mathematically, the set of integers is denoted as ℤ.
 - *Float:* is a number that can represent both whole numbers and numbers with a fractional or decimal part.
 *** Booleans
