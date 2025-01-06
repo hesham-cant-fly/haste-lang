@@ -1,0 +1,221 @@
+#+title:  Haste Example
+#+author: Hesham Can't Fly
+#+date:   06-01-2025
+
+* TABLE OF CONTENT :TOC:
+- [[#introduction][Introduction]]
+  - [[#hello-world][Hello World]]
+- [[#statements][Statements]]
+  - [[#variables][Variables]]
+  - [[#todo-hesham-please-complete-me-dont-just-leave-me-hanging][TODO: HESHAM!! PLEASE COMPLETE ME!!!!!!!! DON'T JUST LEAVE ME HANGING]]
+- [[#primitive-types][Primitive Types]]
+- [[#expressions][Expressions]]
+  - [[#literals][Literals]]
+  - [[#arithmetic-operators][Arithmetic Operators]]
+  - [[#relational-comparison-operators][Relational (Comparison) Operators]]
+  - [[#logical-operators][Logical Operators]]
+  - [[#bitwise-operators][Bitwise Operators]]
+  - [[#assignment-operators][Assignment Operators]]
+  - [[#conditional-operator-inline-if][Conditional Operator (inline if)]]
+  - [[#type-casting][Type casting]]
+  - [[#sneak-and-peek][Sneak and peek]]
+
+* Introduction
+Haste code is meant to be self-explanatory. If it looks like a function it's a function. If it looks like a macro it's a macro. If looks like a comptime code it's comptime code. if it looks like a run-time code it's a run time code.
+** Hello World
+In Haste, the entry point is always the =main= function. I'm planing on making it's the first thing that get executed the low-level generated code.
+Any thing that starts with =@= is a macro call, =@println= is a macro that generates more haste code.
+Haste uses the semicolon =;= as statement terminator.
+#+begin_src haste
+func main() {
+  @println("Hello World");
+}
+#+end_src
+
+* Statements
+** Variables
+Haste variables follows this syntax.
+~let [mut] <identifier>[: <type>] [= <expression>];~
+All variables in Haste are immutable by default, for mutability consider using =mut= keyword after =let= keyword.
+after =let= and the optional =mut= Haste's compiler expectes an [[#identifiers][identifier]] followed by a =:= and the [[#type][type]] of the variable, haste could infer the type of any variable if posible. then it expectes either and equal sign === or a semicolon =;=. if it found a semicolon, then it leaves the variable unintialized and leave it for latter assignment. otherwise it expectes an [[#expressions]expression]] and finaly a semicolon.
+#+begin_src haste
+func main() {
+  # Automaticaly x gets infered into int type
+  let x = 50;
+  
+  # You could use *auto* which means the same as the one on top
+  let y: auto = 20;
+  
+  # You can explicitly set the type of the variable
+  let z: uint64 = 6541849;
+  
+  # I have nothing to say here
+  let w := 'z';
+
+  # Use *mut* so you can change the value of the variable
+  let mut age: uint = 18;
+  age++;
+  
+  @prinln("{}", age);
+}
+#+end_src
+** TODO: HESHAM!! PLEASE COMPLETE ME!!!!!!!! DON'T JUST LEAVE ME HANGING
+#+begin_src haste
+func main() {
+  if true {
+    @println("What's up!!");
+  } else if false {
+    @println("uhh");
+  } else {
+    @println("???");
+  }
+
+  if 1 == 2
+    do @println("Inlined if :3");
+  
+  loop {
+    @println("Loop!!");
+    stop; # Equivalent to `break` in C
+  }
+
+  {
+    let x = 0;
+    while x < 10 {
+      if x == 5 {
+        x++;
+        skip;
+      }
+      @println("{}", x);
+      x++;
+    }
+  }
+
+  let xs = ["one", "two", "three", "four"];
+  for x in xs {
+    @println("{}", x);
+  }
+}
+#+end_src
+
+* Primitive Types
+#+begin_src haste
+func main() {
+  # Numiric types
+  let a: int8 = -127;
+  let b: uint8 = 255;
+  let c: int16 = -32767;
+  let d: uint16 = 65535;
+  let e: int = -2147483647:
+  let f: uint = 4294967295;
+  let g: int64 = -9223372036854775807;
+  let h: uint64 = 18446744073709551615;
+
+  let i: float = 154.2548;
+  let j: float64 = 1588648.269899;
+
+  let s: isize = 0; # platform-dependent
+  let us: usize = 0; # platform-dependent
+
+  let mut name: string = "Hesham";
+  name.push(" Can't Fly");
+}
+#+end_src
+
+* Expressions
+** Literals
+*** Identifiers
+In Haste, identifiers splits into two parts. normal and special ones. at the moment their is no deference between them except for the syntax.
+**** Normal identifier
+A normal identifier is any identifier that fulfies this regular experession =(\$|_|[a-zA-Z])(\$|_|[a-zA-Z0-9])*= and its not a reserved keyword.
+**** Special identifier
+A Special identifier is any identifier that starts with =$"= and ends with ="= /anything/ can go in between.
+*** Char
+In Haste a character starts with ='= and ends with ='= and /one/ character in between.
+*** String
+In Haste a string starts with ="= and ends with ="= and almost infinite amout characters in between. strings are just an array of characters.
+*** Numbers
+In Haste their is a generic =Number= type that splits into two main types.
+- *Integers:* An integer is a number without a fractional or decimal component. It includes all whole numbers, both positive and negative, as well as zero. Mathematically, the set of integers is denoted as ℤ.
+- *Float:* is a number that can represent both whole numbers and numbers with a fractional or decimal part.
+*** Booleans
+In Haste their is =true= and =false=. yes, that's it nothing more to say about them.
+** Arithmetic Operators
+Perform mathematical calculations, and usealy returns a number.
+| Operator | Description | Example  |
+|----------+-------------+----------|
+| ~+~      | Addition    | ~a + b~  |
+| ~-~      | Subtraction | ~a - b~  |
+| ~*~      | Division    | ~a * b~  |
+| ~/~      | Division    | ~a / b~  |
+| ~%~      | Modulus     | ~a % b~  |
+| ~**~     | Power       | ~a ** b~ |
+| ~+~      | Posite      | ~+a~     |
+| ~-~      | Negation    | ~-a~     |
+|----------+-------------+----------|
+** Relational (Comparison) Operators
+Compare two values and returns a =boolean=.
+| Operator | Description                    | Example  |
+|----------+--------------------------------+----------|
+| ~==~     | Equal to                       | ~a == b~ |
+| ~!=~     | Not Equal to                   | ~a != b~ |
+| ~<~      | Less than                      | ~a < b~  |
+| ~>~      | Greater than                   | ~a > b~  |
+| ~<=~     | Less than or equal to          | ~a <= b~ |
+| ~>=~     | Greater than or equal to       | ~a >= b~ |
+| ~is~     | Test the thruthness of a value | ~is a~   |
+|----------+--------------------------------+----------|
+** Logical Operators
+Combine or invert logical statements.
+| Operator | Description | Example   |
+|----------+-------------+-----------|
+| ~and~    | Logical AND | ~a and b~ |
+| ~or~     | Logical OR  | ~a or b~  |
+| ~not~    | Logical NOT | ~not a~   |
+|----------+-------------+-----------|
+** Bitwise Operators
+Perform operations on binary representations of numbers.
+| Operator | Description | Example     |
+|----------+-------------+-------------|
+| ~&~      | Bitwise AND | ~a & b~     |
+| ~\vert~  | Bitwise OR  | ~a \vert b~ |
+| ~^~      | Bitwise XOR | ~a ^ b~     |
+| ~~~      | Bitwise NOT | ~~a~        |
+| ~<<~     | Left shift  | ~a << 1~    |
+| ~>>~     | Right shift | ~a >> 1~    |
+|----------+-------------+-------------|
+** Assignment Operators
+Assign values to variables.
+| Operator | Description            | Example      |
+|----------+------------------------+--------------|
+| ~=~      | Assignment             | ~a = b~      |
+| ~+=~     | Add and assign         | ~a += b~     |
+| ~-=~     | Subtract and assign    | ~a -= b~     |
+| ~*=~     | Multiply and assign    | ~a *= b~     |
+| ~/=~     | Divide and assign      | ~a /= b~     |
+| ~%=~     | Modulus and assign     | ~a %= b~     |
+| ~**=~    | Power and assign       | ~a **= b~    |
+| ~&=~     | Bitwise AND and assign | ~a &= b~     |
+| ~\vert=~ | Bitwise OR and assign  | ~a \vert= b~ |
+| ~^=~     | Bitwise XOR and assign | ~a ^= b~     |
+| ~<<=~    | Left shift and assign  | ~a <<= b~    |
+| ~>>=~    | Right shift and assign | ~a >>= b~    |
+|----------+------------------------+--------------|
+** Conditional Operator (inline if) 
+Something better and more readable that C's ternary operator ~? :~
+| Operator       | Description          | Example                  |
+|----------------+----------------------+--------------------------|
+| ~if then else~ | Conditional operator | ~if a > b then x else y~ |
+|----------------+----------------------+--------------------------|
+** Type casting
+Convert one data type to another (If possible)
+| Operator | Description  | Example      |
+|----------+--------------+--------------|
+| ~as~     | Type casting | ~1 as float~ |
+|----------+--------------+--------------|
+** Sneak and peek
+| Operator | Description | Example          |
+|----------+-------------+------------------|
+| ~&~      | Peek        | ~let y = &x~     |
+| ~&mut~   | Sneak       | ~let y = &mut x~ |
+| ~*~      | Dereferece  | ~*y~             |
+|----------+-------------+------------------|

@@ -1,14 +1,3 @@
-import "std";
-cimport "termcolor-c.h" as termcolor;
-
-use std::c;
-
-func main() {
-  termcolor.text_red(c.stdout);
-  @println("Hello World");
-  termcolor.reset_colors(c.stdout);
-}
-
 func add(x: int, y: int): int = x + y;
 
 func main(): int {

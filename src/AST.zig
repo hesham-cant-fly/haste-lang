@@ -32,6 +32,11 @@ pub const create_return = StmtMod.create_return;
 pub const create_block = StmtMod.create_block;
 pub const create_none_stmt = StmtMod.create_none_stmt;
 
+pub const ItemFunc = StmtMod.ItemFunc;
+pub const Let = StmtMod.Let;
+pub const Block = StmtMod.Block;
+pub const Return = StmtMod.Return;
+
 pub const Type = TypeMod.Type;
 pub const Primitive = TypeMod.Primitive;
 pub const TypeNode = TypeMod.TypeNode;
@@ -41,7 +46,7 @@ pub const create_primitive = TypeMod.create_primitive;
 pub const ItemList = std.ArrayList(Stmt);
 
 pub const ProgramAST = struct { //
-    items: ItemList,
+    items: std.ArrayList(Stmt),
 
     pub fn init(allocator: mem.Allocator) ProgramAST {
         return ProgramAST{ .items = ItemList.init(allocator) };

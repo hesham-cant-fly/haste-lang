@@ -1,6 +1,7 @@
 const std = @import("std");
 const DataStructure = @import("../DataStructure.zig");
 const TokenMod = @import("../Token.zig");
+const Context = @import("../Context.zig");
 
 const LinkedList = DataStructure.LinkedList;
 const Token = TokenMod.Token;
@@ -227,6 +228,8 @@ pub const ExprNode = union(enum) { //
             },
         }
     }
+
+    pub fn analyse(self: *@This()) void {}
 };
 
 pub fn create_expr(allocator: mem.Allocator, start: *const Token, end: *const Token, expr: *ExprNode) !*Expr {

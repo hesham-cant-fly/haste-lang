@@ -46,9 +46,9 @@ pub fn function(self: *Parser) ParserError!*StmtNode {
     const body_start = self.peek();
     var body: Stmt = undefined;
     if (self.match(TokenType.Eq)) |_| {
-        body.stmt = try _return(self);
+        body.stmt = try _return(self); // Direcly parses the return value
     } else if (self.match(TokenType.OpenCurlyParen)) |_| {
-        body.stmt = try block(self);
+        body.stmt = try block(self); // Function body is just a block
     } else {
         return ParserError.UnexpectedToken;
     }

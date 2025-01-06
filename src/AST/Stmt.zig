@@ -80,125 +80,133 @@ pub const Stmt = struct {
     }
 };
 
+pub const ItemFunc = struct {
+    identifier: *const Token,
+    arguments: []const ArgNode,
+    return_type: ?*const TypeMod.Type = null,
+    body: Stmt,
+
+    pub fn print(self: *const @This(), depth: u32) void {
+        debug.print("ItemFunc:\n", .{});
+        StmtNode.print_identation(depth);
+        debug.print("identifier: ", .{});
+        StmtNode.print_token(self.identifier);
+
+        StmtNode.print_identation(depth);
+        debug.print("params:\n", .{});
+        for (self.arguments, 0..) |argument, i| {
+            StmtNode.print_identation(depth + ident_size);
+            debug.print("{}:\n", .{i});
+            argument.print(depth + (ident_size * 2));
+        }
+
+        StmtNode.print_identation(depth);
+        debug.print("return_type:\n", .{});
+        if (self.return_type) |return_type| {
+            return_type.print(depth + ident_size);
+        } else {
+            StmtNode.print_identation(depth + ident_size);
+            debug.print("NONE\n", .{});
+        }
+
+        StmtNode.print_identation(depth);
+        debug.print("body:\n", .{});
+        self.body.print(depth + ident_size);
+        // for (self.body, 0..) |stmt, i| {
+        //     print_identation(depth + ident_size);
+        //     debug.print("{}:\n", .{i});
+        //     stmt.print(depth + (ident_size * 2));
+        // }
+    }
+};
+
+const Let = struct {
+    mut: ?*const Token,
+    identifier: *const Token,
+    tp: ?*const TypeMod.Type = null,
+    eq: ?*const Token = null,
+    init: ?*const ExprMod.Expr = null,
+
+    pub fn print(self: *const @This(), depth: u32) void {
+        debug.print("Let:\n", .{});
+
+        StmtNode.print_identation(depth);
+        debug.print("mut: ", .{});
+        if (self.mut) |mut| {
+            StmtNode.print_token(mut);
+        } else {
+            debug.print("NONE\n", .{});
+        }
+
+        StmtNode.print_identation(depth);
+        debug.print("identifier: ", .{});
+        StmtNode.print_token(self.identifier);
+
+        StmtNode.print_identation(depth);
+        debug.print("eq: ", .{});
+        if (self.eq) |eq| {
+            eq.print();
+        } else {
+            debug.print("NONE\n", .{});
+        }
+
+        StmtNode.print_identation(depth);
+        debug.print("tp:\n", .{});
+        if (self.tp) |tp| {
+            tp.print(depth + ident_size);
+        } else {
+            StmtNode.print_identation(depth + ident_size);
+            debug.print("NONE\n", .{});
+        }
+
+        StmtNode.print_identation(depth);
+        debug.print("init:\n", .{});
+        if (self.init) |init| {
+            init.print(depth + ident_size);
+        } else {
+            StmtNode.print_identation(depth + ident_size);
+            debug.print("NONE\n", .{});
+        }
+    }
+};
+
+const Block = struct {
+    stmts: []const Stmt,
+
+    pub fn print(self: *const @This(), depth: u32) void {
+        debug.print("Block:\n", .{});
+        if (self.stmts.len == 0) {
+            StmtNode.print_identation(depth + ident_size);
+            debug.print("NONE\n", .{});
+            return;
+        }
+        for (self.stmts, 0..) |stmt, i| {
+            StmtNode.print_identation(depth + ident_size);
+            debug.print("{}:\n", .{i});
+            stmt.print(depth + (ident_size * 2));
+        }
+    }
+};
+
+const Return = struct {
+    expr: ?*const ExprMod.Expr,
+
+    pub fn print(self: *const @This(), depth: u32) void {
+        debug.print("Return: ", .{});
+        if (self.expr) |expr| {
+            debug.print("\n", .{});
+            expr.print(depth + ident_size);
+        } else {
+            debug.print("NONE\n", .{});
+        }
+    }
+};
+
 pub const StmtNode = union(enum) {
-    ItemFunc: struct {
-        identifier: *const Token,
-        arguments: []const ArgNode,
-        return_type: ?*const TypeMod.Type = null,
-        body: Stmt,
-
-        pub fn print(self: *const @This(), depth: u32) void {
-            debug.print("ItemFunc:\n", .{});
-            print_identation(depth);
-            debug.print("identifier: ", .{});
-            print_token(self.identifier);
-
-            print_identation(depth);
-            debug.print("params:\n", .{});
-            for (self.arguments, 0..) |argument, i| {
-                print_identation(depth + ident_size);
-                debug.print("{}:\n", .{i});
-                argument.print(depth + (ident_size * 2));
-            }
-
-            print_identation(depth);
-            debug.print("return_type:\n", .{});
-            if (self.return_type) |return_type| {
-                return_type.print(depth + ident_size);
-            } else {
-                print_identation(depth + ident_size);
-                debug.print("NONE\n", .{});
-            }
-
-            print_identation(depth);
-            debug.print("body:\n", .{});
-            self.body.print(depth + ident_size);
-            // for (self.body, 0..) |stmt, i| {
-            //     print_identation(depth + ident_size);
-            //     debug.print("{}:\n", .{i});
-            //     stmt.print(depth + (ident_size * 2));
-            // }
-        }
-    },
-    Let: struct {
-        mut: ?*const Token,
-        identifier: *const Token,
-        tp: ?*const TypeMod.Type = null,
-        eq: ?*const Token = null,
-        init: ?*const ExprMod.Expr = null,
-
-        pub fn print(self: *const @This(), depth: u32) void {
-            debug.print("Let:\n", .{});
-
-            print_identation(depth);
-            debug.print("mut: ", .{});
-            if (self.mut) |mut| {
-                print_token(mut);
-            } else {
-                debug.print("NONE\n", .{});
-            }
-
-            print_identation(depth);
-            debug.print("identifier: ", .{});
-            print_token(self.identifier);
-
-            print_identation(depth);
-            debug.print("eq: ", .{});
-            if (self.eq) |eq| {
-                eq.print();
-            } else {
-                debug.print("NONE\n", .{});
-            }
-
-            print_identation(depth);
-            debug.print("tp:\n", .{});
-            if (self.tp) |tp| {
-                tp.print(depth + ident_size);
-            } else {
-                print_identation(depth + ident_size);
-                debug.print("NONE\n", .{});
-            }
-
-            print_identation(depth);
-            debug.print("init:\n", .{});
-            if (self.init) |init| {
-                init.print(depth + ident_size);
-            } else {
-                print_identation(depth + ident_size);
-                debug.print("NONE\n", .{});
-            }
-        }
-    },
-    Block: struct {
-        stmts: []const Stmt,
-
-        pub fn print(self: *const @This(), depth: u32) void {
-            debug.print("Block:\n", .{});
-            if (self.stmts.len == 0) {
-                print_identation(depth + ident_size);
-                debug.print("NONE\n", .{});
-                return;
-            }
-            for (self.stmts, 0..) |stmt, i| {
-                print_identation(depth + ident_size);
-                debug.print("{}:\n", .{i});
-                stmt.print(depth + (ident_size * 2));
-            }
-        }
-    },
-    Return: struct {
-        expr: ?*const ExprMod.Expr,
-
-        pub fn print(self: *const @This(), depth: u32) void {
-            debug.print("Return: ", .{});
-            if (self.expr) |expr| {
-                debug.print("\n", .{});
-                expr.print(depth + ident_size);
-            } else {
-                debug.print("NONE\n", .{});
-            }
-        }
-    },
+    ItemFunc: ItemFunc,
+    Let: Let,
+    Block: Block,
+    Return: Return,
     Expr: *const ExprMod.Expr,
     None,
 

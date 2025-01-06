@@ -14,9 +14,6 @@ pub fn main() !void {
 
     const stdout = std.io.getStdOut();
 
-    // var bw = std.io.bufferedWriter(stdout_file);
-    // const stdout = bw.writer();
-
     var compiler = Compiler.init(allocator, alloc, stdout);
     defer compiler.deinit();
 
