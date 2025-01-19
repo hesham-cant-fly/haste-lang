@@ -43,7 +43,8 @@
   - [ ] Sneak and Peek
   - [ ] Life time
     - [ ] Static Life time
-    - [ ] Static Life time
-    - [ ] Static Life time
+    - [ ] This Life time
+    - [ ] Scoped Life time
     - [ ] Longest Reference
+    - [ ] Auto Life time
 
