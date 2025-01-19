@@ -7,6 +7,9 @@ const Declaration = @import("./Parsing/declaration.zig");
 const Expression = @import("./Parsing/expression.zig");
 const Statement = @import("./Parsing/statement.zig");
 
+const mem = std.mem;
+const debug = std.debug;
+
 const Token = TokenMod.Token;
 const TokenType = TokenMod.Type;
 const TokenList = TokenMod.TokenList;
@@ -16,9 +19,6 @@ const ExprNode = AST.ExprNode;
 
 const Stmt = AST.Stmt;
 const StmtNode = AST.StmtNode;
-
-const mem = std.mem;
-const debug = std.debug;
 
 pub const ParserError = error{
     HasError,

@@ -228,8 +228,6 @@ pub const ExprNode = union(enum) { //
             },
         }
     }
-
-    pub fn analyse(self: *@This()) void {}
 };
 
 pub fn create_expr(allocator: mem.Allocator, start: *const Token, end: *const Token, expr: *ExprNode) !*Expr {
