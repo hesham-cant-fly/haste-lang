@@ -1,21 +1,49 @@
-#+title: Progress
-
 * Progress
-- [-] Parsing
-  - [ ] Types
-    - [X] Primitive
+- [X] Scanner
+- [-] Parser
   - [ ] Expressions
-  - [ ] Primaries
-    - [X] String
-    - [X] Int
-    - [X] Float
-    - [ ] Array
+    - [X] Primaries
+    - [X] Math (+, -, *, **, /, %)
+    - [X] Comparition (==, !=, <, >, >=, =<)
+    - [X] Logical (not, and, or)
+    - [ ] Bitewise (&, |, ~, <<, >>)
+    - [X] inline if (if .. then .. else ..)
+    - [ ] as (type casting =expr as Type=)
+    - [X] call expression
+    - [ ] member access
+    - [ ] Subscript (=expr[v]=)
+    - [ ] Scope resolusion
     - [ ] Tuple
-  - [ ] Statements
-    - [ ] Ret
-    - [X] Return
+    - [ ] assignment
+    - [ ] Sneak and Peek (=&expr=, =&mut expr= =*expr=)
+  - [ ] Types
+    - [-] Built-in types (*int*, *uint*, *float*, *string*, *void*, *bool*)
+    - [ ] Slices (=T[int]=, =T[]=)
+    - [ ] Tuple (=(T, R, Y, X, ...)=)
+    - [ ] Generics aka. templates in c++ (=T<Args>=)
+  - [-] Statements
+    - [ ] ret
+    - [X] returns
+    - [X] let
     - [X] Block
     - [X] Statement Expression
-  - [ ] Declarations
-    - [X] Function
-    - [X] Let
+    - [ ] if
+    - [-] functions (needs to add generecs to it)
+- [ ] Semantic Analysis
+  - [ ] Added basic types (arrays, functions, native types eg. bool, int, uint, char, string)
+  - [ ] Working immutability
+  - [ ] Function calls
+  - [ ] Subscripting
+  - [ ] Member accessing
+  - [ ] Scope resolusion
+  - [ ] Warnings (unused variables, unused mut)
+  - [ ] tuples and multi dimentional arrays
+  - [ ] Custom Defined types
+  - [ ] Generics
+  - [ ] Sneak and Peek
+  - [ ] Life time
+    - [ ] Static Life time
+    - [ ] Static Life time
+    - [ ] Static Life time
+    - [ ] Longest Reference
+
