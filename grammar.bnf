@@ -1,0 +1,178 @@
+; Haste Grammar
+<statements> ::= <statement>+
+
+<statement> ::= <simple-stmt-complete> | <compound-stmt>
+
+<simple-stmt-complete> ::= <simple-stmt> ";"
+<simple-stmt> ::= <expression>
+    | <let>
+    | <do>
+    | <return>
+    | <ret>
+    | "skip"
+    | "stop"
+
+<compound-stmt> ::= <declaration>
+    | <if>
+    | <unless>
+    | <block>
+    | <loop>
+    | <while>
+    | <for>
+
+<declaration> ::= <func>
+    | <let>
+    | <struct>
+    | <enum>
+
+; Simple Statements
+<let> ::= "let" "mut"? <pattern> (":" <type>?)? ("=" <expression>)?
+<do> ::= "do" (<simple-stmt> | <compound-stmt>)
+<return> ::= "return" <expression>?
+<ret> ::= "ret" <expression>?
+
+; Compound Statements
+<if> ::= "if" <expression> <code-body> ( "else" (<if> | <code-body>) )
+<unless> ::= "!if" <expression> <code-body> ( "else" (<if> | <code-body>)) )
+<block> ::= "{" <statement>* "}"
+<loop> ::= "loop" <code-body>
+<while> ::= "while" <expression> <code-body>
+<for> ::= "for" <pattern> "in" <expression> <code-body>
+
+; Declarations
+<func> ::= "func" <identifier> "(" <params> ")" ( : <type> ) ( <code-body> | ( "=" <expression> ";" ) | ";" )
+<params> ::= <param> ( , <param> )*
+<param> ::= <identifier> ":" <type> ("=" <expression>)?
+
+<struct> ::= "struct" <identifier> ( ( "{" <struct-fields>? "}" ) | ";" )
+<struct-fields> ::= <struct-field> ( "," <struct-field> )* ","?
+<struct-field> ::= <identifier> ":" <type> ( "=" <expression> )
+
+<enum> ::= "enum" <identifier> ( ":" <type> )? "{" <enum-fields>? "}"
+<enum-fields> ::= <enum-field> ( "," <enum-field> )* ","?
+<enum-field> ::= <identifier> ( "=" <expression> )?
+
+<code-body> ::= <block> | <do>
+<visibility> ::= "public" | "private"
+
+; Expressions
+<expression> ::= <primary>
+    | <path>
+    | <member-access>
+    | <arithmetic>
+    | <logical>
+    | <bitwise>
+    | <relational>
+    | <assignment>
+    | <inline-if>
+    | <type-casting>
+    | <sneak-and-peek>
+    | <range>
+
+<arithmetic> ::= <expression> <arithmetic-op> <expression> | ( "-" | "+" ) <expression>
+<arithmetic-op> ::= "*" "**" "+" "-" "/" "%"
+
+<logical> ::= <expression> <logical-op> <expression> | "not" <expression>
+<logical-op> ::= "and" "or"
+
+<bitwise> ::= <expression> <bitwise-op> <expression> | "~" <expression>
+<bitwise-op> ::= "&" | "|" | "<<" | ">>" | "^"
+
+<relational> ::= <expression> <relational-op> <expression> | "is" <expression> 
+<relational-op> ::= "==" "!=" "<" ">" ">=" "<="
+
+<assignment> ::= <expression> <assignment-op> <expression>
+<assignment-op> ::= (<arithmetic-op> | <bitwise-op>) "="
+
+<inline-if> ::= "if" <expression> "then" <expression> "else" <expression>
+<type-casting> ::= <expression> "as" <type>
+<sneak-and-peek> ::= ( "&" | "&mut" | "*" ) <expression>
+<range> ::= <expression> ( ".." | "..=" ) <expression>
+
+; Pattern
+<pattern> ::= <literal-pattern>
+    | <variable-pattern>
+    | <or-pattern>
+    | <struct-pattern>
+    | <tuple-pattern>
+    | <range-pattern>
+    | <slice-pattern>
+    | <or-pattern>
+
+<literal-pattern> ::= <int-lit>
+    | <float-lit>
+    | <string-lit>
+    | <char-lit>
+    | <boolean-lit>
+    | "null"
+<variable-pattern> ::= <identifier>
+<range-pattern> ::= <primary> ( ".." | "..=" ) <primary>
+<struct-pattern> ::= <path> "{" <field-patterns> "}"
+<tuple-pattern> ::= "(" <patterns> ")"
+<slice-pattern> ::= "[" <patterns> "]"
+<or-pattern> ::= <pattern> "|" <pattern>
+
+<field-patterns> ::= <field-pattern> ( "," <field-pattern> )* ","?
+<field-pattern> ::= <identifier> | <identifier> ":" <pattern>
+<patterns> ::= <pattern> ( "," <pattern> )* ","?
+
+; Primaries
+<primary> ::= <identifier>
+    | <tuple>
+    | <int-lit>
+    | <float-lit>
+    | <string-lit>
+    | <char-lit>
+    | <boolean-lit>
+    | "null"
+
+<tuple> ::= "(" ( <expression> ( "," <expression> ) )? ")"
+
+<identifier> ::= <normal-identifier> | <special-identifier>
+<normal-identifier> ::= ( "$" | "_" | [a-zA-Z] ) ( "$" | "_" | [a-zA-Z0-9] )+
+<special-identifier> ::= '$"' [any]+ '"'
+
+<int-lit> ::= [0-9] ( "_" | [0-9] )* "i"?
+<float-lit> ::= [0-9] ( "_" | [0-9] )* ( "f" | ( "." ( [0-9] | "_" )* "f"? ) )
+<string-lit> ::= '"' [any]* '"'
+<char-lit> ::= "'" [any] "'"
+<boolean-lit> ::= "true" | "false"
+
+<path> ::= <identifier> ( "::" <identifier> )+
+<member-access> ::= <identifier> ( "." ( <identifier> | "?" ) )+
+
+; Types
+<type> ::= <primitive-type>
+    | <identifier>
+    | <reference-type>
+    | <array-type>
+    | <slice-type>
+    | <generic-type>
+    | "auto"
+
+<primitive-type> ::= "int"
+    | "float"
+    | "uint"
+    | "float64"
+    | "int8"
+    | "int16"
+    | "int32"
+    | "int64"
+    | "uint8"
+    | "uint16"
+    | "uint32"
+    | "uint64"
+    | "char"
+    | "rune"
+    | "bool"
+    | "isize"
+    | "usize"
+    | "string"
+    | "str"
+
+<reference-type> ::= "&" <type>
+<array-type> ::= <type> "[" <int-lit> "]"
+<slice-type> ::= <type> "[" "]"
+<generic-type> ::= <type> "<" <generic-type-args> ">"
+<generic-type-args> ::= <type> ( "," <type> )*
+

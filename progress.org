@@ -1,0 +1,21 @@
+#+title: Progress
+
+* Progress
+- [-] Parsing
+  - [ ] Types
+    - [X] Primitive
+  - [ ] Expressions
+  - [ ] Primaries
+    - [X] String
+    - [X] Int
+    - [X] Float
+    - [ ] Array
+    - [ ] Tuple
+  - [ ] Statements
+    - [ ] Ret
+    - [X] Return
+    - [X] Block
+    - [X] Statement Expression
+  - [ ] Declarations
+    - [X] Function
+    - [X] Let
