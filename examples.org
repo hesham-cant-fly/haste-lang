@@ -7,8 +7,13 @@
   - [[#hello-world][Hello World]]
 - [[#statements][Statements]]
   - [[#variables][Variables]]
-  - [[#todo-hesham-please-complete-me-dont-just-leave-me-hanging][TODO: HESHAM!! PLEASE COMPLETE ME!!!!!!!! DON'T JUST LEAVE ME HANGING]]
-- [[#primitive-types][Primitive Types]]
+  - [[#control-flow][Control Flow]]
+  - [[#error-type][Error Type]]
+  - [[#error-handeling][Error Handeling]]
+- [[#types][Types]]
+  - [[#primitive-types][Primitive Types]]
+  - [[#user-defined-types][User-defined Types]]
+  - [[#union][Union]]
 - [[#expressions][Expressions]]
   - [[#literals][Literals]]
   - [[#arithmetic-operators][Arithmetic Operators]]
@@ -19,6 +24,7 @@
   - [[#conditional-operator-inline-if][Conditional Operator (inline if)]]
   - [[#type-casting][Type casting]]
   - [[#sneak-and-peek][Sneak and peek]]
+  - [[#pattern-matching][Pattern Matching]]
 
 * Introduction
 Haste code is meant to be self-explanatory. If it looks like a function, it's a function. If it looks like a macro call, it's a macro call. If it looks like compile-time code, it's compile-time code. If it looks like run-time code, it's run-time code.
@@ -29,102 +35,297 @@ Any expression that starts with =@= represents a macro call. For example, =@prin
 
 Haste uses the semicolon =;= as the statement terminator.
 #+begin_src haste
-func main() {
-  @println("Hello World");
-}
+  func main() {
+    @println("Hello World");
+  }
 #+end_src
 
 * Statements
 ** Variables
 Haste variables must follow this syntax:
-~let [mut] <identifier>[: <type>] [= <expression>];~
+~let [mut] <pattern>[: [<type>]] [= <expression>];~
 
 All variables in Haste are immutable by default. For mutability, consider using the =mut= keyword after the =let= keyword.
 
 After =let= and the optional =mut=, Haste's compiler expects an [[#identifiers][identifier]] followed by a =:= and the [[#type][type]] of the variable. Haste can infer the type of any variable if possible. Then it expects either an equal sign ~=~ or a semicolon =;=. If it finds a semicolon, the variable is left uninitialized and can be assigned later. Otherwise, it expects an [[#expressions][expression]], followed by a semicolon.
 #+begin_src haste
-func main() {
-  # Automaticaly x gets infered into int type
-  let x = 50;
+  func main() {
+    # Automaticaly x gets infered into int type
+    let x = 50;
+    
+    #      vvvv Some as above, This may seems useless (which it is) but auto got other uses in haste
+    let y: auto = 20;
+    
+    #      vvvvvv Explicitly tells the compiler that z is a uint64
+    let z: uint64 = 6541849;
+    
+    # I have nothing to say here
+    let w := 'z';
   
-  # You could use *auto* which means the same as the one on top
-  let y: auto = 20;
-  
-  # You can explicitly set the type of the variable
-  let z: uint64 = 6541849;
-  
-  # I have nothing to say here
-  let w := 'z';
-
-  # Use *mut* so you can change the value of the variable
-  let mut age: uint = 18;
-  age++;
-  
-  @prinln("{}", age);
-}
+    #   vvv tells the compiler that this variable may change
+    let mut age: uint = 18;
+    age++;
+    
+    @prinln("{}", age);
+  }
 #+end_src
-** TODO: HESHAM!! PLEASE COMPLETE ME!!!!!!!! DON'T JUST LEAVE ME HANGING
+** Control Flow
+There's nothing much I can say here, those are just self-explanatory.
 #+begin_src haste
-func main() {
-  if true {
-    @println("What's up!!");
-  } else if false {
-    @println("uhh");
-  } else {
-    @println("???");
-  }
+  func main() {
+    if true {
+      @println("What's up!!");
+    } else if false {
+      @println("uhh");
+    } else {
+      @println("???");
+    }
 
-  if 1 == 2
-    do @println("Inlined if :3");
-  
-  loop {
-    @println("Loop!!");
-    stop; # Equivalent to `break` in C
-  }
+    # If you don't wanna write those `{ }` you could do `do`
+    # `do` expects only one statement and a semi colon after it
+    if 1 == 2
+      do @println("Inlined if :3");
 
-  {
-    let x = 0;
-    while x < 10 {
-      if x == 5 {
+    # Infinit loop
+    loop {
+      @println("Loop!!");
+      stop; # Equivalent to `break` in C
+    }
+
+    {
+      let x = 0;
+      while x < 10 {
+        if x == 5 {
+          x++;
+          skip; # Equivalent to `continue` in C
+        }
+        @println("{}", x);
         x++;
-        skip;
       }
+    }
+
+    let xs = ["one", "two", "three", "four"];
+    for x in xs {
       @println("{}", x);
-      x++;
+    }
+  }
+#+end_src
+
+** Error Type
+#+begin_src haste
+  struct Pos {
+    x: float,
+    y: float
+  }
+
+  # an Error is just a tagged union
+  error Erroryyy {
+    A: float,
+    B: string,
+    C: Pos
+  }
+
+  error FOpenError {
+    InvalidPath,
+    IsNotFile,
+    InvalidPermition
+  }
+
+  func open(path: string, mode: OpenMode): FOpenError!File;
+  func errored(): Erroryyy!void;
+
+  func main(): !void {
+    let f = try open("./testy.tast", .R) or {
+      let err = catch();
+      match err {
+        case .InvalidPath { @todo(); }
+        case .IsNotFile { @todo(); }
+        case .InvalidPermition { @todo(); }
+      }
+    };
+
+    let z = try errored() or {
+      let err = catch();
+      match err {
+        case .A |v| do @log(v);
+        case .B |v| do @log(v);
+        case .C |v| do @log(v);
+      }
+      ret (); # Local return
+    };
+
+    _ = f; # I did this so the compiler don't yell at you
+    _ = z;
+  }
+#+end_src
+** Error Handeling
+#+begin_src haste
+  error DivError {
+    ZeroDivision
+  }
+
+  func div(x: float, y: float): DivError!float {
+    if y == 0
+      do return DivError.ZeroDivision;
+    return x / y;
+  }
+
+  func main(): !void {
+    let res = try div(1, 0) or {
+      @println("Cannot divide by 0");
+    };
+    @println("res: {}", res);
+  }
+#+end_src
+
+#+begin_src haste
+  import "std";
+
+  use std::io;
+  use std::fs;
+
+  func main(): !void {
+    let file = try fs::open("./names.txt") or {
+      let err = catch();
+      match err {
+        case .FileNotFound do @panic("The file not found");
+        case .AccessDenied do @panic("Access denied");
+        case .NotFile do @panic("Not a file");
+        else do @panic("Unexpected error");
+      }
+    };
+  }
+#+end_src
+* Types
+** Primitive Types
+#+begin_src haste
+  func main() {
+    # Numiric types
+    let a: int8 = -127;
+    let b: uint8 = 255;
+    let c: int16 = -32767;
+    let d: uint16 = 65535;
+    let e: int = -2147483647: # You can do int32 too
+    let f: uint = 4294967295; # You can do uint32 too
+    let g: int64 = -9223372036854775807;
+    let h: uint64 = 18446744073709551615;
+
+    let i: float = 154.2548;
+    let j: float64 = 1588648.269899;
+      
+    let k: char = 'a'; # Same as uint8
+    let l: rune = '🐢'; # single unicode character
+    let m: bool = true;
+
+    let s: isize = 0; # platform-dependent
+    let us: usize = 0; # platform-dependent
+
+    let mut name: string = "Hesham";
+    
+    let rest: str = " Can't Fly"; # a Slice of characters
+    name.push(rest);
+  }
+#+end_src
+** User-defined Types
+#+begin_src haste
+  @derive(Debug)
+  error EntityError {
+    InvalidDirection
+  }
+
+  @derive(Debug)
+  struct Vec2 {
+    x: float,
+    y: float
+  }
+
+  @derive(Debug)
+  enum Direction {
+    Up,
+    Down,
+    Left,
+    Right,
+    Front,
+    Back
+  }
+
+  @derive(Debug)
+  enum Color: str {
+    Red    = "red",
+    Blue   = "blue",
+    Green  = "green",
+    Purple = "purple"
+  }
+
+  @derive(Debug)
+  struct Entity {
+    pos: Vec2,
+    vel: Vec2 = { 0, 0 },
+    dir: Direction = .Left,
+    color: Color = .Red
+  }
+
+  impl Entity {
+    func __init__(pos: Vec2 = {0, 0}): Entity
+      = Entity { pos };
+    
+    func set_direction(&mut self, dir: Direction): EntityError!void {
+      match dir {
+        case .Front, .Back do return EntityError.InvalidDirection;
+        else do self.dir = dir;
+      }
     }
   }
 
-  let xs = ["one", "two", "three", "four"];
-  for x in xs {
-    @println("{}", x);
+  @derive(Debug)
+  variant EntityType { # Tagged union
+    Passive(Entity),
+    Aggressive(&EntityType, Entity),
+    Natural(?&EntityType, Entity)
   }
-}
+
+  func main(): !void {
+    let e1 = Entity {
+      pos   = .{ 20, 20 },
+      vel   = .{ 0, 0 },
+      dir   = .Left,
+      color = .Purple
+    };
+
+    let e2 = Entity {
+      pos   = .{ 0, 0 },
+      vel   = .{ 0, 0 },
+      dir   = Direction.Up,
+      color = Color.Red
+    };
+
+    try e2.set_direction(.Up);
+
+    let et1 = EntityType::Pasive(Entity(6.9, 80.32));
+    let et2 = EntityType::Aggressive(&et1, move e1);
+    let et3 = EntityType::Natural(&et2, move e2);
+
+    _ = et3;
+  }
 #+end_src
 
-* Primitive Types
+** Union
+Haste unions are just like C union except that you can't use it except inside of a =unsafe block=
 #+begin_src haste
-func main() {
-  # Numiric types
-  let a: int8 = -127;
-  let b: uint8 = 255;
-  let c: int16 = -32767;
-  let d: uint16 = 65535;
-  let e: int = -2147483647:
-  let f: uint = 4294967295;
-  let g: int64 = -9223372036854775807;
-  let h: uint64 = 18446744073709551615;
+  \let MAX_STRING_LEN = 30;
 
-  let i: float = 154.2548;
-  let j: float64 = 1588648.269899;
+  union Data {
+    f: float,
+    i: int,
+    string: uint8[MAX_STRING_LEN]
+  }
 
-  let s: isize = 0; # platform-dependent
-  let us: usize = 0; # platform-dependent
-
-  let mut name: string = "Hesham";
-  name.push(" Can't Fly");
-}
+  unsafe func fishy() {
+    @println("Data's size: {}byte", @sizeof(Data));
+    let flash: Data = .{ f = 10.0 };
+    @println("f: {}\ni: {}\nstr: {}", flash.f, flash.i, flash.string);
+  }
 #+end_src
-
 * Expressions
 ** Literals
 *** Identifiers
@@ -141,6 +342,8 @@ In Haste, there is a generic =Number= type that is divided into two main subtype
 - *Float:* is a number that can represent both whole numbers and numbers with a fractional or decimal part.
 *** Booleans
 In Haste their is =true= and =false=. yes, that's it nothing more to say about them.
+*** Tuples
+In haste, a tuple is a collection of fixed-size with different types. =let x: (int, float64, string) = (6, 9, "Errmm what da sigma");=
 ** Arithmetic Operators
 Perform mathematical calculations, and usealy returns a number.
 | Operator | Description | Example  |
@@ -221,3 +424,44 @@ Convert one data type to another (If possible)
 | ~&mut~   | Sneak       | ~let y = &mut x~ |
 | ~*~      | Dereferece  | ~*y~             |
 |----------+-------------+------------------|
+** Pattern Matching
+#+begin_src haste
+  @derive(Debug)
+  variant Token {
+    IntLit(int),
+    Id(string),
+    StringLit(string)
+  }
+
+  @derive(Debug)
+  struct Vec2 {
+    x: float,
+    y: float
+  }
+
+  impl Vec2 func __init__(x: float = 0f, y: float = 0f): Vec2
+    = .{ 0, 0 };
+
+  @derive(Debug)
+  type Person = (int, string);
+
+  func main() {
+    {
+      let (age, name): Person = (17, "Hesham");
+      @println("Name: {}, Age: {}", name, age);
+      
+      let { x, y } = Vec2(50.0, 40.0);
+      @println("x: {}, y: {}", x, y);
+    }
+    
+    let tok = Token::IntLit(50);
+    if let Token::IntLit(v) = tok {
+      @println("It's an IntLit duh");
+    }
+    match tok {
+      case .IntLit(_) do @todo();
+      case .Id(_) do @todo();
+      case .StringLit(_) do @todo();
+    }
+  }
+#+end_src

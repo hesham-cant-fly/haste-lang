@@ -1,3 +1,4 @@
+
 func add(x: int, y: int): int = x + y;
 
 func main(): int {
