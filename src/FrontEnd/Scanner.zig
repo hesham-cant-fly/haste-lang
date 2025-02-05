@@ -19,6 +19,7 @@ const keywords = create_keywords_map(.{
     .Float,
     .Bool,
     .Void,
+    .Auto,
 
     .True,
     .False,
@@ -39,7 +40,9 @@ const keywords = create_keywords_map(.{
     .Then,
     .Else,
 
+    .Do,
     .Return,
+    .Ret,
 });
 
 fn create_keywords_map(comptime keywords_list: anytype) StaticStringMap(TokenType) {
@@ -113,7 +116,13 @@ pub const Scanner = struct {
             ';' => try self.add_token(.SemiColon),
             ':' => try self.add_token(.Colon),
             ',' => try self.add_token(.Coma),
-            '.' => try self.add_token(.Dot),
+            '.' => {
+                if (self.match('.')) |_| {
+                    try self.add_token(.DoubleDot);
+                } else {
+                    try self.add_token(.Dot);
+                }
+            },
 
             '(' => try self.add_token(.OpenParen),
             ')' => try self.add_token(.CloseParen),
@@ -271,7 +280,7 @@ pub const Scanner = struct {
     }
 
     fn is_alpha(ch: u21) bool {
-        return (ch >= 'a' and ch <= 'z') or ch == '_' or ch == '$';
+        return (ch >= 'a' and ch <= 'z') or (ch >= 'A' and ch <= 'Z') or ch == '_' or ch == '$';
     }
 
     fn is_alpha_num(ch: u21) bool {

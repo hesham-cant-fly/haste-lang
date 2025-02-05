@@ -3,7 +3,8 @@ const TokenMod = @import("../../../Token.zig");
 const AST = @import("../../../AST.zig");
 const Meta = @import("../../../Meta.zig");
 const ParserMod = @import("../../Parser.zig");
-const Declaration = @import("../declaration.zig");
+const Expression = @import("../expression.zig");
+const statement = @import("../statement.zig");
 
 const Parser = ParserMod.Parser;
 const ParserError = ParserMod.ParserError;
@@ -21,15 +22,12 @@ const StmtNode = AST.StmtNode;
 const mem = std.mem;
 const debug = std.debug;
 
-pub fn _block(self: *Parser) ParserError!*Stmt {
+pub fn _do(self: *Parser) ParserError!*Stmt {
     const start = self.previous();
-    var stmts = AST.ItemList.init(self.allocator);
-    while (!self.check(TokenType.CloseCurlyParen)) {
-        stmts.add(try Declaration.declaration(self)) catch return ParserError.BadAllocation;
-    }
-    const end = try self.consume(.CloseCurlyParen, "Expected `}` at the end of the block.");
+    const stmt = try statement.statement(self);
+    const end = self.previous();
 
-    const node = AST.create_block(self.allocator, stmts);
+    const node = AST.create_do_stmt(self.allocator, stmt.clone(self.allocator));
     const res = AST.create_stmt(self.allocator, start, end, .Inherited, node);
     return res;
 }

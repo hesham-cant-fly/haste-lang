@@ -21,15 +21,19 @@ const StmtNode = AST.StmtNode;
 const mem = std.mem;
 const debug = std.debug;
 
-pub fn _return(self: *Parser) ParserError!*StmtNode {
-    const res = AST.create_return(self.allocator, null) catch return ParserError.BadAllocation;
+pub fn _return(self: *Parser) ParserError!*Stmt {
+    const start = self.previous();
+    const node = AST.create_return(self.allocator, null);
     if (self.match(TokenType.SemiColon)) |_| {
+        const end = try self.consume(.SemiColon, "Expected `;` at the end of 'return'.");
+        const res = AST.create_stmt(self.allocator, start, end, .Inherited, node);
         return res;
     }
 
     const expr = try Expression.parse_expr(self);
-    _ = try self.consume(.SemiColon, "Expected `;` at the end of 'return'.");
+    node.Return.expr = expr;
 
-    res.Return.expr = expr;
+    const end = try self.consume(.SemiColon, "Expected `;` at the end of 'return'.");
+    const res = AST.create_stmt(self.allocator, start, end, .Inherited, node);
     return res;
 }

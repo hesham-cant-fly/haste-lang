@@ -1,7 +1,9 @@
 * Progress
 - [X] Scanner
 - [-] Parser
+  - [ ] Pattern
   - [ ] Expressions
+    - [X] Unit
     - [X] Primaries
     - [X] Math (+, -, *, **, /, %)
     - [X] Comparition (==, !=, <, >, >=, =<)
@@ -10,24 +12,32 @@
     - [X] inline if (if .. then .. else ..)
     - [ ] as (type casting =expr as Type=)
     - [X] call expression
+    - [ ] Scopes
     - [ ] member access
     - [ ] Subscript (=expr[v]=)
     - [ ] Scope resolusion
-    - [ ] Tuple
+    - [X] Tuple
     - [ ] assignment
     - [ ] Sneak and Peek (=&expr=, =&mut expr= =*expr=)
+  - [ ] Pattern
   - [ ] Types
     - [-] Built-in types (*int*, *uint*, *float*, *string*, *void*, *bool*)
-    - [ ] Slices (=T[int]=, =T[]=)
-    - [ ] Tuple (=(T, R, Y, X, ...)=)
+    - [X] Auto Type
+    - [X] Array (=[int]T=, =[auto]T=)
+    - [X] Slice (=[]T=)
+    - [X] Identifier
+    - [X] Unit
+    - [X] Tuple (=(T, R, Y, X, ...)=)
+    - [ ] Error (=E!T=)
     - [ ] Generics aka. templates in c++ (=T<Args>=)
   - [-] Statements
     - [ ] ret
+    - [X] Do
     - [X] returns
     - [X] let
     - [X] Block
     - [X] Statement Expression
-    - [ ] if
+    - [X] if
     - [-] functions (needs to add generecs to it)
 - [ ] Semantic Analysis
   - [ ] Added basic types (arrays, functions, native types eg. bool, int, uint, char, string)

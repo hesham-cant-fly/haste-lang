@@ -92,7 +92,6 @@
 ; Pattern
 <pattern> ::= <literal-pattern>
     | <variable-pattern>
-    | <or-pattern>
     | <struct-pattern>
     | <tuple-pattern>
     | <range-pattern>
@@ -106,7 +105,7 @@
     | <boolean-lit>
     | "null"
 <variable-pattern> ::= <identifier>
-<range-pattern> ::= <primary> ( ".." | "..=" ) <primary>
+<range-pattern> ::= <expression> ( ".." | "..=" ) <expression>
 <struct-pattern> ::= <path> "{" <field-patterns> "}"
 <tuple-pattern> ::= "(" <patterns> ")"
 <slice-pattern> ::= "[" <patterns> "]"
@@ -171,8 +170,8 @@
     | "str"
 
 <reference-type> ::= "&" <type>
-<array-type> ::= <type> "[" <int-lit> "]"
-<slice-type> ::= <type> "[" "]"
+<array-type> ::= "[" <int-lit> "]" <type>
+<slice-type> ::= "[" "]" <type>
 <generic-type> ::= <type> "<" <generic-type-args> ">"
 <generic-type-args> ::= <type> ( "," <type> )*
 

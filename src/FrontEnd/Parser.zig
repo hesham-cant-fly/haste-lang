@@ -34,7 +34,6 @@ pub const ParserError = error{
 pub const Parser = struct {
     stdout: std.fs.File,
     allocator: mem.Allocator,
-    page_allocator: mem.Allocator,
     content: []const u8,
     tokens: []const Token,
     program: *AST.ProgramAST,
@@ -45,7 +44,6 @@ pub const Parser = struct {
         return Parser{ //
             .allocator = allocator,
             .stdout = stdout,
-            .page_allocator = std.heap.page_allocator,
             .content = content,
             .tokens = tokens,
             .program = program,
@@ -54,18 +52,15 @@ pub const Parser = struct {
 
     pub fn parse(self: *Parser) ParserError!void {
         while (!self.is_at_end()) {
-            const start = self.peek();
             const item = Declaration.static_declaration(self) catch |err| {
                 try self.report(err);
                 self.static_synchronize();
+                self.has_error = true;
                 continue;
             };
-            const end = self.previous();
 
-            const st = AST.init_stmt(start, end, .Inherited, item);
-            self.program.add_item(st) catch return ParserError.BadAllocation;
+            self.program.add_item(item) catch return ParserError.BadAllocation;
         }
-        self.program.items.shrinkAndFree(self.program.items.items.len);
 
         if (self.has_error) {
             return ParserError.HasError;
@@ -90,7 +85,7 @@ pub const Parser = struct {
                 return;
             }
             switch (self.peek().kind) {
-                .Func, .NotFunc, .Let, .OpenCurlyParen => return,
+                .Func, .NotFunc, .Let, .OpenCurlyParen, .If, .NotIf, .Do => return,
                 else => {},
             }
         }

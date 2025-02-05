@@ -23,7 +23,7 @@ const StmtNode = AST.StmtNode;
 const mem = std.mem;
 const debug = std.debug;
 
-pub fn static_declaration(self: *Parser) ParserError!*StmtNode { //
+pub fn static_declaration(self: *Parser) ParserError!*Stmt { //
     if (self.match(TokenType.Func)) |_| {
         return function(self);
     }
@@ -32,27 +32,18 @@ pub fn static_declaration(self: *Parser) ParserError!*StmtNode { //
     return ParserError.UnexpectedStaticDeclarationToken;
 }
 
-pub fn declaration(self: *Parser) ParserError!Stmt {
-    const start = self.peek();
-    const dec: *const StmtNode = dec_res: {
-        if (self.match(TokenType.Let)) |_| {
-            break :dec_res let(self);
-        } else if (self.match(TokenType.Func)) |_| {
-            break :dec_res function(self);
-        }
+pub fn declaration(self: *Parser) ParserError!*Stmt {
+    if (self.match(TokenType.Let)) |_| {
+        return let(self);
+    } else if (self.match(TokenType.Func)) |_| {
+        return function(self);
+    }
 
-        return Statemet.statement(self) catch {
-            self.has_error = true;
-            self.synchronize();
-            break :dec_res AST.create_none_stmt(self.allocator) catch return ParserError.BadAllocation;
-        };
-    } catch |err| dec_res: {
+    return Statemet.statement(self) catch {
         self.has_error = true;
-        try self.report(err);
         self.synchronize();
-        break :dec_res AST.create_none_stmt(self.allocator) catch return ParserError.BadAllocation;
+        const node = AST.create_none_stmt(self.allocator);
+        const res = AST.create_stmt(self.allocator, undefined, undefined, .Inherited, node);
+        return res;
     };
-
-    const end = self.previous();
-    return AST.init_stmt(start, end, .Inherited, dec);
 }

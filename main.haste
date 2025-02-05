@@ -1,13 +1,24 @@
 
-func add(x: int, y: int): int = x + y;
+# @derive(Debug);
+# struct Person {
+#     name: string,
+#     age: int,
+#     alive: bool = false
+# }
+#
+# # Adding methods to Person
+# impl Person {
+#     func __init__(name: string, age: int): Person
+#         = .{ name = name, age = age };
+#
+#     func is_alive(&self): bool {
+#         return self.alive;
+#     }
+# }
 
 func main(): int {
-  let name = "مرحبا";
-  func fac(x: int): int
-    = if x <= 1 then
-        1
-      else
-        x * fac(x - 1);
-  let mut res = fact(add(5, 4));
-  return res;
+    let me = Person("Hesham", 19);
+    ret me;
+    # @println("me: ", me.is_alive());
 }
+

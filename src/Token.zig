@@ -40,6 +40,7 @@ pub const Type = enum(i8) {
 
     Eq, // '='
     Dot, // '.'
+    DoubleDot, // '..'
 
     // Literals
     StringLit, // "[any]"
@@ -56,6 +57,7 @@ pub const Type = enum(i8) {
     Float,
     Bool,
     Void,
+    Auto,
 
     True, // 'true'
     False, // 'false'
@@ -79,7 +81,9 @@ pub const Type = enum(i8) {
     Then, // 'then'
     Else, // 'else'
 
+    Do,
     Return,
+    Ret,
 };
 
 pub const Token = struct { //

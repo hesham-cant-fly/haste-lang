@@ -22,7 +22,8 @@ const StmtNode = AST.StmtNode;
 const mem = std.mem;
 const debug = std.debug;
 
-pub fn let(self: *Parser) ParserError!*StmtNode {
+pub fn let(self: *Parser) ParserError!*Stmt {
+    const start = self.previous();
     const mut = self.match(TokenType.Mut);
     const ident = try self.consume_iden(if (mut) |_| "Expected variable name." else "Expected `mut` or the variable name.");
     var tp: ?*const AST.Type = null;
@@ -36,9 +37,10 @@ pub fn let(self: *Parser) ParserError!*StmtNode {
         expr = try Expression.parse_expr(self);
     }
 
-    _ = try self.consume_semi_colon("Expected `;` at the end of 'let' statement.");
+    const end = try self.consume_semi_colon("Expected `;` at the end of 'let' statement.");
 
-    const res = AST.create_let(self.allocator) catch return ParserError.BadAllocation;
-    res.Let = .{ .mut = mut, .identifier = ident, .tp = tp, .eq = eq, .init = expr };
+    const node = AST.create_let(self.allocator);
+    node.Let = .{ .mut = mut, .identifier = ident, .tp = tp, .eq = eq, .init = expr };
+    const res = AST.create_stmt(self.allocator, start, end, .Inherited, node);
     return res;
 }

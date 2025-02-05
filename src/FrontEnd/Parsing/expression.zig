@@ -34,19 +34,9 @@ fn parse_inline_if(self: *Parser) ParserError!*Expr {
 
     const then_token = try self.consume(.Then, "Expected 'then'.");
     const consequent = try parse_expr(self);
-    // catch |err| {
-    //     if (err == ParserError.BadAllocation) return err;
-    //     self.report_error(self.peek(), "Expected expression.");
-    //     return err;
-    // };
 
     const else_token = try self.consume(.Else, "Expected 'else'.");
     const alternate = try parse_expr(self);
-    //     catch |err| {
-    //     if (err == ParserError.BadAllocation) return err;
-    //     self.report_error(self.peek(), "Expected expression.");
-    //     return err;
-    // };
 
     const end = self.previous();
     const tmp = AST.create_inline_if(self.allocator, condition, consequent, alternate) catch return ParserError.BadAllocation;
@@ -243,7 +233,15 @@ fn parse_primary(self: *Parser) ParserError!*Expr {
     }
 
     if (self.match(TokenType.OpenParen)) |_| {
+        if (self.match(TokenType.CloseParen)) |end| {
+            const node = AST.create_unit_expr(self.allocator) catch return ParserError.BadAllocation;
+            const res = AST.create_expr(self.allocator, start, end, node) catch return ParserError.BadAllocation;
+            return res;
+        }
         const expr: *Expr = try parse_expr(self);
+        if (self.match(TokenType.Coma)) |_| {
+            return try parse_tuple(self, start, expr);
+        }
         const end = try self.consume(.CloseParen, "Expected ')' as closing.");
         const tmp = AST.create_grouping(self.allocator, expr) catch return ParserError.BadAllocation;
         const res = AST.create_expr(self.allocator, start, end, tmp) catch return ParserError.BadAllocation;
@@ -256,4 +254,19 @@ fn parse_primary(self: *Parser) ParserError!*Expr {
     }
 
     return ParserError.ExpectedExpression;
+}
+
+fn parse_tuple(self: *Parser, start: *const Token, first_expr: *Expr) ParserError!*Expr {
+    var tuple_values = LinkedList(*Expr).init(self.allocator);
+
+    tuple_values.add(first_expr) catch return ParserError.BadAllocation;
+
+    while (true) {
+        tuple_values.add(try parse_expr(self)) catch return ParserError.BadAllocation;
+        if (self.match(TokenType.Coma) == null) break;
+    }
+    const end = try self.consume(.CloseParen, "Expected a ')' as closing for the tuple.");
+    const result_tuple = AST.create_tuple_expr(self.allocator, tuple_values) catch return ParserError.BadAllocation;
+    const result = AST.create_expr(self.allocator, start, end, result_tuple) catch return ParserError.BadAllocation;
+    return result;
 }
