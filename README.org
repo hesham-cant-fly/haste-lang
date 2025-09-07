@@ -1,0 +1,26 @@
+#+title: Haste Programming Language
+
+Haste is a general-purpose programming language, build to match my own taste of programming. Why? because all languages sucks thats why.
+
+#+begin_src haste
+func main() {
+  @println("Hello, World!"); // anything that starts with `@` is consider as macro expantion
+
+  const mini_program = "++--** / * *";
+  var result: fsize = 0;
+
+  for ch in mini_program {
+    match ch {
+      case '+' do result += 1;
+      case '-' do result -= 1;
+      case '*' do result *= 2;
+      case '/' do result /= 2;
+      else {} // Ignore anything else
+    }
+  }
+
+  @println("Result: {}", result);
+}
+#+end_src
+
+The compiler is nowhere is ready to use. its still under development.
