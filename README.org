@@ -6,7 +6,7 @@ Haste is a general-purpose programming language, build to match my own taste of 
 func main() {
   @println("Hello, World!"); // anything that starts with `@` is consider as macro expantion
 
-  const mini_program = "++--** / * *";
+  const mini_program = "++-++++** / * *";
   var result: fsize = 0;
 
   for ch in mini_program {

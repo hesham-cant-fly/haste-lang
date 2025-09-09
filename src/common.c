@@ -18,3 +18,11 @@ _Noreturn void _panic(const char *restrict file, const size_t line,
   va_end(args);
   exit(20);
 }
+
+void to_lower_case(char *str) {
+  for (; str[0] != '\0'; ++str) {
+    if (str[0] >= 'A' && str[0] <= 'Z') {
+      str[0] += 32;
+    }
+  }
+}
