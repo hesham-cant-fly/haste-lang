@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define VERSION "0.0.1"
+#define VERSION "0.0.1-alpha"
 #define panic(fmt, ...) _panic(__FILE__, __LINE__, fmt __VA_OPT__(,) __VA_ARGS__)
 #define unreachable0() _unreachable(__FILE__, __LINE__)
 #define unused(expr) ((void)(expr))
