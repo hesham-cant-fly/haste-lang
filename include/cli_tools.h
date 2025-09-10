@@ -82,8 +82,8 @@ static int process_short_options(char *arg, int *i, int argc, char **argv,
                                  option_t *options);
 
 bool parse_options(int *argc, char ***argv, option_t *options) {
-  int write_idx = 1;
-  for (int i = 1; i < *argc; i++) {
+  int write_idx = 0;
+  for (int i = 0; i < *argc; i++) {
     char *arg = (*argv)[i];
 
     if (strcmp(arg, "--") == 0) { // stop parsing
@@ -122,7 +122,7 @@ static option_t *find_short(option_t *options, char c) {
 
 static int set_option(option_t *o, char *val, int *i, int argc, char **argv) {
   if (o->kind == OPT_FLAG) {
-    *(int *)o->out = 1;
+    *(bool *)o->out = 1;
     return 1;
   }
   if (o->kind == OPT_STRING) {
@@ -157,8 +157,6 @@ static int process_long_option(char *arg, int *i, int argc, char **argv,
   return set_option(o, val, i, argc, argv);
 }
 
-static int process_long_option(char *arg, int *i, int argc, char **argv,
-                               option_t *options);
 static int process_short_options(char *arg, int *i, int argc, char **argv,
                                  option_t *options) {
   for (int j = 1; arg[j]; j++) {

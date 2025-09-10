@@ -3,7 +3,9 @@
 #include "error.h"
 #include "common.h"
 #include "my_string.h"
+#include "my_string_view.h"
 #include "token.h"
+#include <stdio.h>
 
 typedef struct GenContext {
   const ast_module_t module;
@@ -68,12 +70,12 @@ static error_t generate_c_from_expr(gen_context_t ctx, ast_expr_t *expr) {
 }
 
 static error_t generate_c_from_float_lit(gen_context_t ctx, token_t tok) {
-  string_pushf(ctx.out, "%.*s", token_to_string_view(tok, ctx.module.src));
+  string_pushf(ctx.out, "%.*s", SVArgs(token_to_string_view(tok, ctx.module.src)));
   return OK;
 }
 
 static error_t generate_c_from_int_lit(gen_context_t ctx, token_t tok) {
-  string_pushf(ctx.out, "%.*s", token_to_string_view(tok, ctx.module.src));
+  string_pushf(ctx.out, "%.*s", SVArgs(token_to_string_view(tok, ctx.module.src)));
   return OK;
 }
 
