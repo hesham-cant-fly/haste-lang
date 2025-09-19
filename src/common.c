@@ -4,12 +4,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-_Noreturn void _unreachable(const char *file, const size_t line) {
+NORETURN void _unreachable(const char *file, const size_t line) {
   fprintf(stderr, "%s:%zu: ERROR: Reached unreachable code.\n", file, line);
   exit(20);
 }
 
-_Noreturn void _panic(const char *restrict file, const size_t line,
+NORETURN void _panic(const char *restrict file, const size_t line,
                       const char *restrict fmt, ...) {
   fprintf(stderr, "%s:%zu: Error: ", file, line);
   va_list args;

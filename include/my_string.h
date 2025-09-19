@@ -21,6 +21,7 @@ typedef struct String {
 } String;
 
 
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 #define string_ends_with(self, other)                                          \
   _Generic((other),                                                            \
       char: string_ends_with_char,                                             \
@@ -43,6 +44,7 @@ typedef struct String {
   _Generic((target),                                                           \
       char *: string_eq_cstr,                                                  \
       String *: string_eq_string)(self, target)
+#endif
 
 String string_from_chars(const char *restrict chs);
 String string_from_chars_copy(const char *restrict chs);

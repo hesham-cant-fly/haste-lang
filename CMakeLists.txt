@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.12.0)
 project(haste)
 
 set(LANGUAGE C)
-set(C_STANDARD 23)
-set(CMAKE_C_STANDARD 23)
+set(C_STANDARD 99)
+set(CMAKE_C_STANDARD 99)
 
 set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -14,7 +14,7 @@ file(GLOB_RECURSE C_SRC src/*.c)
 
 add_executable(${CMAKE_PROJECT_NAME} ${C_SRC} main.c)
 target_include_directories(${CMAKE_PROJECT_NAME} PUBLIC include)
-target_compile_options(${CMAKE_PROJECT_NAME} PUBLIC -Wall -Wextra -Wpedantic)
+target_compile_options(${CMAKE_PROJECT_NAME} PUBLIC -Wall -Wextra -Wno-attributes)
 target_link_libraries(${CMAKE_PROJECT_NAME} m)
 
 if(${SANITIZE})
