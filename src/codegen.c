@@ -5,7 +5,6 @@
 #include "my_string.h"
 #include "my_string_view.h"
 #include "token.h"
-#include <stdio.h>
 
 typedef struct GenContext {
   const ast_module_t module;
@@ -37,15 +36,15 @@ static error_t generate_c_from_int_lit(gen_context_t ctx, token_t tok);
 static error_t generate_c_from_binary_expr(gen_context_t ctx, ast_expr_binary_t bin);
 
 static error_t generate_c(gen_context_t ctx) {
-  string_push(ctx.out, "#include <stdio.h>\n"
-                       "#include <math.h>\n\n"
-                       "int main(void) {\n"
-                       "  double x = ");
+  string_push_cstr(ctx.out, "#include <stdio.h>\n"
+                            "#include <math.h>\n\n"
+                            "int main(void) {\n"
+                            "  double x = ");
   error_t ok = generate_c_from_expr(ctx, ctx.module.root);
   if (!ok) return ERROR;
-  string_push(ctx.out, ";\n  printf(\"%lf\\n\", x);\n"
-                   "  return x;\n"
-                   "}\n");
+  string_push_cstr(ctx.out, ";\n  printf(\"%lf\\n\", x);\n"
+                            "  return x;\n"
+                            "}\n");
   return OK;
 }
 
@@ -82,25 +81,25 @@ static error_t generate_c_from_int_lit(gen_context_t ctx, token_t tok) {
 static error_t generate_c_from_binary_expr(gen_context_t ctx,
                                            ast_expr_binary_t bin) {
   if (bin.op.kind == TOKEN_DOUBLE_STAR) {
-    string_push(ctx.out, "pow(");
+    string_push_cstr(ctx.out, "pow(");
     error_t ok = generate_c_from_expr(ctx, bin.lhs);
     if (!ok)
       return ERROR;
-    string_push(ctx.out, ",");
+    string_push_cstr(ctx.out, ",");
     ok = generate_c_from_expr(ctx, bin.rhs);
     if (!ok)
       return ERROR;
-    string_push(ctx.out, ")");
+    string_push_cstr(ctx.out, ")");
     return OK;
   }
   error_t ok = generate_c_from_expr(ctx, bin.lhs);
   if (!ok)
     return ERROR;
   switch (bin.op.kind) {
-  case TOKEN_PLUS: string_push(ctx.out, "+"); break;
-  case TOKEN_MINUS: string_push(ctx.out, "-"); break;
-  case TOKEN_STAR: string_push(ctx.out, "*"); break;
-  case TOKEN_FSLASH: string_push(ctx.out, "/"); break;
+  case TOKEN_PLUS: string_push_cstr(ctx.out, "+"); break;
+  case TOKEN_MINUS: string_push_cstr(ctx.out, "-"); break;
+  case TOKEN_STAR: string_push_cstr(ctx.out, "*"); break;
+  case TOKEN_FSLASH: string_push_cstr(ctx.out, "/"); break;
   default: unreachable0();
   }
   ok = generate_c_from_expr(ctx, bin.rhs);

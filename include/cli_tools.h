@@ -1,6 +1,7 @@
 #ifndef __CLI_TOOLS_H
 #define __CLI_TOOLS_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -8,7 +9,7 @@
 #include <string.h>
 #include <assert.h>
 
-typedef enum ExitStatus : int {
+typedef enum ExitStatus {
   EXIT_STATUS_SUCCESS = 0,
   EXIT_STATUS_SUBCOMMAND_NOT_FOUND,
   EXIT_STATUS_OTHER_FAILURE,
@@ -20,7 +21,7 @@ typedef struct Subcommand {
   const char *description;
 } subcommand_t;
 
-typedef enum OptionKind : uint8_t {
+typedef enum OptionKind {
   OPT_FLAG,
   OPT_STRING,
 } option_kind_t;

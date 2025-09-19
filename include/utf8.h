@@ -1,6 +1,7 @@
 #ifndef __UTF8_ITER_H
 #define __UTF8_ITER_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 

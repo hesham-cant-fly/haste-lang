@@ -32,7 +32,7 @@ static token_t previous(const parser_t *restrict parser);
 static token_t advance(parser_t *restrict parser);
 static bool ended(const parser_t *restrict parser);
 
-static _Noreturn void report_error(parser_t *restrict parser, const span_t at,
+static NORETURN void report_error(parser_t *restrict parser, const span_t at,
                                    const char *restrict fmt, ...);
 
 static ast_expr_t *parse_expr(parser_t *restrict parser);
@@ -116,6 +116,7 @@ static ast_expr_t *parse_primary(parser_t *restrict parser) {
     return create(parser, make_ast_float_lit_expr(token));
 
   report_error(parser, token.span, "Expected an expression.");
+  exit(69);
 }
 
 static void *parser_alloc(parser_t *restrict parser, const size_t size, const void *any) {
@@ -166,7 +167,7 @@ static bool ended(const parser_t *restrict parser) {
   return parser->current >= arrlen(parser->tokens);
 }
 
-static _Noreturn void report_error(parser_t *restrict parser, const span_t at,
+static NORETURN void report_error(parser_t *restrict parser, const span_t at,
                                    const char *restrict fmt, ...) {
   fprintf(stderr, "%s:%zu:%zu: Error: ", parser->path, at.line, at.column);
 
@@ -179,4 +180,5 @@ static _Noreturn void report_error(parser_t *restrict parser, const span_t at,
   parser->had_error = true;
 
   longjmp(parser->jmpbuf, 1);
+  exit(69);
 }

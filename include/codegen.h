@@ -6,7 +6,7 @@
 #include "my_string.h"
 #include <stdint.h>
 
-typedef enum CodegenTarget : uint8_t {
+typedef enum CodegenTarget {
   CODEGEN_TARGET_C,
   CODEGEN_TARGET_ASM,
 } codegen_target_t;

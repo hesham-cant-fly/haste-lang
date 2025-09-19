@@ -1,6 +1,7 @@
 #ifndef __MY_STRING_VIEW_H
 #define __MY_STRING_VIEW_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
 

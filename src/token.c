@@ -46,6 +46,6 @@ const char *token_kind_tostr(const token_kind_t kind) {
   case TOKEN_CLOSE_PAREN: return "TOKEN_CLOSE_PAREN";
   case TOKEN_INT_LIT: return "TOKEN_INT_LIT";
   case TOKEN_FLOAT_LIT: return "TOKEN_FLOAT_LIT";
-  default: unreachable0();
   }
+  unreachable0();
 }

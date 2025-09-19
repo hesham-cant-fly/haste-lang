@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-typedef enum TokenKind : uint8_t {
+typedef enum TokenKind {
   TOKEN_EOF = 1,
 
   TOKEN_PLUS,        // +

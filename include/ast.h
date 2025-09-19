@@ -5,7 +5,7 @@
 #include "token.h"
 #include <stdint.h>
 
-typedef enum ASTExprKind : uint8_t {
+typedef enum ASTExprKind {
   AST_EXPR_FLOAT_LIT = 0,
   AST_EXPR_INT_LIT,
   AST_EXPR_BINARY,
