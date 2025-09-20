@@ -24,3 +24,7 @@ func main() {
 #+end_src
 
 The compiler is nowhere is ready to use. its still under development.
+
+* The mascot (Turbo the Turtle)
+This turtle is my first ever pixel art I did, long ago in 2020. why I want it to be the mascot as my first pixel art.
+[[file:img/turbo.png]]
