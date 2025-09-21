@@ -32,19 +32,23 @@ void fprint_ast_expr(FILE *stream, const ast_expr_t *expr, const char *src) {
   json_object(json_kv("kind", json_string(ast_expr_kind_str(expr->tag)));
               json_kv("node", json_object(switch (expr->tag) {
                         case AST_EXPR_FLOAT_LIT:
-                          json_kv("float", json_token(expr->as.float_lit));
+                          json_kv("float", json_token(expr->float_lit));
                           break;
                         case AST_EXPR_INT_LIT:
-                          json_kv("int", json_token(expr->as.int_lit));
+                          json_kv("int", json_token(expr->int_lit));
                           break;
                         case AST_EXPR_IDENTIFIER_LIT:
                           json_kv("identifier",
-                                  json_token(expr->as.identifier));
+                                  json_token(expr->identifier));
                           break;
                         case AST_EXPR_BINARY:
-                          json_kv("op", json_token(expr->as.binary.op));
-                          json_kv("lhs", fprint_ast_expr(stream, expr->as.binary.lhs, src));
-                          json_kv("rhs", fprint_ast_expr(stream, expr->as.binary.rhs, src));
+                          json_kv("op", json_token(expr->binary.op));
+                          json_kv("lhs", fprint_ast_expr(stream, expr->binary.lhs, src));
+                          json_kv("rhs", fprint_ast_expr(stream, expr->binary.rhs, src));
+                          break;
+                        case AST_EXPR_UNARY:
+                          json_kv("op", json_token(expr->unary.op));
+                          json_kv("rhs", fprint_ast_expr(stream, expr->unary.rhs, src));
                           break;
                         default: unreachable0();
                       })));
@@ -56,6 +60,7 @@ static const char *ast_expr_kind_str(ast_expr_kind_t kind) {
   case AST_EXPR_INT_LIT: return "AST_EXPR_INT_LIT";
   case AST_EXPR_IDENTIFIER_LIT: return "AST_EXPR_IDENTIFIER_LIT";
   case AST_EXPR_BINARY: return "AST_EXPR_BINARY";
+  case AST_EXPR_UNARY: return "AST_EXPR_UNARY";
   case AST_EXPR_BLOCK: return "AST_EXPR_BLOCK";
   }
   unreachable0();

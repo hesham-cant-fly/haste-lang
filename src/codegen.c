@@ -58,9 +58,9 @@ static error_t generate_c_from_expr(gen_context_t ctx, ast_expr_t *expr) {
   error_t ok = OK;
   string_push_char(ctx.out, '(');
   switch (expr->tag) {
-  case AST_EXPR_FLOAT_LIT: ok = generate_c_from_float_lit(ctx, expr->as.float_lit); break;
-  case AST_EXPR_INT_LIT: ok = generate_c_from_int_lit(ctx, expr->as.int_lit); break;
-  case AST_EXPR_BINARY: ok = generate_c_from_binary_expr(ctx, expr->as.binary); break;
+  case AST_EXPR_FLOAT_LIT: ok = generate_c_from_float_lit(ctx, expr->float_lit); break;
+  case AST_EXPR_INT_LIT: ok = generate_c_from_int_lit(ctx, expr->int_lit); break;
+  case AST_EXPR_BINARY: ok = generate_c_from_binary_expr(ctx, expr->binary); break;
   default: unreachable0();
   }
   if (!ok) return ERROR;

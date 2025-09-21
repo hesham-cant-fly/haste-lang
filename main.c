@@ -97,10 +97,10 @@ static int compile_handler(int argc, char **argv) {
     return EXIT_STATUS_OTHER_FAILURE;
   }
 
-  for (size_t i = 0; i < arrlen(tokens); ++i) {
-    print_token(tokens[i]);
-    printf("\n");
-  }
+  // for (size_t i = 0; i < arrlen(tokens); ++i) {
+  //   print_token(tokens[i]);
+  //   printf("\n");
+  // }
 
   ast_module_t mod = { .src = content };
   Arena arena = {0};
