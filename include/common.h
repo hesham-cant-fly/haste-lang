@@ -26,6 +26,10 @@
   } while (0)
 #define unused(expr) ((void)(expr))
 
+#define defenum(name, type, ...)                                               \
+  typedef type name;                                                           \
+  enum __VA_ARGS__
+
 NORETURN void _unreachable(const char *file, const size_t line);
 NORETURN void _panic(const char *restrict file, const size_t line,
                      const char *restrict fmt, ...);

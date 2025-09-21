@@ -44,8 +44,15 @@ const char *token_kind_tostr(const token_kind_t kind) {
   case TOKEN_DOUBLE_STAR: return "TOKEN_DOUBLE_STAR";
   case TOKEN_OPEN_PAREN: return "TOKEN_OPEN_PAREN";
   case TOKEN_CLOSE_PAREN: return "TOKEN_CLOSE_PAREN";
+  case TOKEN_EQUAL: return "TOKEN_EQUAL";
+  case TOKEN_COLON: return "TOKEN_COLON";
+  case TOKEN_SEMICOLON: return "TOKEN_SEMICOLON";
   case TOKEN_INT_LIT: return "TOKEN_INT_LIT";
   case TOKEN_FLOAT_LIT: return "TOKEN_FLOAT_LIT";
+  case TOKEN_IDENTIFIER: return "TOKEN_IDENTIFIER";
+  case TOKEN_CONST: return "TOKEN_CONST";
+  case TOKEN_VAR: return "TOKEN_VAR";
+  case TOKEN_AUTO: return "TOKEN_AUTO";
   }
   unreachable0();
 }

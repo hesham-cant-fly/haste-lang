@@ -11,6 +11,7 @@ typedef struct Span {
   size_t end;
 } span_t;
 
+size_t spanlen(span_t span);
 string_view_t span_to_string_view(const span_t span, const char *src);
 
 #endif // !__SPAN_H

@@ -14,7 +14,7 @@ file(GLOB_RECURSE C_SRC src/*.c)
 
 add_executable(${CMAKE_PROJECT_NAME} ${C_SRC} main.c)
 target_include_directories(${CMAKE_PROJECT_NAME} PUBLIC include)
-target_compile_options(${CMAKE_PROJECT_NAME} PUBLIC -Wall -Wextra -Wno-attributes)
+target_compile_options(${CMAKE_PROJECT_NAME} PUBLIC -Wall -Wextra -Wpedantic -Wno-attributes)
 target_link_libraries(${CMAKE_PROJECT_NAME} m)
 
 if(${SANITIZE})

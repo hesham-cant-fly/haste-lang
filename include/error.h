@@ -1,12 +1,13 @@
 #ifndef __ERROR_H
 #define __ERROR_H
 
+#include "common.h"
 #include <stdbool.h>
-#include <stdint.h>
 
-typedef enum Error {
-  OK = true,
-  ERROR = false,
-} error_t;
+defenum(error_t, bool,
+        {
+            OK = true,
+            ERROR = false,
+        });
 
 #endif // !__ERROR_H

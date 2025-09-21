@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct Lexer {
   size_t line;
@@ -24,6 +25,16 @@ typedef struct Lexer {
   bool had_error;
 } lexer_t;
 
+static const struct {
+  const char *lexem;
+  const token_kind_t kind;
+} keywords[] = {
+  { "const", TOKEN_CONST },
+  { "var", TOKEN_VAR },
+  { "auto", TOKEN_AUTO },
+  { NULL, 0 },
+};
+
 static bool check(const lexer_t *lxr, uint32_t ch);
 static bool match(lexer_t *lxr, uint32_t ch);
 static uint32_t peek(const lexer_t *lxr);
@@ -32,11 +43,14 @@ static uint32_t advance(lexer_t *lxr);
 static void scan_lexem(lexer_t *lxr);
 static void scan_number(lexer_t *lxr);
 static void scan_float(lexer_t *lxr);
+static void scan_identifier(lexer_t *lxr);
 
 static span_t get_span(const lexer_t *lxr);
 static void add_token(lexer_t *lxr, const token_kind_t kind);
 static bool ended(const lexer_t *lxr);
 static bool is_numiric(const uint32_t ch);
+static bool is_alpha(const uint32_t ch);
+static bool is_alphanum(const uint32_t ch);
 
 static void report_error(lexer_t *lxr, const char *restrict fmt, ...);
 
@@ -92,6 +106,9 @@ static void scan_lexem(lexer_t *lxr) {
       return;
     }
     goto err;
+  case '=': add_token(lxr, TOKEN_EQUAL); break;
+  case ':': add_token(lxr, TOKEN_COLON); break;
+  case ';': add_token(lxr, TOKEN_SEMICOLON); break;
 
   case '\n':
     lxr->current_line += 1;
@@ -104,10 +121,14 @@ static void scan_lexem(lexer_t *lxr) {
   default:
     if (is_numiric(ch)) {
       scan_number(lxr);
-    } else {
+      return;
+    }
+    if (is_alpha(ch)) {
+      scan_identifier(lxr);
+      return;
+    }
     err:
       report_error(lxr, "Unexpected character `%lc`.", ch);
-    }
   }
 }
 
@@ -129,6 +150,26 @@ static void scan_float(lexer_t *lxr) {
     advance(lxr);
   }
   add_token(lxr, TOKEN_FLOAT_LIT);
+}
+
+static void scan_identifier(lexer_t *lxr) {
+  while (is_alphanum(peek(lxr))) {
+    advance(lxr);
+  }
+
+  // NOTE: "What if you had a 1000 keyword?" why would I have this
+  //       amount of keywords in the first place?
+  for (size_t i = 0; keywords[i].lexem != NULL; ++i) {
+    span_t span = get_span(lxr);
+    const char *lexem = lxr->src + span.start;
+    size_t len = spanlen(span);
+    if (strncmp(lexem, keywords[i].lexem, len) == 0) {
+      add_token(lxr, keywords[i].kind);
+      return;
+    }
+  }
+
+  add_token(lxr, TOKEN_IDENTIFIER);
 }
 
 static bool check(const lexer_t *lxr, uint32_t ch) {
@@ -182,6 +223,16 @@ static bool ended(const lexer_t *lxr) {
 
 static bool is_numiric(const uint32_t ch) {
   return ch >= '0' && ch <= '9';
+}
+
+static bool is_alpha(const uint32_t ch) {
+  if (ch >= 'a' && ch <= 'z') return true;
+  if (ch >= 'A' && ch <= 'Z') return true;
+  return ch == '_' || ch == '$';
+}
+
+static bool is_alphanum(const uint32_t ch) {
+  return is_numiric(ch) || is_alpha(ch);
 }
 
 static void report_error(lexer_t *lxr, const char *restrict fmt, ...) {
