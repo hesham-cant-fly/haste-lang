@@ -97,7 +97,13 @@ static void scan_lexem(lexer_t *lxr) {
   case '+': add_token(lxr, TOKEN_PLUS); break;
   case '-': add_token(lxr, TOKEN_MINUS); break;
   case '*': match(lxr, '*') ? add_token(lxr, TOKEN_DOUBLE_STAR) : add_token(lxr, TOKEN_STAR); break;
-  case '/': add_token(lxr, TOKEN_FSLASH); break;
+  case '/':
+    if (match(lxr, '/')) {
+      while (peek(lxr) != '\n') advance(lxr);
+      break;
+    }
+    add_token(lxr, TOKEN_FSLASH);
+    break;
   case '(': add_token(lxr, TOKEN_OPEN_PAREN); break;
   case ')': add_token(lxr, TOKEN_CLOSE_PAREN); break;
   case '.':
