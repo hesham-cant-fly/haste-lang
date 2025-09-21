@@ -15,6 +15,7 @@
 
 typedef struct Parser {
   const char *path;
+  const char *src;
   const token_t *tokens;
   Arena *arena;
   jmp_buf jmpbuf;
@@ -38,19 +39,21 @@ static NORETURN void report_error(parser_t *restrict parser, const span_t at,
 static ast_expr_t *parse_expr(parser_t *restrict parser);
 
 error_t parse_tokens(const token_t *restrict tokens, Arena *restrict arena,
-                     ast_module_t *out) {
+                     const char *path, const char *src, ast_module_t *out) {
   parser_t parser = {
-      .path = NULL,
+      .path = path,
       .tokens = tokens,
+      .src = src,
       .current = 0,
       .had_error = false,
       .arena = arena,
   };
 
   if (setjmp(parser.jmpbuf) == 0) {
+    ast_expr_t *expr = parse_expr(&parser);
+    fprint_ast_expr(stdout, expr, parser.src);
     *out = (ast_module_t) {
       .arena = parser.arena,
-      .root = parse_expr(&parser)
     };
   } else {
     memset(out, 0, sizeof(ast_module_t));
@@ -114,6 +117,8 @@ static ast_expr_t *parse_primary(parser_t *restrict parser) {
     return create(parser, make_ast_int_lit_expr(token));
   if (match(parser, TOKEN_FLOAT_LIT))
     return create(parser, make_ast_float_lit_expr(token));
+  if (match(parser, TOKEN_IDENTIFIER))
+    return create(parser, make_ast_identifier_lit_expr(token));
 
   report_error(parser, token.span, "Expected an expression.");
   exit(69);

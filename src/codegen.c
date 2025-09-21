@@ -40,8 +40,8 @@ static error_t generate_c(gen_context_t ctx) {
                             "#include <math.h>\n\n"
                             "int main(void) {\n"
                             "  double x = ");
-  error_t ok = generate_c_from_expr(ctx, ctx.module.root);
-  if (!ok) return ERROR;
+  // error_t ok = generate_c_from_expr(ctx, ctx.module.root);
+  // if (!ok) return ERROR;
   string_push_cstr(ctx.out, ";\n  printf(\"%lf\\n\", x);\n"
                             "  return x;\n"
                             "}\n");

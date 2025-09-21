@@ -84,6 +84,7 @@ static int compile_handler(int argc, char **argv) {
     return EXIT_STATUS_OTHER_FAILURE;
   }
 
+  const char *path = argv[0];
   char *content = read_file(argv[0]);
   if (content == NULL) {
     fprintf(stderr, "Cannot read `%s`.", argv[0]);
@@ -96,10 +97,15 @@ static int compile_handler(int argc, char **argv) {
     return EXIT_STATUS_OTHER_FAILURE;
   }
 
+  for (size_t i = 0; i < arrlen(tokens); ++i) {
+    print_token(tokens[i]);
+    printf("\n");
+  }
+
   ast_module_t mod = { .src = content };
   Arena arena = {0};
 
-  error_t ok = parse_tokens(tokens, &arena, &mod);
+  error_t ok = parse_tokens(tokens, &arena, path, content, &mod);
   if (!ok) {
     free(content);
     arrfree(tokens);
@@ -108,7 +114,7 @@ static int compile_handler(int argc, char **argv) {
   }
   mod.src = content;
 
-  // fprint_ast_expr(stderr, mod.root, mod.src);
+  return EXIT_STATUS_SUCCESS;
 
   String output_stream = string_new(100);
   codegen_target_t target = CODEGEN_TARGET_C;

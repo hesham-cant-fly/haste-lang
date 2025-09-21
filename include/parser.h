@@ -8,6 +8,6 @@
 #include <stddef.h>
 
 error_t parse_tokens(const token_t *restrict tokens, Arena *restrict arena,
-                     ast_module_t *out);
+                     const char *path, const char *src, ast_module_t *out);
 
 #endif // !__PARSER_H

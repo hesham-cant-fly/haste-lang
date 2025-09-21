@@ -37,13 +37,16 @@ void fprint_ast_expr(FILE *stream, const ast_expr_t *expr, const char *src) {
                         case AST_EXPR_INT_LIT:
                           json_kv("int", json_token(expr->as.int_lit));
                           break;
+                        case AST_EXPR_IDENTIFIER_LIT:
+                          json_kv("identifier",
+                                  json_token(expr->as.identifier));
+                          break;
                         case AST_EXPR_BINARY:
                           json_kv("op", json_token(expr->as.binary.op));
                           json_kv("lhs", fprint_ast_expr(stream, expr->as.binary.lhs, src));
                           json_kv("rhs", fprint_ast_expr(stream, expr->as.binary.rhs, src));
                           break;
-                        default:
-                          unreachable0();
+                        default: unreachable0();
                       })));
 }
 
@@ -51,7 +54,9 @@ static const char *ast_expr_kind_str(ast_expr_kind_t kind) {
   switch (kind) {
   case AST_EXPR_FLOAT_LIT: return "AST_EXPR_FLOAT_LIT";
   case AST_EXPR_INT_LIT: return "AST_EXPR_INT_LIT";
+  case AST_EXPR_IDENTIFIER_LIT: return "AST_EXPR_IDENTIFIER_LIT";
   case AST_EXPR_BINARY: return "AST_EXPR_BINARY";
+  case AST_EXPR_BLOCK: return "AST_EXPR_BLOCK";
   }
   unreachable0();
 }

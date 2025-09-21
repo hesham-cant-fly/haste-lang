@@ -73,7 +73,8 @@ typedef struct ASTModule {
 
 void fprint_ast_expr(FILE *stream, const ast_expr_t *expr, const char *src);
 
-#define make_ast_int_lit_expr(__value) (ast_expr_t) {.tag = AST_EXPR_INT_LIT, .as = {.int_lit = __value }}
+#define make_ast_int_lit_expr(...) (ast_expr_t) {.tag = AST_EXPR_INT_LIT, .as = {.int_lit = __VA_ARGS__ }}
+#define make_ast_identifier_lit_expr(...) (ast_expr_t) { .tag = AST_EXPR_IDENTIFIER_LIT, .as = { .identifier = __VA_ARGS__ } }
 #define make_ast_float_lit_expr(...) (ast_expr_t) { .tag = AST_EXPR_FLOAT_LIT, .as = {.float_lit = __VA_ARGS__ }}
 #define make_ast_binary_expr(...) (ast_expr_t) { .tag = AST_EXPR_BINARY, .as = {.binary = __VA_ARGS__ }}
 
