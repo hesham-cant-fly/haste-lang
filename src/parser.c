@@ -19,7 +19,7 @@ typedef struct Parser {
   const char *path;
   const char *src;
   const token_t *tokens;
-  ast_expr_pool_t expr_pool;
+  ast_module_t module;
   jmp_buf jmpbuf;
   size_t current;
   bool had_error;
@@ -48,6 +48,7 @@ typedef struct ParserRule {
 #define match(_parser, ...) _match((_parser) __VA_OPT__(, ) __VA_ARGS__, 0)
 
 static ast_expr_ref_t add_expr(parser_t *restrict parser, const ast_expr_t expr);
+static ast_expr_t get_expr(parser_t *restrict parser, const ast_expr_ref_t id);
 
 static bool check(const parser_t *restrict parser, const token_kind_t kind);
 static bool _match(parser_t *restrict parser, ...);
@@ -78,19 +79,16 @@ error_t parse_tokens(const token_t *restrict tokens, const char *path,
       .tokens = tokens,
       .src = src,
       .current = 0,
-      .expr_pool = new_ast_expr_pool(),
+      .module = new_ast_module(),
       .had_error = false,
   };
 
   if (setjmp(parser.jmpbuf) == 0) {
     ast_expr_ref_t expr = parse_expr(&parser);
-    /* fprint_ast_expr(stdout, expr, parser.src); */
-    fprint_ast_expr(stdout, parser.expr_pool, expr, parser.src);
+    fprint_ast_expr(stdout, parser.module.expr_pool, expr, parser.src);
   }
-  *out = (ast_module_t){
-      .expr_pool = parser.expr_pool,
-      .src = parser.src,
-  };
+  *out = parser.module;
+  out->src = parser.src;
 
   return !parser.had_error;
 }
@@ -140,7 +138,7 @@ static parser_rule_t get_rule(token_kind_t kind) {
 
 static ast_expr_ref_t parse_assignment(parser_t *restrict parser,
                                        const ast_expr_ref_t left) {
-  const ast_expr_t left_expr = get_ast_expr(parser->expr_pool, left);
+  const ast_expr_t left_expr = get_expr(parser, left);
   if (left_expr.tag != AST_EXPR_IDENTIFIER_LIT) report_error(parser, previous(parser).span, "Invalid assignment target.");
 
   const ast_expr_ref_t right = parse_precedence(parser, PREC_ASSIGNMENT);
@@ -184,7 +182,11 @@ static ast_expr_ref_t parse_identifier(parser_t *restrict parser) {
 }
 
 static ast_expr_ref_t add_expr(parser_t *restrict parser, const ast_expr_t expr) {
-  return ast_expr_pool_add(parser->expr_pool, expr);
+  return ast_module_add_expr(parser->module, expr);
+}
+
+static ast_expr_t get_expr(parser_t *restrict parser, const ast_expr_ref_t id) {
+  return parser->module.expr_pool.data[id];
 }
 
 static bool check(const parser_t *restrict parser, const token_kind_t kind) {

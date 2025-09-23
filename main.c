@@ -1,10 +1,8 @@
 #include "ast.h"
 #include "cli_tools.h"
-#include "codegen.h"
 #include "common.h"
 #include "error.h"
 #include "lexer.h"
-#include "my_string.h"
 #include "parser.h"
 #include "token.h"
 #include "my_array.h"
@@ -97,25 +95,20 @@ static int compile_handler(int argc, char **argv) {
     return EXIT_STATUS_OTHER_FAILURE;
   }
 
-  // for (size_t i = 0; i < arrlen(tokens); ++i) {
-  //   print_token(tokens[i]);
-  //   printf("\n");
-  // }
-
   ast_module_t mod = { .src = content };
 
   error_t ok = parse_tokens(tokens, path, content, &mod);
   if (!ok) {
     free(content);
     arrfree(tokens);
-    arrfree(mod.expr_pool.data);
+    free_ast_module(mod);
     return EXIT_STATUS_OTHER_FAILURE;
   }
   mod.src = content;
 
   free(content);
   arrfree(tokens);
-  arrfree(mod.expr_pool.data);
+  free_ast_module(mod);
   return EXIT_STATUS_SUCCESS;
 }
 

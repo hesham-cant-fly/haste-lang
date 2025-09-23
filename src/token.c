@@ -9,28 +9,28 @@ string_view_t token_to_string_view(const token_t token, const char *src) {
 }
 
 void print_token(const token_t token) {
-  printf("{ %s, (%zu, %zu) }", token_kind_tostr(token.kind), token.span.line, token.span.column);
+  printf("{ \"kind\": %s, \"line\": %zu, \"column\": %zu }", token_kind_tostr(token.kind), token.span.line, token.span.column);
 }
 
 void sprint_token(const token_t token, char *out) {
-  sprintf(out, "{ %s, (%zu, %zu) }", token_kind_tostr(token.kind), token.span.line, token.span.column);
+  sprintf(out, "{ \"kind\": %s, \"line\": %zu, \"column\": %zu }", token_kind_tostr(token.kind), token.span.line, token.span.column);
 }
 
 void print_token_lexem(const token_t token, const char *src) {
   string_view_t sv = token_to_string_view(token, src);
-  printf("{ %s, '%.*s', (%zu, %zu) }", token_kind_tostr(token.kind), SVArgs(sv),
+  printf("{ \"kind\": %s, \"lexem\": \"%.*s\", \"line\": %zu, \"column\": %zu }", token_kind_tostr(token.kind), SVArgs(sv),
          token.span.line, token.span.column);
 }
 
 void fprint_token_lexem(FILE *stream, const token_t token, const char *src) {
   string_view_t sv = token_to_string_view(token, src);
-  fprintf(stream, "{ %s, '%.*s', (%zu, %zu) }", token_kind_tostr(token.kind),
+  fprintf(stream, "{ \"kind\": %s, \"lexem\": \"%.*s\", \"line\": %zu, \"column\": %zu }", token_kind_tostr(token.kind),
           SVArgs(sv), token.span.line, token.span.column);
 }
 
 void sprint_token_lexem(const token_t token, const char *src, char *out) {
   string_view_t sv = token_to_string_view(token, src);
-  sprintf(out, "{ %s, '%.*s', (%zu, %zu) }", token_kind_tostr(token.kind), SVArgs(sv),
+  sprintf(out, "{ %s, '%.*s', (line: %zu, column: %zu) }", token_kind_tostr(token.kind), SVArgs(sv),
          token.span.line, token.span.column);
 }
 
