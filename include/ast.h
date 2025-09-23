@@ -7,17 +7,18 @@
 #include "token.h"
 #include <stdint.h>
 
+#define AST_EXPR_KIND_LIST                                                     \
+  X(AST_EXPR_FLOAT_LIT, "expr-float", print_expr_float_lit)                    \
+  X(AST_EXPR_INT_LIT, "expr-int", print_expr_int_lit)                          \
+  X(AST_EXPR_IDENTIFIER_LIT, "expr-identifier", print_expr_identifier_lit)     \
+  X(AST_EXPR_BINARY, "expr-binary", print_expr_binary)                         \
+  X(AST_EXPR_ASSIGNMENT, "expr-assignment", print_expr_assignment)             \
+  X(AST_EXPR_UNARY, "expr-unary", print_expr_unary)
+
 //--------- EXPRESSIONS ---------//
-defenum(ast_expr_kind_t, uint8_t,
-        {
-            AST_EXPR_FLOAT_LIT = 0,
-            AST_EXPR_INT_LIT,
-            AST_EXPR_IDENTIFIER_LIT,
-            AST_EXPR_BINARY,
-            AST_EXPR_ASSIGNMENT,
-            AST_EXPR_UNARY,
-            AST_EXPR_BLOCK,
-        });
+#define X(enum_name, ...) enum_name,
+defenum(ast_expr_kind_t, uint8_t, {AST_EXPR_KIND_LIST});
+#undef X
 
 typedef uint32_t ast_expr_ref_t;
 
@@ -97,13 +98,13 @@ typedef struct OptionalASTType {
 } optional_ast_type_t;
 
 typedef struct ASTStmtVariable {
-  token_t identifier;
+  token_t target;
   optional(ast_type_t) type;
   optional(ast_expr_t) value;
 } ast_stmt_variable_t;
 
 typedef struct ASTStmtConstant {
-  token_t identifier;
+  token_t target;
   optional(ast_type_t) type;
   optional(ast_expr_t) value;
 } ast_stmt_constant_t;
@@ -126,6 +127,7 @@ typedef struct ASTModule {
   ast_expr_pool_t expr_pool;
   ast_type_pool_t type_pool;
   ast_stmt_pool_t stmt_pool;
+  ast_stmt_ref_t root;
 } ast_module_t;
 
 //--------- METHODS ---------//
@@ -139,7 +141,7 @@ ast_expr_ref_t ast_module_add_expr(ast_module_t mod, const ast_expr_t expr);
 ast_type_ref_t ast_module_add_type(ast_module_t mod, const ast_type_t type);
 ast_stmt_ref_t ast_module_add_stmt(ast_module_t mod, const ast_stmt_t stmt);
 
-void fprint_ast_expr(FILE *stream, const ast_expr_pool_t expr_pool, const ast_expr_ref_t expr, const char *src);
+void print_expr(ast_expr_pool_t pool, ast_expr_ref_t ref);
 
 #define get_ast_expr(_pool, _ref) (_pool).data[(_ref)]
 #define get_ast_type(_pool, _ref) (_pool).data[(_ref)]
@@ -151,5 +153,9 @@ void fprint_ast_expr(FILE *stream, const ast_expr_pool_t expr_pool, const ast_ex
 #define make_ast_binary_expr(...) (ast_expr_t) { .tag = AST_EXPR_BINARY, .binary = __VA_ARGS__ }
 #define make_ast_assignment_expr(...) (ast_expr_t) { .tag = AST_EXPR_ASSIGNMENT, .assignment = __VA_ARGS__ }
 #define make_ast_unary_expr(...) (ast_expr_t) { .tag = AST_EXPR_UNARY, .unary = __VA_ARGS__ }
+
+#define make_ast_stmt_variable(...) (ast_stmt_t) { .tag = AST_STMT_VARIABLE, .variable = __VA_ARGS__, }
+#define make_ast_stmt_constant(...) (ast_stmt_t) { .tag = AST_STMT_CONSTANT, .constant = __VA_ARGS__, }
+#define make_ast_stmt_expr(...) (ast_stmt_t) { .tag = AST_STMT_EXPR, .expr = __VA_ARGS__, }
 
 #endif // !__AST_H

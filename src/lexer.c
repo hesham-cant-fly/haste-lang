@@ -32,6 +32,7 @@ static const struct {
   { "const", TOKEN_CONST },
   { "var", TOKEN_VAR },
   { "auto", TOKEN_AUTO },
+  { "int", TOKEN_INT },
   { NULL, 0 },
 };
 
@@ -167,7 +168,7 @@ static void scan_identifier(lexer_t *lxr) {
   //       amount of keywords in the first place?
   for (size_t i = 0; keywords[i].lexem != NULL; ++i) {
     span_t span = get_span(lxr);
-    const char *lexem = lxr->src + span.start;
+    const char *lexem = span.start;
     const size_t len = strlen(keywords[i].lexem);
     if (strncmp(lexem, keywords[i].lexem, len) == 0) {
       add_token(lxr, keywords[i].kind);
@@ -208,8 +209,8 @@ static span_t get_span(const lexer_t *lxr) {
   return (span_t) {
     .line = lxr->line,
     .column = lxr->column,
-    .start = lxr->start,
-    .end = lxr->current,
+    .start = (char *)lxr->src + lxr->start,
+    .len = lxr->current - lxr->start,
   };
 }
 

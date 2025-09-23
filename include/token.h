@@ -30,6 +30,7 @@ defenum(token_kind_t, uint8_t,
             TOKEN_CONST,
             TOKEN_VAR,
             TOKEN_AUTO,
+            TOKEN_INT,
         });
 
 typedef struct Token {
@@ -37,12 +38,12 @@ typedef struct Token {
   token_kind_t kind;
 } token_t;
 
-string_view_t token_to_string_view(const token_t token, const char *src);
+string_view_t token_to_string_view(const token_t token);
 void print_token(const token_t token);
 void sprint_token(const token_t token, char *out);
-void print_token_lexem(const token_t token, const char *src);
-void fprint_token_lexem(FILE *stream, const token_t token, const char *src);
-void sprint_token_lexem(const token_t token, const char *src, char *out);
+void print_token_lexem(const token_t token);
+void fprint_token_lexem(FILE *stream, const token_t token);
+void sprint_token_lexem(const token_t token, char *out);
 const char *token_kind_tostr(const token_kind_t kind);
 
 #endif // !__TOKEN_H

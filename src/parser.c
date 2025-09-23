@@ -3,6 +3,7 @@
 #include "common.h"
 #include "error.h"
 #include "my_array.h"
+#include "my_optional.h"
 #include "my_string_view.h"
 #include "span.h"
 #include "token.h"
@@ -48,10 +49,15 @@ typedef struct ParserRule {
 #define match(_parser, ...) _match((_parser) __VA_OPT__(, ) __VA_ARGS__, 0)
 
 static ast_expr_ref_t add_expr(parser_t *restrict parser, const ast_expr_t expr);
+static ast_type_ref_t add_type(parser_t *restrict parser, const ast_type_t type);
+static ast_stmt_ref_t add_stmt(parser_t *restrict parser, const ast_stmt_t stmt);
 static ast_expr_t get_expr(parser_t *restrict parser, const ast_expr_ref_t id);
+static ast_type_t get_type(parser_t *restrict parser, const ast_type_ref_t id);
+static ast_stmt_t get_stmt(parser_t *restrict parser, const ast_stmt_ref_t id);
 
 static bool check(const parser_t *restrict parser, const token_kind_t kind);
 static bool _match(parser_t *restrict parser, ...);
+static token_t consume(parser_t *restrict parser, const token_kind_t kind, const char *restrict fmt, ...);
 static token_t peek(const parser_t *restrict parser);
 static token_t previous(const parser_t *restrict parser);
 static token_t advance(parser_t *restrict parser);
@@ -59,6 +65,8 @@ static bool ended(const parser_t *restrict parser);
 
 static NORETURN void report_error(parser_t *restrict parser, const span_t at,
                                    const char *restrict fmt, ...);
+static NORETURN void vareport_error(parser_t *restrict parser, const span_t at,
+                                    const char *restrict fmt, va_list args);
 
 static parser_rule_t get_rule(token_kind_t kind);
 static ast_expr_ref_t parse_precedence(parser_t *restrict parser, precedence_t precedence);
@@ -72,6 +80,12 @@ static ast_expr_ref_t parse_float(parser_t *restrict parser);
 static ast_expr_ref_t parse_identifier(parser_t *restrict parser);
 static ast_expr_ref_t parse_expr(parser_t *restrict parser);
 
+static ast_type_ref_t parse_type(parser_t *restrict parser);
+
+static ast_stmt_ref_t parse_stmt(parser_t *restrict parser);
+static ast_stmt_ref_t parse_constant(parser_t *restrict parser);
+static ast_stmt_ref_t parse_variable(parser_t *restrict parser);
+
 error_t parse_tokens(const token_t *restrict tokens, const char *path,
                      const char *src, ast_module_t *out) {
   parser_t parser = {
@@ -83,14 +97,83 @@ error_t parse_tokens(const token_t *restrict tokens, const char *path,
       .had_error = false,
   };
 
+  optional_uint32_t mod_root = none(optional_uint32_t);
+
   if (setjmp(parser.jmpbuf) == 0) {
-    ast_expr_ref_t expr = parse_expr(&parser);
-    fprint_ast_expr(stdout, parser.module.expr_pool, expr, parser.src);
+    ast_expr_ref_t ref = parse_expr(&parser);
+    print_expr(parser.module.expr_pool, ref);
   }
+  // while (!ended(&parser)) {
+  //   if (setjmp(parser.jmpbuf) == 0) {
+  //     ast_stmt_ref_t stmt = parse_stmt(&parser);
+  //     if (is_none(mod_root))
+  //       mod_root = some(optional_uint32_t, stmt);
+  //   } else {
+  //     // TODO: Sync
+  //     unreachable0();
+  //   }
+  // }
   *out = parser.module;
   out->src = parser.src;
+  out->root = is_some(mod_root) ? mod_root.value : 0;
 
   return !parser.had_error;
+}
+
+static ast_type_ref_t parse_type(parser_t *restrict parser) {
+  token_t tok = advance(parser);
+  switch (tok.kind) {
+  case TOKEN_AUTO: return add_type(parser, (ast_type_t) { .tag = AST_TYPE_AUTO });
+  case TOKEN_INT: return add_type(parser, (ast_type_t) { .tag = AST_TYPE_INT });
+  default: panic("%s", token_kind_tostr(tok.kind)); break;
+  }
+}
+
+static ast_stmt_ref_t parse_stmt(parser_t *restrict parser) {
+  token_t tok = advance(parser);
+  switch (tok.kind) {
+  case TOKEN_VAR: return parse_variable(parser);
+  case TOKEN_CONST: return parse_constant(parser);
+  default: panic("%s", token_kind_tostr(tok.kind)); break;
+  }
+}
+
+static ast_stmt_ref_t parse_constant(parser_t *restrict parser) {
+  token_t identifier =
+      consume(parser, TOKEN_IDENTIFIER, "Expected a variable name.");
+  optional_ast_type_t type = none(optional_ast_type_t);
+  optional_ast_expr_t value = none(optional_ast_expr_t);
+  if (match(parser, TOKEN_COLON)) {
+    ast_type_ref_t type_ref = parse_type(parser);
+    type = some(optional_ast_type_t, type_ref);
+  }
+  if (match(parser, TOKEN_EQUAL)) {
+    ast_expr_ref_t expr = parse_expr(parser);
+    value = some(optional_ast_expr_t, expr);
+  }
+
+  return add_stmt(parser,
+                  make_ast_stmt_constant(
+                      {.target = identifier, .type = type, .value = value}));
+}
+
+static ast_stmt_ref_t parse_variable(parser_t *restrict parser) {
+  token_t identifier =
+      consume(parser, TOKEN_IDENTIFIER, "Expected a variable name.");
+  optional_ast_type_t type = none(optional_ast_type_t);
+  optional_ast_expr_t value = none(optional_ast_expr_t);
+  if (match(parser, TOKEN_COLON)) {
+    ast_type_ref_t type_ref = parse_type(parser);
+    type = some(optional_ast_type_t, type_ref);
+  }
+  if (match(parser, TOKEN_EQUAL)) {
+    ast_expr_ref_t expr = parse_expr(parser);
+    value = some(optional_ast_expr_t, expr);
+  }
+
+  return add_stmt(parser,
+                  make_ast_stmt_variable(
+                      {.target = identifier, .type = type, .value = value}));
 }
 
 static ast_expr_ref_t parse_expr(parser_t *restrict parser) {
@@ -102,7 +185,7 @@ static ast_expr_ref_t parse_precedence(parser_t *restrict parser, precedence_t p
   parse_fn_prefix_t prefix_rule = get_rule(tok.kind).prefix;
   if (prefix_rule == NULL) {
     report_error(parser, tok.span, "Expected an exprssion, got `%.*s`.",
-                 SVArgs(span_to_string_view(tok.span, parser->src)));
+                 SPANArgs(tok.span));
   }
 
   ast_expr_ref_t left = prefix_rule(parser);
@@ -113,7 +196,7 @@ static ast_expr_ref_t parse_precedence(parser_t *restrict parser, precedence_t p
     parse_fn_infix_t infix_rule = get_rule(tok.kind).infix;
     if (infix_rule == NULL) {
       report_error(parser, tok.span, "Expected a valid operator, got `%.*s`.",
-                   SVArgs(span_to_string_view(tok.span, parser->src)));
+                   SPANArgs(tok.span));
     }
     left = infix_rule(parser, left);
   }
@@ -185,8 +268,26 @@ static ast_expr_ref_t add_expr(parser_t *restrict parser, const ast_expr_t expr)
   return ast_module_add_expr(parser->module, expr);
 }
 
+static ast_type_ref_t add_type(parser_t *restrict parser,
+                               const ast_type_t type) {
+  return ast_module_add_type(parser->module, type);
+}
+
+static ast_stmt_ref_t add_stmt(parser_t *restrict parser,
+                               const ast_stmt_t stmt) {
+  return ast_module_add_stmt(parser->module, stmt);
+}
+
 static ast_expr_t get_expr(parser_t *restrict parser, const ast_expr_ref_t id) {
   return parser->module.expr_pool.data[id];
+}
+
+static ast_type_t get_type(parser_t *restrict parser, const ast_type_ref_t id) {
+  return parser->module.type_pool.data[id];
+}
+
+static ast_stmt_t get_stmt(parser_t *restrict parser, const ast_stmt_ref_t id) {
+  return parser->module.stmt_pool.data[id];
 }
 
 static bool check(const parser_t *restrict parser, const token_kind_t kind) {
@@ -209,6 +310,17 @@ static bool _match(parser_t *restrict parser, ...) {
 
   va_end(args);
   return false;
+}
+
+static token_t consume(parser_t *restrict parser, const token_kind_t kind,
+                       const char *restrict fmt, ...) {
+  token_t token = peek(parser);
+  if (match(parser, kind))
+    return token;
+
+  va_list args;
+  va_start(args, fmt);
+  vareport_error(parser, token.span, fmt, args);
 }
 
 static token_t peek(const parser_t *restrict parser) {
@@ -237,6 +349,19 @@ static NORETURN void report_error(parser_t *restrict parser, const span_t at,
 
   va_list args;
   va_start(args, fmt);
+  vfprintf(stderr, fmt, args);
+  va_end(args);
+  fprintf(stderr, "\n");
+
+  parser->had_error = true;
+
+  longjmp(parser->jmpbuf, 1);
+}
+
+static NORETURN void vareport_error(parser_t *restrict parser, const span_t at,
+                                   const char *restrict fmt, va_list args) {
+  fprintf(stderr, "%s:%zu:%zu: Error: ", parser->path, at.line, at.column);
+
   vfprintf(stderr, fmt, args);
   va_end(args);
   fprintf(stderr, "\n");

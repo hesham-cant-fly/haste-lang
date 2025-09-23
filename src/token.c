@@ -4,34 +4,34 @@
 #include "common.h"
 #include <stdio.h>
 
-string_view_t token_to_string_view(const token_t token, const char *src) {
-  return span_to_string_view(token.span, src);
+string_view_t token_to_string_view(const token_t token) {
+  return span_to_string_view(token.span);
 }
 
 void print_token(const token_t token) {
-  printf("{ \"kind\": %s, \"line\": %zu, \"column\": %zu }", token_kind_tostr(token.kind), token.span.line, token.span.column);
+  printf("{ \"kind\": \"%s\", \"line\": %zu, \"column\": %zu }", token_kind_tostr(token.kind), token.span.line, token.span.column);
 }
 
 void sprint_token(const token_t token, char *out) {
   sprintf(out, "{ \"kind\": %s, \"line\": %zu, \"column\": %zu }", token_kind_tostr(token.kind), token.span.line, token.span.column);
 }
 
-void print_token_lexem(const token_t token, const char *src) {
-  string_view_t sv = token_to_string_view(token, src);
-  printf("{ \"kind\": %s, \"lexem\": \"%.*s\", \"line\": %zu, \"column\": %zu }", token_kind_tostr(token.kind), SVArgs(sv),
-         token.span.line, token.span.column);
+void print_token_lexem(const token_t token) {
+  printf(
+      "{ \"kind\": \"%s\", \"lexem\": \"%.*s\", \"line\": %zu, \"column\": %zu }",
+      token_kind_tostr(token.kind), SPANArgs(token.span), token.span.line,
+      token.span.column);
 }
 
-void fprint_token_lexem(FILE *stream, const token_t token, const char *src) {
-  string_view_t sv = token_to_string_view(token, src);
+void fprint_token_lexem(FILE *stream, const token_t token) {
   fprintf(stream, "{ \"kind\": %s, \"lexem\": \"%.*s\", \"line\": %zu, \"column\": %zu }", token_kind_tostr(token.kind),
-          SVArgs(sv), token.span.line, token.span.column);
+          SPANArgs(token.span), token.span.line, token.span.column);
 }
 
-void sprint_token_lexem(const token_t token, const char *src, char *out) {
-  string_view_t sv = token_to_string_view(token, src);
-  sprintf(out, "{ %s, '%.*s', (line: %zu, column: %zu) }", token_kind_tostr(token.kind), SVArgs(sv),
-         token.span.line, token.span.column);
+void sprint_token_lexem(const token_t token, char *out) {
+  sprintf(out, "{ %s, '%.*s', (line: %zu, column: %zu) }",
+          token_kind_tostr(token.kind), SPANArgs(token.span), token.span.line,
+          token.span.column);
 }
 
 const char *token_kind_tostr(const token_kind_t kind) {
@@ -53,6 +53,7 @@ const char *token_kind_tostr(const token_kind_t kind) {
   case TOKEN_CONST: return "TOKEN_CONST";
   case TOKEN_VAR: return "TOKEN_VAR";
   case TOKEN_AUTO: return "TOKEN_AUTO";
+  case TOKEN_INT: return "TOKEN_INT";
   }
   unreachable0();
 }

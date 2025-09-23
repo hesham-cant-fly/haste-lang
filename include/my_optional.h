@@ -15,6 +15,8 @@
  */
 
 #include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include "common.h"
 
 #define optional(_T) optional_##_T
@@ -22,5 +24,20 @@
 #define some(_T, ...) (_T){ .value = (__VA_ARGS__), .has_value = true }
 #define is_some(_vr) ((_vr).has_value)
 #define is_none(_vr) (!((_vr).has_value))
+
+typedef struct OptionalBool {
+  bool value;
+  bool has_value;
+} optional_bool_t;
+
+typedef struct OptionalInt32 {
+  int32_t value;
+  bool has_value;
+} optional_int32_t;
+
+typedef struct OptionalUInt32 {
+  uint32_t value;
+  bool has_value;
+} optional_uint32_t;
 
 #endif // !__MY_OPTIONAL_H
