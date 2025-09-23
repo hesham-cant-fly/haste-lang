@@ -103,44 +103,19 @@ static int compile_handler(int argc, char **argv) {
   // }
 
   ast_module_t mod = { .src = content };
-  Arena arena = {0};
 
-  error_t ok = parse_tokens(tokens, &arena, path, content, &mod);
+  error_t ok = parse_tokens(tokens, path, content, &mod);
   if (!ok) {
     free(content);
     arrfree(tokens);
-    arena_free(&arena);
+    arrfree(mod.expr_pool.data);
     return EXIT_STATUS_OTHER_FAILURE;
   }
   mod.src = content;
 
-  return EXIT_STATUS_SUCCESS;
-
-  String output_stream = string_new(100);
-  codegen_target_t target = CODEGEN_TARGET_C;
-  ok = generate(mod, target, &output_stream);
-  if (!ok) {
-    free(content);
-    arrfree(tokens);
-    string_delete(&output_stream);
-    arena_free(&arena);
-    return EXIT_STATUS_OTHER_FAILURE;
-  }
-
-  ok = write_to_file(out, output_stream.data);
-  if (!ok) {
-    fprintf(stderr, "Cannot write to `%s`\n", out);
-    free(content);
-    arrfree(tokens);
-    string_delete(&output_stream);
-    arena_free(&arena);
-    return EXIT_STATUS_OTHER_FAILURE;
-  }
-
   free(content);
   arrfree(tokens);
-  string_delete(&output_stream);
-  arena_free(&arena);
+  arrfree(mod.expr_pool.data);
   return EXIT_STATUS_SUCCESS;
 }
 

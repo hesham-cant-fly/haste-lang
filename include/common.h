@@ -26,9 +26,14 @@
   } while (0)
 #define unused(expr) ((void)(expr))
 
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+#define defenum(name, type, ...) \
+  typedef enum name : type __VA_ARGS__
+#else
 #define defenum(name, type, ...)                                               \
   typedef type name;                                                           \
   enum __VA_ARGS__
+#endif
 
 NORETURN void _unreachable(const char *file, const size_t line);
 NORETURN void _panic(const char *restrict file, const size_t line,
