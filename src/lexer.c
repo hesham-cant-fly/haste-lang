@@ -168,7 +168,8 @@ static void scan_identifier(lexer_t *lxr) {
   for (size_t i = 0; keywords[i].lexem != NULL; ++i) {
     span_t span = get_span(lxr);
     const char *lexem = lxr->src + span.start;
-    if (strcmp(lexem, keywords[i].lexem) == 0) {
+    const size_t len = strlen(keywords[i].lexem);
+    if (strncmp(lexem, keywords[i].lexem, len) == 0) {
       add_token(lxr, keywords[i].kind);
       return;
     }
