@@ -124,17 +124,20 @@ typedef struct ASTStmtPool {
 typedef struct ASTModule {
   const char *src;
   ast_expr_pool_t expr_pool;
+  ast_type_pool_t type_pool;
+  ast_stmt_pool_t stmt_pool;
 } ast_module_t;
 
 //--------- METHODS ---------//
 ast_expr_pool_t new_ast_expr_pool(void);
-ast_expr_ref_t ast_expr_pool_add(ast_expr_pool_t pool, const ast_expr_t expr);
-
 ast_type_pool_t new_ast_type_pool(void);
-ast_type_ref_t ast_type_pool_add(ast_type_pool_t pool, const ast_type_t type);
-
 ast_stmt_pool_t new_ast_stmt_pool(void);
-ast_stmt_ref_t ast_stmt_pool_add(ast_stmt_pool_t pool, const ast_stmt_t stmt);
+
+ast_module_t new_ast_module(void);
+void free_ast_module(ast_module_t mod);
+ast_expr_ref_t ast_module_add_expr(ast_module_t mod, const ast_expr_t expr);
+ast_type_ref_t ast_module_add_type(ast_module_t mod, const ast_type_t type);
+ast_stmt_ref_t ast_module_add_stmt(ast_module_t mod, const ast_stmt_t stmt);
 
 void fprint_ast_expr(FILE *stream, const ast_expr_pool_t expr_pool, const ast_expr_ref_t expr, const char *src);
 

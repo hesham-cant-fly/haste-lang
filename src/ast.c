@@ -11,9 +11,7 @@
 #define json_uint32(_value) fprintf(stream, "%u", (_value))
 #define json_token(_token)                                                     \
   do {                                                                         \
-    fprintf(stream, "\"");                                                     \
     fprint_token_lexem(stream, (_token), src);                                 \
-    fprintf(stream, "\"");                                                     \
   } while (0)
 #define json_object(...)                                                       \
   do {                                                                         \
@@ -31,38 +29,48 @@
 static const char *ast_expr_kind_str(ast_expr_kind_t kind);
 
 ast_expr_pool_t new_ast_expr_pool(void) {
-  return (ast_expr_pool_t) {
-    .data = arrinit(ast_expr_t),
-  };
-}
-
-ast_expr_ref_t ast_expr_pool_add(ast_expr_pool_t pool, const ast_expr_t expr) {
-  arrpush(pool.data, expr);
-  return arrlen(pool.data) - 1;
+  return (ast_expr_pool_t){.data = arrinit(ast_expr_t)};
 }
 
 ast_type_pool_t new_ast_type_pool(void) {
-  return (ast_type_pool_t) {
-    .data = arrinit(ast_type_t),
-  };
-}
-
-ast_type_ref_t ast_type_pool_add(ast_type_pool_t pool, const ast_type_t type) {
-  arrpush(pool.data, type);
-  return arrlen(pool.data) - 1;
+  return (ast_type_pool_t){.data = arrinit(ast_type_t)};
 }
 
 ast_stmt_pool_t new_ast_stmt_pool(void) {
-  return (ast_stmt_pool_t) {
-    .data = arrinit(ast_stmt_t),
+  return (ast_stmt_pool_t){.data = arrinit(ast_stmt_t)};
+}
+
+ast_module_t new_ast_module(void) {
+  return (ast_module_t) {
+    .src = NULL,
+    .expr_pool = new_ast_expr_pool(),
+    .type_pool = new_ast_type_pool(),
+    .stmt_pool = new_ast_stmt_pool(),
   };
 }
 
-ast_stmt_ref_t ast_stmt_pool_add(ast_stmt_pool_t pool, const ast_stmt_t stmt) {
-  arrpush(pool.data, stmt);
-  return arrlen(pool.data) - 1;
+void free_ast_module(ast_module_t mod) {
+  arrfree(mod.expr_pool.data);
+  arrfree(mod.type_pool.data);
+  arrfree(mod.stmt_pool.data);
 }
 
+ast_expr_ref_t ast_module_add_expr(ast_module_t mod, const ast_expr_t expr) {
+  arrpush(mod.expr_pool.data, expr);
+  return arrlen(mod.expr_pool.data) - 1;
+}
+
+ast_type_ref_t ast_module_add_type(ast_module_t mod, const ast_type_t type) {
+  arrpush(mod.type_pool.data, type);
+  return arrlen(mod.type_pool.data) - 1;
+}
+
+ast_stmt_ref_t ast_module_add_stmt(ast_module_t mod, const ast_stmt_t stmt) {
+  arrpush(mod.stmt_pool.data, stmt);
+  return arrlen(mod.stmt_pool.data) - 1;
+}
+
+// TODO: Implement those
 // void fprint_ast_type(FILE *stream, const ast_stmt_pool_t stmt_pool,
 //                      const ast_stmt_ref_t stmt_ref, const char *src) {
 // }
