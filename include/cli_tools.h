@@ -1,8 +1,6 @@
 #ifndef __CLI_TOOLS_H
 #define __CLI_TOOLS_H
 
-extern "C" {
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -183,5 +181,4 @@ static int process_short_options(char *arg, int *i, int argc, char **argv,
 
 #endif // CLI_TOOLS_IMPLEMENTATION
 
-}
 #endif // !__CLI_TOOLS_H

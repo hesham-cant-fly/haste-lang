@@ -23,15 +23,6 @@ func main() {
 }
 #+end_src
 
-* Goals
-- Simplicity
-- Readability
-- [ ] Compile Time Execution
-- [ ] Hygienic & non-hygienic macros
-- [ ] Extensibility (to some sort)
-- [ ] My happiness
-- [ ] Fuck C++
-
 * The Compiler
 The compiler is nowhere is ready to use. its still under development.
 
