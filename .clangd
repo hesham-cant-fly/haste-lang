@@ -1,0 +1,11 @@
+CompileFlags:
+  Add:
+    - -DDEBUG
+    - -DDEBUG_TRACE_EXECUTION]
+    - -I/home/hesham/Documents/Projects/haste-lang/src/include
+    - -g
+    - -std=gnu++23
+    - -xc++-system-header
+    - -Wall - -Wextra -Wpedantic -Wno-attributes -Wno-unused-function
+    - 
+

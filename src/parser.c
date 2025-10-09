@@ -4,6 +4,7 @@
 #include "error.h"
 #include "my_array.h"
 #include "my_optional.h"
+#include "my_string_view.h"
 #include "span.h"
 #include "token.h"
 #include <assert.h>
@@ -82,11 +83,8 @@ static ast_expr_ref_t parse_expr(parser_t *restrict parser);
 static ast_type_ref_t parse_type(parser_t *restrict parser);
 
 static ast_stmt_ref_t parse_stmt(parser_t *restrict parser);
-static ast_stmt_ref_t parse_stmt_complete(parser_t *restrict parser);
 static ast_stmt_ref_t parse_constant(parser_t *restrict parser);
 static ast_stmt_ref_t parse_variable(parser_t *restrict parser);
-
-static void skip_semicolon(parser_t *restrict parser);
 
 error_t parse_tokens(const token_t *restrict tokens, const char *path,
                      const char *src, ast_module_t *out) {
@@ -99,42 +97,27 @@ error_t parse_tokens(const token_t *restrict tokens, const char *path,
       .had_error = false,
   };
 
-  optional_uint32_t mod_start = none(optional_uint32_t);
-  ast_stmt_ref_t mod_end = 0;
+  optional_uint32_t mod_root = none(optional_uint32_t);
 
-  // if (setjmp(parser.jmpbuf) == 0) {
-  //   ast_expr_ref_t ref = parse_expr(&parser);
-  //   print_expr(parser.module.expr_pool, ref);
-  // }
-  while (!ended(&parser)) {
-    skip_semicolon(&parser);
-    if (setjmp(parser.jmpbuf) == 0) {
-      ast_stmt_ref_t stmt = parse_stmt_complete(&parser);
-      if (is_none(mod_start)) mod_start = some(optional_uint32_t, stmt);
-      mod_end = stmt;
-    } else {
-      // TODO: Sync
-      unreachable0();
-    }
+  if (setjmp(parser.jmpbuf) == 0) {
+    ast_expr_ref_t ref = parse_expr(&parser);
+    print_expr(parser.module.expr_pool, ref);
   }
+  // while (!ended(&parser)) {
+  //   if (setjmp(parser.jmpbuf) == 0) {
+  //     ast_stmt_ref_t stmt = parse_stmt(&parser);
+  //     if (is_none(mod_root))
+  //       mod_root = some(optional_uint32_t, stmt);
+  //   } else {
+  //     // TODO: Sync
+  //     unreachable0();
+  //   }
+  // }
   *out = parser.module;
   out->src = parser.src;
-  out->start = is_some(mod_start) ? mod_start.value : 0;
-  out->end = mod_end;
-
-  print_ast_module(*out);
+  out->root = is_some(mod_root) ? mod_root.value : 0;
 
   return !parser.had_error;
-}
-
-static void skip_semicolon(parser_t *restrict parser) {
-  while (!ended(parser)) {
-    if (check(parser, TOKEN_SEMICOLON)) {
-      advance(parser);
-      continue;
-    }
-    break;
-  }
 }
 
 static ast_type_ref_t parse_type(parser_t *restrict parser) {
@@ -153,12 +136,6 @@ static ast_stmt_ref_t parse_stmt(parser_t *restrict parser) {
   case TOKEN_CONST: return parse_constant(parser);
   default: panic("%s", token_kind_tostr(tok.kind)); break;
   }
-}
-
-static ast_stmt_ref_t parse_stmt_complete(parser_t *restrict parser) {
-  ast_stmt_ref_t result = parse_stmt(parser);
-  consume(parser, TOKEN_SEMICOLON, "Expected `;` at the end of the expression.");
-  return result;
 }
 
 static ast_stmt_ref_t parse_constant(parser_t *restrict parser) {
@@ -363,7 +340,7 @@ static token_t advance(parser_t *restrict parser) {
 }
 
 static bool ended(const parser_t *restrict parser) {
-  return peek(parser).kind == TOKEN_EOF;// || parser->current >= arrlen(parser->tokens);
+  return parser->current >= arrlen(parser->tokens);
 }
 
 static NORETURN void report_error(parser_t *restrict parser, const span_t at,

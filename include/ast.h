@@ -15,15 +15,6 @@
   X(AST_EXPR_ASSIGNMENT, "expr-assignment", print_expr_assignment)             \
   X(AST_EXPR_UNARY, "expr-unary", print_expr_unary)
 
-#define AST_TYPE_LIST                                                          \
-  X(AST_TYPE_AUTO, "type-auto", print_type_auto)                               \
-  X(AST_TYPE_INT, "type-int", print_type_int)
-
-#define AST_STMT_KIND_LIST                                                     \
-  X(AST_STMT_VARIABLE, "stmt-variable", print_stmt_variable)                   \
-  X(AST_STMT_CONSTANT, "stmt-constant", print_stmt_constant)                   \
-  X(AST_STMT_EXPR, "stmt-expr", print_stmt_expr)
-
 //--------- EXPRESSIONS ---------//
 #define X(enum_name, ...) enum_name,
 defenum(ast_expr_kind_t, uint8_t, {AST_EXPR_KIND_LIST});
@@ -71,9 +62,11 @@ typedef struct ASTExprPool {
 
 /***** TYPES *****/
 
-#define X(enum_name, ...) enum_name,
-defenum(ast_type_kind_t, uint8_t, {AST_TYPE_LIST});
-#undef X
+defenum(ast_type_kind_t, uint8_t,
+        {
+          AST_TYPE_AUTO,
+          AST_TYPE_INT,
+        });
 
 typedef uint32_t ast_type_ref_t;
 
@@ -86,9 +79,12 @@ typedef struct ASTTypePool {
 } ast_type_pool_t;
 
 //--------- STATEMENTS ---------//
-#define X(enum_field, ...) enum_field,
-defenum(ast_stmt_kind_t, uint8_t, {AST_STMT_KIND_LIST});
-#undef X
+defenum(ast_stmt_kind_t, uint8_t,
+        {
+          AST_STMT_VARIABLE = 0,
+          AST_STMT_CONSTANT = 0,
+          AST_STMT_EXPR,
+        });
 typedef uint32_t ast_stmt_ref_t;
 
 typedef struct OptionalASTExpr {
@@ -131,8 +127,7 @@ typedef struct ASTModule {
   ast_expr_pool_t expr_pool;
   ast_type_pool_t type_pool;
   ast_stmt_pool_t stmt_pool;
-  ast_stmt_ref_t start;
-  ast_stmt_ref_t end;
+  ast_stmt_ref_t root;
 } ast_module_t;
 
 //--------- METHODS ---------//
@@ -146,14 +141,11 @@ ast_expr_ref_t ast_module_add_expr(ast_module_t mod, const ast_expr_t expr);
 ast_type_ref_t ast_module_add_type(ast_module_t mod, const ast_type_t type);
 ast_stmt_ref_t ast_module_add_stmt(ast_module_t mod, const ast_stmt_t stmt);
 
-void print_ast_module(ast_module_t mod);
-void print_ast_expr(ast_module_t pool, ast_expr_ref_t ref);
-void print_ast_type(ast_module_t mod, ast_type_ref_t ref);
-void print_ast_stmt(ast_module_t mod, ast_stmt_ref_t ref);
+void print_expr(ast_expr_pool_t pool, ast_expr_ref_t ref);
 
-#define get_ast_expr(_mod, _ref) (_mod).expr_pool.data[(_ref)]
-#define get_ast_type(_mod, _ref) (_mod).type_pool.data[(_ref)]
-#define get_ast_stmt(_mod, _ref) (_mod).stmt_pool.data[(_ref)]
+#define get_ast_expr(_pool, _ref) (_pool).data[(_ref)]
+#define get_ast_type(_pool, _ref) (_pool).data[(_ref)]
+#define get_ast_stmt(_pool, _ref) (_pool).data[(_ref)]
 
 #define make_ast_int_lit_expr(...) (ast_expr_t) {.tag = AST_EXPR_INT_LIT, .int_lit = __VA_ARGS__ }
 #define make_ast_identifier_lit_expr(...) (ast_expr_t) { .tag = AST_EXPR_IDENTIFIER_LIT, .identifier = __VA_ARGS__ }
