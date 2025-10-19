@@ -1,2 +1,9 @@
 .cache/
+.clj-kondo/
+.lsp/
 build/
+
+
+# Added by cargo
+
+/target

@@ -1,0 +1,46 @@
+const age = 20;
+// const a_variable: float = integer;
+// var integer: int = 2;
+// const another_integer: int = 3;
+
+// #const logos = import "logos";
+// #const {
+//   Logos,
+//   token,
+//   regex,
+// } = logos;
+
+// #const Token = class {
+//   lexem: ?str,
+//   kind: TokenKind,
+// 
+//   @derive(Logos)
+//   @logos.$skip("[ \t\n\f]+")
+//   @logos.subpattern("alpha", "[a-zA-Z]")
+//   @logos.subpattern("digit", "[0-9]")
+//   #const TokenKind = enum {
+//     @token("+")                      Plus,
+//     @token("-")                      Minus,
+//     @token("*")                      Star,
+//     @token("**")                     DoubleStar,
+//     @token("/")                      FSlash,
+// 
+//     @regex("(?&digit)+")             IntLit,
+//     @regex("(?&digit)+\.(?&digit)+") FloatLit,
+// 
+//     #default EOF,
+//   };
+// 
+//   pub func __eq__(self, other: TokenKind): bool = self.kind == other;
+//   pub func __is__(self): bool = self.kind != .EOF;
+// };
+// 
+// func main() {
+//   const token = Token{
+//     lexem: "+",
+//     kind: .Plus,
+//   };
+// 
+//   @assert(is token);
+//   @assert(token == .Plus);
+// }
