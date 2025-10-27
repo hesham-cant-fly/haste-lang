@@ -1,0 +1,110 @@
+#+title: The Dot Operator in Haste
+#+author: Hesham
+#+date: 2025-10-19
+
+* Overview
+The dot operator (=.=) is one of the most fundamental elements of the language’s expression system.  
+It serves as a *unified postfix access operator* that ties together struct field access, tuple indexing, optional and error unwrapping, and even address/dereference chaining.  
+
+Unlike many traditional languages, the dot operator here is purely *syntactic projection* — it never implicitly borrows, copies, or unwraps values.  
+This design ensures clarity and composability across different value types.
+
+* General Behavior
+The =.= operator always reads *left to right* and applies to the preceding expression.  
+Every expression on the left produces a value or reference that the dot can project from.
+
+For example:
+#+begin_src haste
+foo.bar
+foo.bar.baz
+.(x, y, z).1
+person.address.?.city.&
+#+end_src
+
+Parsing treats the dot as a postfix operator with high precedence, meaning chained expressions remain visually linear and predictable.
+
+* Struct Field Access
+Accessing a field from a struct uses the standard =.= syntax:
+#+begin_src haste
+person.name
+config.window.width
+#+end_src
+
+This retrieves the named field directly.  
+It does not imply borrowing or referencing.  
+To obtain an address, simply chain with =.&=:
+#+begin_src haste
+person.name.&
+#+end_src
+
+Field access is composable and can appear within larger expressions:
+#+begin_src haste
+foo.bar.baz.* + 3
+#+end_src
+
+* Tuple Element Access
+Tuples are accessed by numeric field notation:
+#+begin_src haste
+var t = .(10, true, 3.1415);
+@println(t.0);   // => 10
+@println(t.1);   // => true
+@println(t.2);   // => 3.14
+#+end_src
+
+This approach maintains perfect consistency with struct access: the member after the dot is just a key — whether it’s a field name or an index.
+
+Inline tuple access is valid too:
+#+begin_src haste
+.(1, 2, 3).0   // => 1
+#+end_src
+
+This makes tuple access purely postfix and fully compatible with other operators.
+
+* Interaction with Other Postfix Operators
+The dot operator works seamlessly with the rest of the postfix system:
+
+| Operator | Meaning         | Example        | Description                         |
+|----------+-----------------+----------------+-------------------------------------|
+| =.&=       | Address-of      | =foo.bar.&=      | Takes the address of a field        |
+| =.*=       | Dereference     | =ptr.*.field=    | Dereferences then accesses field    |
+| =.?=       | Optional unwrap | =option.?.value= | Unwraps an optional, panics if null |
+| =.!=       | Error unwrap    | =result.!.value= | Unwraps a result, panics on error   |
+
+Because all of these are postfix, they chain naturally:
+#+begin_src haste
+person.address.?.city.&
+ptr.*.name.?
+#+end_src
+
+No parentheses are needed to clarify precedence — each postfix operator simply applies to the previous result.
+
+* Uniform Semantics
+Every use of =.= is conceptually identical:
+- It takes an expression and *projects* a sub-value from it.
+- It can be followed by either:
+  - an *identifier* (for struct fields)
+  - an *integer literal* (for tuple positions)
+  - another postfix operator (=&=, =*=, =?=, =!=)
+
+This unified model allows very compact and expressive code:
+#+begin_src haste
+user.profile.?.friends.0.name.&
+.(x, y, z).2.*
+#+end_src
+
+* Example Summary
+#+begin_src haste
+// Struct
+person.name.&
+
+// Tuple
+.(x, y, z).1
+
+// Optional and error unwrapping
+person.address.?.city
+file_result.!.path
+
+// Combined
+person.address.?.city.&
+.(x, y, z).2.*
+#+end_src

@@ -247,6 +247,7 @@ dependencies = [
  "colored",
  "logos",
  "macros",
+ "qbe",
 ]
 
 [[package]]
@@ -361,6 +362,12 @@ checksum = "e66fcd288453b748497d8fb18bccc83a16b0518e3906d4b8df0a8d42d93dbb1c"
 dependencies = [
  "cc",
 ]
+
+[[package]]
+name = "qbe"
+version = "2.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60adc4f72627fde7472716ecdffeaf9378bd88da3d51e28de40f0aa64615f5f0"
 
 [[package]]
 name = "quote"

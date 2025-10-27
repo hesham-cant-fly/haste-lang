@@ -1,0 +1,67 @@
+Hir {
+    ht: {
+        "a": 5,
+    },
+    instructions: [
+        Instruction {
+            span: Span {
+                start: 10,
+                end: 11,
+            },
+            node: Integer(
+                1,
+            ),
+        },
+        Instruction {
+            span: Span {
+                start: 14,
+                end: 15,
+            },
+            node: Integer(
+                2,
+            ),
+        },
+        Instruction {
+            span: Span {
+                start: 18,
+                end: 19,
+            },
+            node: Integer(
+                3,
+            ),
+        },
+        Instruction {
+            span: Span {
+                start: 14,
+                end: 19,
+            },
+            node: Div,
+        },
+        Instruction {
+            span: Span {
+                start: 10,
+                end: 19,
+            },
+            node: Add,
+        },
+        Instruction {
+            span: Span {
+                start: 0,
+                end: 20,
+            },
+            node: ConstantDecl {
+                name: Token {
+                    span: Span {
+                        start: 6,
+                        end: 7,
+                    },
+                    kind: Identifier,
+                    lexem: "a",
+                },
+                begining: 0,
+                has_initializer: true,
+                has_type_info: false,
+            },
+        },
+    ],
+}

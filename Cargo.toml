@@ -12,3 +12,4 @@ colored = "3"
 chumsky = "0.11.1"
 
 macros = { path = "./macros" }
+qbe = "2.5.1"

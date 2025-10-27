@@ -17,7 +17,7 @@ pub enum SymbolKind {
 #[derive(Debug, Clone)]
 pub struct Symbol {
     pub kind: SymbolKind,
-    pub declaration: Rc<ast::Declaration>,
+    pub declaration: Rc<ast::DeclarationNode>,
     pub constant: bool,
     pub visited: bool,
 }

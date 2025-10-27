@@ -7,7 +7,11 @@ fn generate_from_trait(ast: DeriveInput) -> TokenStream {
         panic!("Only supports structs.");
     };
 
+    let generics = ast.generics;
     let struct_name = ast.ident;
+
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
     let fields_names: Vec<syn::Ident> = (&struct_data.fields)
         .into_iter()
         .map(|f| {
@@ -20,7 +24,7 @@ fn generate_from_trait(ast: DeriveInput) -> TokenStream {
         .collect();
 
     quote! {
-        impl From<(#(#fields_types),*)> for #struct_name {
+        impl #impl_generics From<(#(#fields_types),*)> for #struct_name #ty_generics #where_clause {
             fn from(value: (#(#fields_types),*)) -> Self {
                 let (#(#fields_names),*) = value;
                 Self {

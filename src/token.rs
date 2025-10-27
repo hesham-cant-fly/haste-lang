@@ -1,3 +1,4 @@
+use std::cmp;
 use std::path::{Path, PathBuf};
 
 use colored::Colorize;
@@ -44,11 +45,12 @@ pub enum TokenKind {
 pub struct Token {
     pub span: Span,
     pub kind: TokenKind,
+    pub lexem: String,
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, span: Span) -> Token {
-        Token { kind, span }
+    pub fn new(kind: TokenKind, span: Span, lexem: String) -> Token {
+        Token { kind, span, lexem }
     }
 
     pub fn scan_source(reporter: &Reporter) -> Result<Vec<Token>, ()> {
@@ -67,10 +69,10 @@ impl Token {
                 );
                 continue;
             };
-            tokens.push(Token::new(kind, lxr.span().into()));
+            tokens.push(Token::new(kind, lxr.span().into(), lexem.into()));
         }
 
-        tokens.push(Token::new(TokenKind::EOF, Default::default()));
+        tokens.push(Token::new(TokenKind::EOF, Default::default(), "".into()));
 
         if has_error {
             Err(())
@@ -84,6 +86,15 @@ impl Token {
 pub struct Span {
     pub start: usize,
     pub end: usize,
+}
+
+impl Span {
+    pub fn conjoin(&self, other: &Span) -> Self {
+        let start = cmp::min(self.start, other.start);
+        let end = cmp::max(self.end, other.end);
+
+        Self { start, end }
+    }
 }
 
 impl Into<core::ops::Range<usize>> for Span {
