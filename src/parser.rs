@@ -1,3 +1,4 @@
+use chumsky::combinator::FoldlWith;
 use chumsky::Parser;
 use chumsky::prelude::*;
 
@@ -12,7 +13,7 @@ macro_rules! token {
     };
 }
 
-macro_rules! binary {
+macro_rules! binary_l {
     ($left:expr, $pt:pat, $right:expr) => {
         $left.foldl_with(token!($pt).then($right).repeated(), |lhs, (op, rhs), extra| {
             let tokens: &[Token] = extra.slice();
@@ -28,8 +29,33 @@ macro_rules! binary {
     };
 
     ($left:expr, $pt:pat) => {
-        binary!($left, $pt, $left)
+        binary_l!($left, $pt, $left)
     };
+}
+
+macro_rules! binary_r {
+    ($base:expr, $pt:pat) => {{
+        recursive(|expr| {
+            let op = token!($pt);
+            $base
+                .then(op.then(expr.clone()).or_not())
+                .map_with(|(lhs, rhs_opt), extra| {
+                    if let Some((op, rhs)) = rhs_opt {
+                        let tokens: &[Token] = extra.slice();
+                        let fst = tokens.first().unwrap();
+                        let lst = tokens.last().unwrap();
+                        let span = fst.span.conjoin(&lst.span);
+
+                        ast::Spanned(
+                            ast::ExprNode::Binary((op.clone(), Box::new(lhs), Box::new(rhs)).into()),
+                            span,
+                        )
+                    } else {
+                        lhs
+                    }
+                })
+        })
+    }};
 }
 
 pub fn parser<'a>() -> impl Parser<'a, &'a [Token], ast::DeclarationList> {
@@ -71,8 +97,9 @@ pub fn parser<'a>() -> impl Parser<'a, &'a [Token], ast::DeclarationList> {
                 )
             });
 
-        let factor = binary!(unary.clone(), TokenKind::Star | TokenKind::FSlash);
-        let term = binary!(factor.clone(), TokenKind::Plus | TokenKind::Minus);
+        let pow = binary_r!(unary.clone(), TokenKind::DoubleStar);
+        let factor = binary_l!(pow.clone(), TokenKind::Star | TokenKind::FSlash);
+        let term = binary_l!(factor.clone(), TokenKind::Plus | TokenKind::Minus);
         term
     });
 

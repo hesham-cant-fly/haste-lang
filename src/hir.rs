@@ -1,5 +1,6 @@
 use crate::token::{Span, Token};
 
+use core::fmt;
 use std::collections::HashMap;
 
 /// Haste IR (HIR), a Stack Machine Code (SMC) IR
@@ -9,6 +10,26 @@ use std::collections::HashMap;
 pub struct Hir {
     pub ht: HoistTable,
     pub instructions: Vec<Instruction>,
+}
+
+impl fmt::Display for Hir {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "hoist-table: {{")?;
+        {
+            let mut v: Vec<(String, usize)> = self.ht.clone().into_iter().collect();
+            v.sort_by(|(_, a), (_, b)| a.cmp(b));
+            for (name, index) in v.into_iter() {
+                writeln!(f, "  \"{}\": %{},", name, index)?;
+            }
+        }
+        writeln!(f, "}}")?;
+
+        for (index, instruction) in (&self.instructions).iter().enumerate() {
+            writeln!(f, "%{:08} -> {}", index, instruction)?;
+        }
+
+        fmt::Result::Ok(())
+    }
 }
 
 impl Hir {
@@ -23,11 +44,7 @@ impl Hir {
     }
 
     pub fn current(&self) -> usize {
-        let len = self.len();
-        if len == 0 {
-            return 0;
-        }
-        len - 1
+        self.len()
     }
 
     pub fn push(&mut self, instruction: Instruction) -> usize {
@@ -56,11 +73,15 @@ pub struct Instruction {
     pub node: Node,
 }
 
+impl fmt::Display for Instruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} : {}", self.node, self.span)
+    }
+}
+
 impl Instruction {
     pub fn new(span: Span, node: Node) -> Self {
-        Self {
-            span, node,
-        }
+        Self { span, node }
     }
 }
 
@@ -71,10 +92,18 @@ pub enum PrimitiveType {
     Auto,
 }
 
+impl fmt::Display for PrimitiveType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PrimitiveType::Int => write!(f, "int"),
+            PrimitiveType::Float => write!(f, "float"),
+            PrimitiveType::Auto => write!(f, "auto"),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Node {
-    End,
-
     // Constants
     Identifier(Token),
     Integer(i64),
@@ -83,7 +112,7 @@ pub enum Node {
 
     // Arithmatics
     UnaryMinus, // - <something>
-    UnaryPlus, // + <something>
+    UnaryPlus,  // + <something>
 
     Add, // <something> + <something>
     Sub, // <something> - <something>
@@ -104,4 +133,44 @@ pub enum Node {
         has_initializer: bool,
         has_type_info: bool,
     },
+}
+
+impl fmt::Display for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Node::Identifier(token) => write!(f, "ident(\"{}\")", token.lexem),
+            Node::Integer(i) => write!(f, "int({})", i),
+            Node::Float(fl) => write!(f, "float({})", fl),
+            Node::Type(primitive_type) => write!(f, "type({})", primitive_type),
+            Node::UnaryMinus => write!(f, "un_op(negate)"),
+            Node::UnaryPlus => write!(f, "un_op(plusify)"),
+            Node::Add => write!(f, "bin_op(add)"),
+            Node::Sub => write!(f, "bin_op(sub)"),
+            Node::Mul => write!(f, "bin_op(mul)"),
+            Node::Div => write!(f, "bin_op(div)"),
+            Node::Pow => write!(f, "bin_op(pow)"),
+            Node::ConstantDecl {
+                name,
+                begining,
+                has_initializer,
+                has_type_info,
+            } => write!(f, "decl_const(
+  name: \"{}\",
+  begining: {},
+  has_init: {},
+  has_type: {}
+)", name.lexem, begining, has_initializer, has_type_info),
+            Node::VariableDecl {
+                name,
+                begining,
+                has_initializer,
+                has_type_info,
+            } => write!(f, "decl_var(
+  name: \"{}\",
+  begining: {},
+  has_init: {},
+  has_type: {}
+)", name.lexem, begining, has_initializer, has_type_info),
+        }
+    }
 }

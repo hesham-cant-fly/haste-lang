@@ -1,3 +1,4 @@
+use core::fmt;
 use std::cmp;
 use std::path::{Path, PathBuf};
 
@@ -94,6 +95,12 @@ impl Span {
         let end = cmp::max(self.end, other.end);
 
         Self { start, end }
+    }
+}
+
+impl fmt::Display for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "start: {}, end: {}", self.start, self.end)
     }
 }
 

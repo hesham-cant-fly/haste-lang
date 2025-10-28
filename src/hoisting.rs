@@ -39,10 +39,10 @@ fn hoist_constant_declaration(hir: &mut Hir, span: Span, decl: &ConstantDecl) ->
         todo!()
     }
 
-    if let Some(expr) = &decl.tp {
+    if let Some(expr) = &decl.value {
         hoist_expr(hir, &expr);
     }
-    if let Some(expr) = &decl.value {
+    if let Some(expr) = &decl.tp {
         hoist_expr(hir, &expr);
     }
 
@@ -72,10 +72,10 @@ fn hoist_variable_declaration(hir: &mut Hir, span: Span, decl: &VariableDecl) ->
         todo!()
     }
 
-    if let Some(expr) = &decl.tp {
+    if let Some(expr) = &decl.value {
         hoist_expr(hir, &expr);
     }
-    if let Some(expr) = &decl.value {
+    if let Some(expr) = &decl.tp {
         hoist_expr(hir, &expr);
     }
 

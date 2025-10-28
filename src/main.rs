@@ -31,5 +31,5 @@ fn main() {
     let ast = parser::parser().parse(&tokens).into_result().unwrap();
     // println!("{:#?}", ast);
     let hir = hoist(ast::Ast { declarations: ast });
-    println!("{:#?}", hir);
+    print!("{}", hir);
 }

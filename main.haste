@@ -1,1 +1,13 @@
-const a = 1 + 2 / 3;
+
+// You'll need `#` here for typedef
+// later but I'll leave it like this
+// this the moment
+const Id = int;
+
+const a: Id = 1 + 2 / b;
+const b: Id = c + 1;
+const c: Id = d + 1;
+const d: Id = e + 1;
+const e: Id = f + 1;
+const j: Id = h + 1;
+const h = 1 + 1 * 2 ** 3;
