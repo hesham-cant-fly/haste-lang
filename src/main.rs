@@ -1,35 +1,59 @@
 #![allow(unused)]
-use std::{fs::File, io::Read, path::Path};
+use std::{
+    fs::File,
+    io::{Read, Write},
+    path::Path, rc::Rc,
+};
 
-use chumsky::Parser;
-use hoisting::hoist;
+use file_source_pool::FSPool;
+// use hoisting::hoist;
 use macros::FromTuple;
-use reporter::Reporter;
 use token::TokenKind;
 
 use crate::token::Token;
 
+mod analyzer;
 mod ast;
+mod file_source_pool;
 mod hir;
+// mod hoisting;
 mod parser;
 mod reporter;
-mod symbol;
 mod token;
-mod hoisting;
+mod value;
+
+// fn main() {
+//     let mut module = qbe::Module::new();
+
+//     let mut main_func = qbe::Function::new(
+//         qbe::Linkage::public(),
+//         "\"main\"",
+//         vec![],
+//         None
+//     );
+ 
+//     let mut main_func_start_block = main_func.add_block("start");
+ 
+//     main_func_start_block.add_instr(qbe::Instr::Ret(None));
+ 
+//     module.add_function(main_func);
+ 
+//     println!("{}", module);
+// }
 
 fn main() {
-    let path = Path::new("./main.haste");
-    let mut f = File::open(path).unwrap();
-    let mut src = String::new();
-    f.read_to_string(&mut src).unwrap();
+    let path = "./main.haste";
+    let fs_pool = FSPool::new();
 
-    let reporter = Reporter::new(src, Some(path.to_path_buf()));
-    let mut tokens = Token::scan_source(&reporter).unwrap();
-    tokens.pop();
-    // println!("{:#?}", tokens);
+    let mut tokens = Token::scan_source(Rc::clone(&fs_pool), path).unwrap();
 
-    let ast = parser::parser().parse(&tokens).into_result().unwrap();
-    // println!("{:#?}", ast);
-    let hir = hoist(ast::Ast { declarations: ast });
-    print!("{}", hir);
+    let ast = parser::parse(&tokens);
+    println!("{:#?}", ast);
+
+    // let hir = hoist(
+    //     Rc::clone(&fs_pool),
+    //     ast::Ast { path: "./main.haste".to_string(), declarations: ast },
+    // ).unwrap();
+    // let mut f = File::create("./main.hir").unwrap();
+    // writeln!(f, "{}", hir).unwrap();
 }

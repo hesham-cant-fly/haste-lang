@@ -1,14 +1,17 @@
 use core::fmt;
+use std::cell::RefCell;
 use std::cmp;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use colored::Colorize;
 use logos::Logos;
 
-use crate::reporter::{self, Reporter};
+use crate::file_source_pool::FSPool;
+use crate::reporter::{Label, ReportKind};
 
 #[repr(u8)]
-#[derive(Logos, Clone, Debug, PartialEq, Default)]
+#[derive(Logos, Clone, Debug, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")]
 #[logos(skip r"\/\/.*\n")]
 #[logos(subpattern alpha = r"[a-zA-Z]")]
@@ -30,6 +33,7 @@ pub enum TokenKind {
 
     #[token("var")]                       Var,
     #[token("const")]                     Const,
+    #[token("type")]                      Type,
     #[token("auto")]                      Auto,
     #[token("int")]                       Int,
     #[token("float")]                     Float,
@@ -37,12 +41,15 @@ pub enum TokenKind {
     #[regex("(?&digit)+")]                IntLit,
     #[regex(r"(?&digit)+\.(?&digit)+")]   FloatLit,
     #[regex(r"(?&symbol)(?&symbolnum)*")] Identifier,
-
-    #[default]
-    EOF,
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug)]
+pub enum Error {
+    CannotReadFile,
+    InvalidToken,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub span: Span,
     pub kind: TokenKind,
@@ -54,8 +61,9 @@ impl Token {
         Token { kind, span, lexem }
     }
 
-    pub fn scan_source(reporter: &Reporter) -> Result<Vec<Token>, ()> {
-        let mut lxr = TokenKind::lexer(&reporter.src);
+    pub fn scan_source(fs_pool: Rc<RefCell<FSPool>>, path: &str) -> Result<Vec<Token>, Error> {
+        let src = fs_pool.borrow_mut().load_file(path).map_err(|_| Error::CannotReadFile)?;
+        let mut lxr = TokenKind::lexer(&src);
         let mut tokens = Vec::<Token>::new();
         let mut has_error = false;
 
@@ -64,24 +72,30 @@ impl Token {
             let lexem = lxr.slice();
             let Ok(kind) = token else {
                 has_error = true;
-                reporter.report_error_at(
-                    format!("Invalid token '{}'", lexem),
-                    span.start,
-                );
+                fs_pool.borrow().build_report(path, ReportKind::Error, span.clone())
+                    .unwrap()
+                    .with_message(format!("Invalid character: '{}'", lexem))
+                    .with_label(
+                        Label::new(span)
+                            .with_caret("^")
+                            .with_msg("Remove this.")
+                    )
+                    .print();
                 continue;
             };
             tokens.push(Token::new(kind, lxr.span().into(), lexem.into()));
         }
 
-        tokens.push(Token::new(TokenKind::EOF, Default::default(), "".into()));
-
         if has_error {
-            Err(())
+            Err(Error::InvalidToken)
         } else {
             Ok(tokens)
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct Spanned<T>(pub T, pub Span);
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Span {

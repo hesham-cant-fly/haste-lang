@@ -1,13 +1,14 @@
-use crate::token::{Span, Token};
+use crate::{token::{Span, Token}, value::HasteType};
 
 use core::fmt;
-use std::collections::HashMap;
+use std::{alloc::System, collections::HashMap};
 
 /// Haste IR (HIR), a Stack Machine Code (SMC) IR
 /// that represents the entire program. designed
 /// to simplify the CTFE and analysis.
 #[derive(Debug, Default)]
 pub struct Hir {
+    pub path: String,
     pub ht: HoistTable,
     pub instructions: Vec<Instruction>,
 }
@@ -33,8 +34,9 @@ impl fmt::Display for Hir {
 }
 
 impl Hir {
-    pub fn new() -> Self {
+    pub fn new(path: String) -> Self {
         Self {
+            path,
             ..Default::default()
         }
     }
@@ -83,22 +85,9 @@ impl Instruction {
     pub fn new(span: Span, node: Node) -> Self {
         Self { span, node }
     }
-}
 
-#[derive(Debug)]
-pub enum PrimitiveType {
-    Int,
-    Float,
-    Auto,
-}
-
-impl fmt::Display for PrimitiveType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            PrimitiveType::Int => write!(f, "int"),
-            PrimitiveType::Float => write!(f, "float"),
-            PrimitiveType::Auto => write!(f, "auto"),
-        }
+    pub(crate) fn clone(&self) -> Instruction {
+        todo!()
     }
 }
 
@@ -108,7 +97,7 @@ pub enum Node {
     Identifier(Token),
     Integer(i64),
     Float(f64),
-    Type(PrimitiveType),
+    Type(HasteType),
 
     // Arithmatics
     UnaryMinus, // - <something>
@@ -124,13 +113,11 @@ pub enum Node {
     ConstantDecl {
         name: Token,
         begining: usize, // used for hoisting
-        has_initializer: bool,
         has_type_info: bool,
     },
     VariableDecl {
         name: Token,
         begining: usize, // used for hoisting
-        has_initializer: bool,
         has_type_info: bool,
     },
 }
@@ -152,25 +139,21 @@ impl fmt::Display for Node {
             Node::ConstantDecl {
                 name,
                 begining,
-                has_initializer,
                 has_type_info,
             } => write!(f, "decl_const(
   name: \"{}\",
   begining: {},
-  has_init: {},
   has_type: {}
-)", name.lexem, begining, has_initializer, has_type_info),
+)", name.lexem, begining, has_type_info),
             Node::VariableDecl {
                 name,
                 begining,
-                has_initializer,
                 has_type_info,
             } => write!(f, "decl_var(
   name: \"{}\",
   begining: {},
-  has_init: {},
   has_type: {}
-)", name.lexem, begining, has_initializer, has_type_info),
+)", name.lexem, begining, has_type_info),
         }
     }
 }

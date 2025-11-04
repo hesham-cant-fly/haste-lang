@@ -1,13 +1,10 @@
+const add(x: float, y: float): float = x + y;
 
-// You'll need `#` here for typedef
-// later but I'll leave it like this
-// this the moment
-const Id = int;
+const a: int = 1;
+const b: int = 2;
 
-const a: Id = 1 + 2 / b;
-const b: Id = c + 1;
-const c: Id = d + 1;
-const d: Id = e + 1;
-const e: Id = f + 1;
-const j: Id = h + 1;
-const h = 1 + 1 * 2 ** 3;
+// Explicit casting to float
+add(cast(float)x, cast(float)y);
+
+// Automatic casting to float
+add(cast x, cast y);

@@ -1,92 +1,19 @@
 hoist-table: {
-  "Id": %1,
-  "a": %8,
-  "b": %13,
-  "c": %18,
-  "d": %23,
-  "e": %28,
-  "j": %33,
-  "h": %41,
+  "a": %3,
+  "b": %5,
 }
-%00000000 -> type(int) : start: 104, end: 107
-%00000001 -> decl_const(
-  name: "Id",
-  begining: 0,
-  has_init: true,
-  has_type: false
-) : start: 93, end: 108
-%00000002 -> int(1) : start: 124, end: 125
-%00000003 -> int(2) : start: 128, end: 129
-%00000004 -> ident("b") : start: 132, end: 133
-%00000005 -> bin_op(div) : start: 128, end: 133
-%00000006 -> bin_op(add) : start: 124, end: 133
-%00000007 -> ident("Id") : start: 119, end: 121
-%00000008 -> decl_const(
+%00000000 -> ident("b") : start: 10, end: 11
+%00000001 -> int(20) : start: 14, end: 16
+%00000002 -> bin_op(add) : start: 10, end: 16
+%00000003 -> decl_const(
   name: "a",
-  begining: 2,
-  has_init: true,
-  has_type: true
-) : start: 110, end: 134
-%00000009 -> ident("c") : start: 149, end: 150
-%00000010 -> int(1) : start: 153, end: 154
-%00000011 -> bin_op(add) : start: 149, end: 154
-%00000012 -> ident("Id") : start: 144, end: 146
-%00000013 -> decl_const(
-  name: "b",
-  begining: 9,
-  has_init: true,
-  has_type: true
-) : start: 135, end: 155
-%00000014 -> ident("d") : start: 170, end: 171
-%00000015 -> int(1) : start: 174, end: 175
-%00000016 -> bin_op(add) : start: 170, end: 175
-%00000017 -> ident("Id") : start: 165, end: 167
-%00000018 -> decl_const(
-  name: "c",
-  begining: 14,
-  has_init: true,
-  has_type: true
-) : start: 156, end: 176
-%00000019 -> ident("e") : start: 191, end: 192
-%00000020 -> int(1) : start: 195, end: 196
-%00000021 -> bin_op(add) : start: 191, end: 196
-%00000022 -> ident("Id") : start: 186, end: 188
-%00000023 -> decl_const(
-  name: "d",
-  begining: 19,
-  has_init: true,
-  has_type: true
-) : start: 177, end: 197
-%00000024 -> ident("f") : start: 212, end: 213
-%00000025 -> int(1) : start: 216, end: 217
-%00000026 -> bin_op(add) : start: 212, end: 217
-%00000027 -> ident("Id") : start: 207, end: 209
-%00000028 -> decl_const(
-  name: "e",
-  begining: 24,
-  has_init: true,
-  has_type: true
-) : start: 198, end: 218
-%00000029 -> ident("h") : start: 233, end: 234
-%00000030 -> int(1) : start: 237, end: 238
-%00000031 -> bin_op(add) : start: 233, end: 238
-%00000032 -> ident("Id") : start: 228, end: 230
-%00000033 -> decl_const(
-  name: "j",
-  begining: 29,
-  has_init: true,
-  has_type: true
-) : start: 219, end: 239
-%00000034 -> int(1) : start: 250, end: 251
-%00000035 -> int(1) : start: 254, end: 255
-%00000036 -> int(2) : start: 258, end: 259
-%00000037 -> int(3) : start: 263, end: 264
-%00000038 -> bin_op(pow) : start: 258, end: 264
-%00000039 -> bin_op(mul) : start: 254, end: 264
-%00000040 -> bin_op(add) : start: 250, end: 264
-%00000041 -> decl_const(
-  name: "h",
-  begining: 34,
-  has_init: true,
+  begining: 0,
   has_type: false
-) : start: 240, end: 265
+) : start: 0, end: 17
+%00000004 -> int(10) : start: 28, end: 30
+%00000005 -> decl_const(
+  name: "b",
+  begining: 4,
+  has_type: false
+) : start: 18, end: 31
+
