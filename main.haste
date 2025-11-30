@@ -1,10 +1,2 @@
-const add(x: float, y: float): float = x + y;
-
-const a: int = 1;
-const b: int = 2;
-
-// Explicit casting to float
-add(cast(float)x, cast(float)y);
-
-// Automatic casting to float
-add(cast x, cast y);
+const a = 20;
+const b = 30;

@@ -1,0 +1,19 @@
+#include "ast.h"
+#include "core/my_printer.h"
+
+GEN_STRUCT_PRINT_IMPL(ASTFile, print_ast_file, AST_FILE_STRUCT_DEF)
+
+GEN_ENUM_PRINT_IMPL(AstOperator, print_ast_operator, AST_OPERATOR_ENUM_DEF)
+GEN_TAGGED_UNION_TAG_PRINT_IMPL(AstExprKind, print_ast_expr_kind, EXPR_NODE_TAGGED_UNION_DEF)
+GEN_TAGGED_UNION_PRINT_IMPL(AstExprNode, print_ast_expr_node, EXPR_NODE_TAGGED_UNION_DEF)
+
+GEN_STRUCT_PRINT_IMPL(AstExpr, print_ast_expr, EXPR_STRUCT_DEF)
+GEN_STRUCT_PRINT_IMPL(AstUnaryExpr, print_ast_unary_expr, UNARY_EXPR_STRUCT_DEF)
+GEN_STRUCT_PRINT_IMPL(AstBinaryExpr, print_ast_binary_expr, BINARY_EXPR_STRUCT_DEF)
+
+GEN_TAGGED_UNION_TAG_PRINT_IMPL(AstDeclKind, print_ast_decl_kind, AST_DECL_NODE_TAGGED_UNION_DEF)
+GEN_TAGGED_UNION_PRINT_IMPL(AstDeclNode, print_ast_decl_node, AST_DECL_NODE_TAGGED_UNION_DEF)
+
+GEN_STRUCT_PRINT_IMPL(AstDecl, print_ast_decl, AST_DECL_STRUCT_DEF)
+GEN_STRUCT_PRINT_IMPL(AstVariableDecl, print_ast_variable_decl, AST_VARIABLE_DECL_STRUCT_DEF)
+GEN_STRUCT_PRINT_IMPL(AstConstantDecl, print_ast_constant_decl, AST_CONSTANT_DECL_STRUCT_DEF)
