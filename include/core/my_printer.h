@@ -14,6 +14,9 @@
 #endif // !IDENTATION
 
 /* Primitives */
+#define PRINT_BOOL_indent(...) PRINT_BOOL(__VA_ARGS__)
+#define PRINT_BOOL(__file, __value, ...) fprintf((__file), "%s", (__value) ? "true" : "false")
+
 #define PRINT_STRING_indent(...) PRINT_STRING(__VA_ARGS__)
 #define PRINT_STRING(__file, __value, ...) fprintf((__file), "\"%s\"", (__value))
 
@@ -49,16 +52,28 @@
   void CONCATE(__fn_name, ln)(FILE * f, const __type v)
 
 #define GEN_COSTOM_PRINTER_IMPL_START(__type, __fn_name)                       \
-  void __fn_name(FILE *f, const __type v) { CONCATE(__fn_name, _indent)(f, v, IDENTATION); } \
-  void CONCATE(__fn_name, _ptr)(FILE *f, const __type *v) { __fn_name(f, *v); } \
-  void CONCATE(__fn_name, _ptr_indent)(FILE *f, const __type *v, int i) {        \
-    CONCATE(__fn_name, _indent)(f, *v, i);                              \
+  void __fn_name(FILE *f, const __type v) {                                    \
+    CONCATE(__fn_name, _indent)(f, v, IDENTATION);                             \
   }                                                                            \
-  void CONCATE(__fn_name, ln)(FILE *f, const __type v) {                       \
+  void CONCATE(__fn_name, _ptr)(FILE * f, const __type *v) {                   \
+    if ((v) == NULL) {                                                         \
+      fprintf(f, "(nil)");                                                     \
+    } else {                                                                   \
+      __fn_name(f, *v);                                                        \
+    }                                                                          \
+  }                                                                            \
+  void CONCATE(__fn_name, _ptr_indent)(FILE * f, const __type *v, int i) {     \
+    if ((v) == NULL) {                                                         \
+      fprintf(f, "(nil)");                                                     \
+    } else {                                                                   \
+      CONCATE(__fn_name, _indent)(f, *v, i);                                   \
+    }                                                                          \
+  }                                                                            \
+  void CONCATE(__fn_name, ln)(FILE * f, const __type v) {                      \
     __fn_name(f, v);                                                           \
     fprintf(f, "\n");                                                          \
   }                                                                            \
-  void CONCATE(__fn_name, _indent)(FILE *f, const __type v, int i) {    \
+  void CONCATE(__fn_name, _indent)(FILE * f, const __type v, int i) {          \
     unused(i);
 
 #define GEN_COSTOM_PRINTER_IMPL_END(__type, __fn_name) }
@@ -70,10 +85,18 @@
     CONCATE(__fn_name, _indent)(f, v, IDENTATION);                             \
   }                                                                            \
   void CONCATE(__fn_name, _ptr)(FILE * f, const __type *v) {                   \
-    __fn_name(f, *v);                                                          \
+    if ((v) == NULL) {                                                         \
+      fprintf(f, "(nil)");                                                     \
+    } else {                                                                   \
+      __fn_name(f, *v);                                                        \
+    }                                                                          \
   }                                                                            \
   void CONCATE(__fn_name, _ptr_indent)(FILE * f, const __type *v, int i) {     \
-    CONCATE(__fn_name, _indent)(f, *v, i);                                     \
+    if ((v) == NULL) {                                                         \
+      fprintf(f, "(nil)");                                                     \
+    } else {                                                                   \
+      CONCATE(__fn_name, _indent)(f, *v, i);                                   \
+    }                                                                          \
   }                                                                            \
   void CONCATE(__fn_name, _indent)(FILE * f, const __type v, int i) {          \
     fprintf(f, "(%s) {\n", #__type);                                           \
@@ -103,10 +126,18 @@
     CONCATE(__fn_name, _indent)(f, v, 0);                                      \
   }                                                                            \
   void CONCATE(__fn_name, _ptr)(FILE * f, const __type *v) {                   \
-    __fn_name(f, *v);                                                          \
+    if ((v) == NULL) {                                                         \
+      fprintf(f, "(nil)");                                                     \
+    } else {                                                                   \
+      __fn_name(f, *v);                                                        \
+    }                                                                          \
   }                                                                            \
   void CONCATE(__fn_name, _ptr_indent)(FILE * f, const __type *v, int i) {     \
-    CONCATE(__fn_name, _indent)(f, *v, i);                                     \
+    if ((v) == NULL) {                                                         \
+      fprintf(f, "(nil)");                                                     \
+    } else {                                                                   \
+      CONCATE(__fn_name, _indent)(f, *v, i);                                   \
+    }                                                                          \
   }                                                                            \
   void CONCATE(__fn_name, _indent)(FILE * f, const __type v, int i) {          \
     unused(i);                                                                 \
@@ -132,10 +163,18 @@
     CONCATE(__fn_name, _indent)(f, v, 0);                                      \
   }                                                                            \
   void CONCATE(__fn_name, _ptr)(FILE * f, const __type *v) {                   \
-    __fn_name(f, *v);                                                          \
+    if ((v) == NULL) {                                                         \
+      fprintf(f, "(nil)");                                                     \
+    } else {                                                                   \
+      __fn_name(f, *v);                                                        \
+    }                                                                          \
   }                                                                            \
   void CONCATE(__fn_name, _ptr_indent)(FILE * f, const __type *v, int i) {     \
-    CONCATE(__fn_name, _indent)(f, *v, i);                                     \
+    if ((v) == NULL) {                                                         \
+      fprintf(f, "(nil)");                                                     \
+    } else {                                                                   \
+      CONCATE(__fn_name, _indent)(f, *v, i);                                   \
+    }                                                                          \
   }                                                                            \
   void CONCATE(__fn_name, _indent)(FILE * f, const __type v, int i) {          \
     fprintf(f, "(%s) {\n", #__type);                                           \
@@ -188,10 +227,18 @@ GEN_ENUM_PRINT_IMPL(TokenKind, print_token_kind, TOKEN_KIND_ENUM_DEF);
     CONCATE(__fn_name, _indent)(f, v, 0);                                      \
   }                                                                            \
   void CONCATE(__fn_name, _ptr)(FILE * f, const __type *v) {                   \
-    __fn_name(f, *v);                                                          \
+    if ((v) == NULL) {                                                         \
+      fprintf(f, "(nil)");                                                     \
+    } else {                                                                   \
+      __fn_name(f, *v);                                                        \
+    }                                                                          \
   }                                                                            \
   void CONCATE(__fn_name, _ptr_indent)(FILE * f, const __type *v, int i) {     \
-    CONCATE(__fn_name, _indent)(f, *v, i);                                     \
+    if ((v) == NULL) {                                                         \
+      fprintf(f, "(nil)");                                                     \
+    } else {                                                                   \
+      CONCATE(__fn_name, _indent)(f, *v, i);                                   \
+    }                                                                          \
   }                                                                            \
   void CONCATE(__fn_name, _indent)(FILE * f, const __type v, int i) {          \
     unused(i);                                                                 \

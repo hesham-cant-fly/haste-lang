@@ -74,8 +74,7 @@ uint8_t	utf8_next(utf8_iter* iter) {
 		iter->count++;
 
 		return 1;
-	}
-	else {
+	} else {
 		iter->position = iter->next;
 		return 0;
 	}

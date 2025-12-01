@@ -5,6 +5,13 @@ size_t span_len(Span self) {
     return self.end - self.start;
 }
 
+Span span_conjoin(Span a, Span b) {
+    return (Span){
+        .start = a.start,
+        .end = b.end,
+    };
+}
+
 GEN_ENUM_PRINT_IMPL(TokenKind, print_token_kind, TOKEN_KIND_ENUM_DEF)
 GEN_STRUCT_PRINT_IMPL(Span, print_span, SPAN_STRUCT_DEF)
 GEN_STRUCT_PRINT_IMPL(Token, print_token, TOKEN_STRUCT_DEF)

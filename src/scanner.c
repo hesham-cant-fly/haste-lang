@@ -61,6 +61,7 @@ error scan_entire_cstr(const char *content, Token **out) {
 
     while (!ended(&scanner)) {
         skip_whitespaces(&scanner);
+        if (ended(&scanner)) break;
         scanner.start = scanner.iter.position;
         scan_lexem(&scanner);
     }
@@ -75,21 +76,21 @@ error scan_entire_cstr(const char *content, Token **out) {
 }
 
 static void skip_whitespaces(Scanner *self) {
-    while (true) {
+    while (!ended(self)) {
         uint32_t ch = peek(self);
         switch (ch) {
         case '\n':
-        self->current_location.line += 1;
-        self->current_location.column = 0;
+            self->current_location.line += 1;
+            self->current_location.column = 0;
         case ' ':
         case '\0':
         case '\t':
         case '\v':
         case '\r':
-        advance(self);
-        break;
+            ch = advance(self);
+            break;
         default:
-        return;
+            return;
         }
     }
 }
@@ -114,22 +115,25 @@ static void scan_lexem(Scanner *self) {
     case '-': add_token(self, TOKEN_KIND_MINUS, location); break;
     case '*':
         if (match(self, '*')) {
-        add_token(self, TOKEN_KIND_DOUBLE_STAR, location);
+            add_token(self, TOKEN_KIND_DOUBLE_STAR, location);
         } else {
-        add_token(self, TOKEN_KIND_STAR, location);
+            add_token(self, TOKEN_KIND_STAR, location);
         }
         break;
     case '/': add_token(self, TOKEN_KIND_FSLASH, location); break;
     case '(': add_token(self, TOKEN_KIND_OPEN_PAREN, location); break;
     case ')': add_token(self, TOKEN_KIND_CLOSE_PAREN, location); break;
+    case ':': add_token(self, TOKEN_KIND_COLON, location); break;
+    case ';': add_token(self, TOKEN_KIND_SEMICOLON, location); break;
+    case '=': add_token(self, TOKEN_KIND_EQUAL, location); break;
     default:
         if (isdigit(ch)) {
-        scan_number(self, location);
+            scan_number(self, location);
         } else if (is_identifier_starter(ch)) {
-        scan_identifier(self, location);
+            scan_identifier(self, location);
         } else {
-        self->had_error = true;
-        fprintf(stderr, "huh: '%lc'\n", ch);
+            self->had_error = true;
+            fprintf(stderr, "huh: '%lc'\n", ch);
         }
         break;
     }
@@ -139,7 +143,7 @@ static void scan_number(Scanner *self, const Location location) {
     while (!ended(self)) {
         const uint32_t ch = peek(self);
         if (!isdigit(ch)) {
-        break;
+            break;
         }
         advance(self);
     }
@@ -148,11 +152,11 @@ static void scan_number(Scanner *self, const Location location) {
     if (match(self, '.')) {
         is_float = true;
         while (!ended(self)) {
-        uint32_t ch = peek(self);
-        if (!isdigit(ch)) {
-            break;
-        }
-        advance(self);
+            uint32_t ch = peek(self);
+            if (!isdigit(ch)) {
+                break;
+            }
+            advance(self);
         }
     }
 

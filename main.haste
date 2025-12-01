@@ -1,2 +1,2 @@
-const a = 20;
-const b = 30;
+const a: float = 20.0;
+const b: int = 30;

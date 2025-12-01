@@ -44,7 +44,7 @@ typedef struct ParserRule {
 
 #define create(self, ...) _create(self, sizeof(__VA_ARGS__), &(__VA_ARGS__))
 
-static const void *_create(Parser *self, size_t size, void *value);
+static const void *_create(Parser *self, size_t size, const void *value);
 
 static bool check(const Parser *self, TokenKind kind);
 static bool match(Parser *self, TokenKind kind);
@@ -61,15 +61,33 @@ static Token peek_ahead(const Parser *self, ssize_t offset);
 static bool ended(const Parser *self);
 static AstOperator operator_from_token(const Token token);
 
+static AstExpr parse_precedence(Parser *self, Precedence precedence);
+static ParserRule get_rule(TokenKind kind);
+
+static AstDecl parse_declaration(Parser *self);
 static AstExpr parse_expr(Parser *self);
 
 error parse_tokens(const Token *tokens, ASTFile *out) {
     Parser parser = {0};
     parser.tokens = tokens;
 
-    AstExpr expr = {0};
-    if (setjmp(parser.jmpbuf) == 0) {
-        expr = parse_expr(&parser);
+    /* AstDecl *declarations = arrinit(AstDecl); */
+    AstDeclarationList declarations = {0};
+    while (parser.current < arrlen(parser.tokens)) {
+        error err = OK;
+        AstDecl declaration = {0};
+        if ((err = setjmp(parser.jmpbuf)) == OK) {
+            declaration = parse_declaration(&parser);
+        } else {
+            // TODO: Static Synchronize or assume tokens
+        }
+
+        // its a waste of memory to allocate when we already got an error
+        if (!parser.had_error) {
+            AstDeclarationListNode node = {0};
+            node.node = declaration;
+            ast_declaration_list_append(&declarations, create(&parser, node));
+        }
     }
 
     if (parser.had_error) {
@@ -77,13 +95,83 @@ error parse_tokens(const Token *tokens, ASTFile *out) {
         *out = (ASTFile){0};
         return ERROR;
     }
+
+    *out = (ASTFile){0};
     out->arena = parser.arena;
-    out->root = expr;
+    out->declarations = declarations;
     return OK;
 }
 
-static AstExpr parse_precedence(Parser *self, Precedence precedence);
-static ParserRule get_rule(TokenKind kind);
+static AstDecl parse_const_declaration(Parser *self);
+static AstDecl parse_var_declaration(Parser *self);
+
+static AstDecl parse_declaration(Parser *self) {
+    const Token token = advance(self);
+    switch (token.kind) {
+    case TOKEN_KIND_CONST: return parse_const_declaration(self);
+    case TOKEN_KIND_VAR:   return parse_var_declaration(self);
+    default: report_error(self, token.location, "Unexpected Token! Expected either `const`, or `var`.");
+    }
+}
+
+static AstDecl parse_const_declaration(Parser *self) {
+    const Token start = previous(self);
+    const Token identifier = consume(self, TOKEN_KIND_IDENTIFIER, "Expected a Constant Name.\n");
+    const AstExpr *type = NULL;
+    if (match(self, TOKEN_KIND_COLON)) {
+        const AstExpr tp = parse_expr(self);
+        type = create(self, tp);
+    }
+
+    consume(self, TOKEN_KIND_EQUAL, "Expected `=`.");
+    AstExpr value = parse_expr(self);
+    Token end = consume(self, TOKEN_KIND_SEMICOLON, "Expected `;`.");
+
+    return (AstDecl){
+        .location = start.location,
+        .span = span_conjoin(start.span, end.span),
+        .node = {
+            .tag = AST_DECL_KIND_CONSTANT,
+            .as = {
+                .constant = {
+                    .name = identifier.span,
+                    .type = type,
+                    .value = create(self, value),
+                },
+            },
+        },
+    };
+}
+
+static AstDecl parse_var_declaration(Parser *self) {
+    const Token start = previous(self);
+    const Token identifier = consume(self, TOKEN_KIND_IDENTIFIER, "Expected a Variable Name.\n");
+    const AstExpr *type = NULL;
+    if (match(self, TOKEN_KIND_COLON)) {
+        const AstExpr tp = parse_expr(self);
+        type = create(self, tp);
+    }
+
+    consume(self, TOKEN_KIND_EQUAL, "Expected `=`.");
+    const AstExpr value = parse_expr(self);
+
+    const Token end = consume(self, TOKEN_KIND_SEMICOLON, "Expected `;`.");
+
+    return (AstDecl){
+        .location = start.location,
+        .span = span_conjoin(start.span, end.span),
+        .node = {
+            .tag = AST_DECL_KIND_VARIABLE,
+            .as = {
+                .variable = {
+                    .name = identifier.span,
+                    .type = type,
+                    .value = create(self, value),
+                },
+            },
+        },
+    };
+}
 
 static AstExpr parse_expr(Parser *self) {
     return parse_precedence(self, PREC_ASSIGNMENT);
@@ -261,7 +349,7 @@ static ParserRule get_rule(TokenKind kind) {
     }
 }
 
-static const void *_create(Parser *self, size_t size, void *value) {
+static const void *_create(Parser *self, size_t size, const void *value) {
     if (self->had_error) return NULL;
     void *result = arena_alloc(&self->arena, size);
     if (result == NULL) {
@@ -359,7 +447,7 @@ static NORETURN void report_error(Parser *parser, Location at, const char *fmt, 
 
     parser->had_error = true;
 
-    longjmp(parser->jmpbuf, 1);
+    longjmp(parser->jmpbuf, ERROR);
 }
 
 static NORETURN void vareport_error(Parser *parser, Location at, const char *fmt, va_list args) {
@@ -371,5 +459,5 @@ static NORETURN void vareport_error(Parser *parser, Location at, const char *fmt
 
     parser->had_error = true;
 
-    longjmp(parser->jmpbuf, 1);
+    longjmp(parser->jmpbuf, ERROR);
 }

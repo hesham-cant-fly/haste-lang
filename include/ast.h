@@ -5,7 +5,7 @@
 #include "arena.h"
 #include "core/my_printer.h"
 #include <stdint.h>
-#include <stdio.h>
+#include <stdbool.h>
 
 #define __PRINT_SPAN my_print_span
 #define __PRINT_LOCATION PRINT_NONE
@@ -85,20 +85,20 @@ struct AstExpr {
 /* Declarations */
 struct AstVariableDecl {
 #define AST_VARIABLE_DECL_STRUCT_DEF(X)                                        \
-    X(Token, name, print_token)                                                \
-    X(AstExpr, value, print_ast_expr)                                          \
-    X(AstExpr, type, print_ast_expr)
+  X(Span, name, my_print_span)                                                 \
+  X(const AstExpr *, type, print_ast_expr_ptr)                                 \
+  X(const AstExpr *, value, print_ast_expr_ptr)
 
-    AST_VARIABLE_DECL_STRUCT_DEF(X_STRUCT)
+  AST_VARIABLE_DECL_STRUCT_DEF(X_STRUCT)
 };
 
 struct AstConstantDecl {
 #define AST_CONSTANT_DECL_STRUCT_DEF(X)                                        \
-    X(Token, name, print_token)                                                \
-    X(AstExpr, value, print_ast_expr)                                          \
-    X(AstExpr, type, print_ast_expr)
+  X(Span, name, my_print_span)                                                 \
+  X(const AstExpr *, type, print_ast_expr_ptr)                                 \
+  X(const AstExpr *, value, print_ast_expr_ptr)
 
-    AST_CONSTANT_DECL_STRUCT_DEF(X_STRUCT)
+  AST_CONSTANT_DECL_STRUCT_DEF(X_STRUCT)
 };
 
 typedef enum AstDeclKind {
@@ -110,10 +110,10 @@ typedef enum AstDeclKind {
 } AstDeclKind;
 
 struct AstDeclNode {
-  AstDeclKind tag;
-  union {
-    AST_DECL_NODE_TAGGED_UNION_DEF(X_TAGGED_UNION)
-  } as;
+    AstDeclKind tag;
+    union {
+        AST_DECL_NODE_TAGGED_UNION_DEF(X_TAGGED_UNION)
+    } as;
 };
 
 struct AstDecl {
@@ -125,14 +125,29 @@ struct AstDecl {
     AST_DECL_STRUCT_DEF(X_STRUCT)
 };
 
+/* Lists */
+typedef struct AstDeclarationListNode {
+    AstDecl node;
+    struct AstDeclarationListNode *next;
+} AstDeclarationListNode;
+
+typedef struct AstDeclarationList {
+    const AstDeclarationListNode *head;
+    AstDeclarationListNode *end;
+} AstDeclarationList;
+
 struct ASTFile {
 #define AST_FILE_STRUCT_DEF(X)                                                 \
     X(Arena, arena, PRINT_NONE)                                                \
-    X(AstExpr, root, print_ast_expr)
+    X(AstDeclarationList, declarations, print_declaration_list)
 
     AST_FILE_STRUCT_DEF(X_STRUCT)
 };
 
+void ast_declaration_list_append(AstDeclarationList *list, const AstDeclarationListNode *node);
+
+/* Printers */
+GEN_PRINTER_DEF(AstDeclarationList, print_declaration_list);
 GEN_PRINTER_DEF(ASTFile, print_ast_file);
 
 GEN_PRINTER_DEF(AstOperator, print_ast_operator);

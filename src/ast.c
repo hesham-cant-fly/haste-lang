@@ -1,5 +1,39 @@
 #include "ast.h"
 #include "core/my_printer.h"
+#include <stdio.h>
+
+void ast_declaration_list_append(AstDeclarationList *list,
+                                 const AstDeclarationListNode *node) {
+  if (list->head == NULL && list->end == NULL) {
+    list->head = node;
+    list->end = (AstDeclarationListNode*)node;
+    return;
+  }
+  list->end->next = (AstDeclarationListNode*)node;
+  list->end = (AstDeclarationListNode*)node;
+}
+
+GEN_COSTOM_PRINTER_IMPL_START(AstDeclarationList, print_declaration_list)
+    if (v.head == NULL) {
+        fprintf(f, "[vide]");
+        return;
+    }
+    fprintf(f, "[\n");
+    size_t j = 0;
+    const AstDeclarationListNode *current = v.head;
+
+    while (current != NULL) {
+        AstDeclarationListNode *next = current->next;
+        __print_indent(f, i);
+        fprintf(f, "[%zu] => ", j);
+        print_ast_decl_indent(f, current->node, i + IDENTATION);
+        fprintf(f, ",\n");
+        current = next;
+        j += 1;
+    }
+    __print_indent(f, i > 0 ? i - IDENTATION : i);
+    fprintf(f, "]");
+GEN_COSTOM_PRINTER_IMPL_END(AstDeclarationList, print_declaration_list)
 
 GEN_STRUCT_PRINT_IMPL(ASTFile, print_ast_file, AST_FILE_STRUCT_DEF)
 
