@@ -1,11 +1,13 @@
 #include "token.h"
 #include "core/my_printer.h"
 
-size_t span_len(Span self) {
+size_t span_len(Span self)
+{
     return self.end - self.start;
 }
 
-Span span_conjoin(Span a, Span b) {
+Span span_conjoin(Span a, Span b)
+{
     return (Span){
         .start = a.start,
         .end = b.end,

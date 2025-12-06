@@ -36,11 +36,11 @@ typedef enum AstOperator {
 } AstOperator;
 
 struct AstUnaryExpr {
-#define UNARY_EXPR_STRUCT_DEF(X)                                        \
-    X(AstOperator, op, print_ast_operator)                              \
-    X(const AstExpr *, rhs, print_ast_expr_ptr)
+#define UNARY_EXPR_STRUCT_DEF(X)                                               \
+  X(const AstExpr *, rhs, print_ast_expr_ptr)                                  \
+  X(AstOperator, op, print_ast_operator)
 
-    UNARY_EXPR_STRUCT_DEF(X_STRUCT)
+  UNARY_EXPR_STRUCT_DEF(X_STRUCT)
 };
 
 struct AstBinaryExpr {
