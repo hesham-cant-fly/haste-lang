@@ -1,19 +1,72 @@
 #include "type.h"
 #include "arena.h"
 #include "core/my_commons.h"
+#include <stdio.h>
+#include <string.h>
 
-void type_pool_add_type(TypesPool *self, Type tp)
+
+TypesPool g_types_pool = {0};
+Type* g_primitive_types_table[] = {
+	[PRIMITIVE_INT] = NULL,
+	[PRIMITIVE_FLOAT] = NULL,
+	[PRIMITIVE_UNTYPED_FLOAT] = NULL,
+	[PRIMITIVE_UNTYPED_INT] = NULL,
+	[PRIMITIVE_AUTO] = NULL,
+};
+
+void init_types_pool(void)
 {
-	Type *new_type = arena_alloc(&self->arena, sizeof(tp));
-	*new_type	   = tp;
-	if (self->head == NULL && self->current == NULL)
+	Type tp = {0};
+
+	tp.kind = TYPE_INT;
+	tp.name = "int";
+	g_primitive_types_table[PRIMITIVE_INT] = create_type(tp);
+
+	tp.kind = TYPE_FLOAT;
+	tp.name = "float";
+	g_primitive_types_table[PRIMITIVE_FLOAT] = create_type(tp);
+
+	tp.kind = TYPE_UNTYPED_FLOAT;
+	tp.name = "untyped_float";
+	g_primitive_types_table[PRIMITIVE_UNTYPED_FLOAT] = create_type(tp);
+
+	tp.kind = TYPE_UNTYPED_INT;
+	tp.name = "untyped_int";
+	g_primitive_types_table[PRIMITIVE_UNTYPED_INT] = create_type(tp);
+
+	tp.kind = TYPE_AUTO;
+	tp.name = "auto";
+	g_primitive_types_table[PRIMITIVE_AUTO] = create_type(tp);
+}
+
+void deinit_types_pool(void)
+{
+	arena_free(&g_types_pool.arena);
+	g_types_pool = (TypesPool) {0};
+}
+
+Type* create_type(Type tp)
+{
+	Type *new_type = arena_alloc(&g_types_pool.arena, sizeof(tp));
+	memcpy(new_type, &tp, sizeof(tp));
+	if (g_types_pool.head == NULL && g_types_pool.current == NULL)
 	{
-		self->head	  = new_type;
-		self->current = new_type;
+		g_types_pool.head = new_type;
+		g_types_pool.current = new_type;
 	}
 
-	self->current->next = new_type;
-	self->current		= new_type;
+	g_types_pool.current->next = new_type;
+	g_types_pool.current = new_type;
+}
+
+Type *get_primitive_type(PrimitiveType type)
+{
+	return g_primitive_types_table[type];
+}
+
+void print_type(FILE *f, const Type tp)
+{
+	fprintf(f, "%s", tp.name);
 }
 
 TypeMatchResult type_matches(const Type *tp1, const Type *tp2)

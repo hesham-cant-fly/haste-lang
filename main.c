@@ -1,9 +1,11 @@
+#include "hir.h"
 #include "ast.h"
 #include "core/my_array.h"
 #include "error.h"
 #include "parser.h"
 #include "scanner.h"
 #include "token.h"
+#include "type.h"
 
 #include <errno.h>
 #include <locale.h>
@@ -67,13 +69,15 @@ static char *read_entire_file(const char *path)
 int main(void)
 {
 	setlocale(LC_ALL, "C.UTF-8");
+	init_types_pool();
+
 	char *src = read_entire_file("./main.haste");
 	if (src == NULL)
 	{
 		return 1;
 	}
 	Token *tokens = NULL;
-	error err	  = scan_entire_cstr(src, &tokens);
+	error err = scan_entire_cstr(src, &tokens);
 	if (err)
 	{
 		free(src);
@@ -81,7 +85,7 @@ int main(void)
 	}
 
 	ASTFile ast = { 0 };
-	err			= parse_tokens(tokens, &ast);
+	err = parse_tokens(tokens, &ast);
 	if (err)
 	{
 		arrfree(tokens);
@@ -89,10 +93,24 @@ int main(void)
 		return 1;
 	}
 
-	print_ast_fileln(stdout, ast);
+	// print_ast_fileln(stdout, ast);
+
+	Hir hir = {0};
+	err = hoist_ast(ast, &hir);
+	if (err)
+	{
+		arrfree(tokens);
+		free(src);
+		arena_free(&ast.arena);
+		return 1;
+	}
+
+	print_hir(stdout, hir);
 
 	arrfree(tokens);
 	free(src);
 	arena_free(&ast.arena);
+	deinit_hir(hir);
+	deinit_types_pool();
 	return 0;
 }

@@ -24,6 +24,8 @@ extern "C" {
 # endif
 #endif
 
+#define BOOL_ARG(__expr) (__expr) ? "true" : "false"
+
 #define unused(...) ((void)(__VA_ARGS__))
 #define panic(...) __panic(__FILE__, __LINE__, __VA_ARGS__)
 #define unreachable() __unreachable(__FILE__, __LINE__)
