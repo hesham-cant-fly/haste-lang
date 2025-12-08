@@ -225,6 +225,22 @@ static AstExpr parse_precedence(Parser *self, Precedence precedence)
 	return left;
 }
 
+static AstExpr parse_identifier(Parser *self)
+{
+	const Token token = previous(self);
+
+	return (AstExpr) {
+		.location = token.location,
+		.span = token.span,
+		.node = {
+			.tag = AST_EXPR_KIND_IDENTIFIER,
+			.as = {
+				.identifier = token.span,
+			},
+		},
+	};
+}
+
 static AstExpr parse_int_lit(Parser *self)
 {
 	const Token token = previous(self);
@@ -377,28 +393,18 @@ static ParserRule get_rule(TokenKind kind)
 {
 	switch (kind)
 	{
-	case TOKEN_KIND_INT_LIT:
-		return (ParserRule){ parse_int_lit, NULL, PREC_PRIMARY, false };
-	case TOKEN_KIND_FLOAT_LIT:
-		return (ParserRule){ parse_float_lit, NULL, PREC_PRIMARY, false };
-	case TOKEN_KIND_AUTO:
-		return (ParserRule){ parse_auto_type, NULL, PREC_PRIMARY, false };
-	case TOKEN_KIND_INT:
-		return (ParserRule){ parse_int_type, NULL, PREC_PRIMARY, false };
-	case TOKEN_KIND_FLOAT:
-		return (ParserRule){ parse_float_type, NULL, PREC_PRIMARY, false };
-	case TOKEN_KIND_OPEN_PAREN:
-		return (ParserRule){ parse_grouping, NULL, PREC_PRIMARY, false };
-	case TOKEN_KIND_PLUS:
-		return (ParserRule){ parse_unary, parse_binary, PREC_TERM, false };
-	case TOKEN_KIND_MINUS:
-		return (ParserRule){ parse_unary, parse_binary, PREC_TERM, false };
-	case TOKEN_KIND_STAR:
-		return (ParserRule){ NULL, parse_binary, PREC_FACTOR, false };
-	case TOKEN_KIND_FSLASH:
-		return (ParserRule){ NULL, parse_binary, PREC_FACTOR, false };
-	case TOKEN_KIND_DOUBLE_STAR:
-		return (ParserRule){ NULL, parse_binary, PREC_POWER, true };
+	case TOKEN_KIND_IDENTIFIER:  return (ParserRule){ parse_identifier, NULL,         PREC_PRIMARY, false };
+	case TOKEN_KIND_INT_LIT:     return (ParserRule){ parse_int_lit,    NULL,         PREC_PRIMARY, false };
+	case TOKEN_KIND_FLOAT_LIT:   return (ParserRule){ parse_float_lit,  NULL,         PREC_PRIMARY, false };
+	case TOKEN_KIND_AUTO:        return (ParserRule){ parse_auto_type,  NULL,         PREC_PRIMARY, false };
+	case TOKEN_KIND_INT:         return (ParserRule){ parse_int_type,   NULL,         PREC_PRIMARY, false };
+	case TOKEN_KIND_FLOAT:       return (ParserRule){ parse_float_type, NULL,         PREC_PRIMARY, false };
+	case TOKEN_KIND_OPEN_PAREN:  return (ParserRule){ parse_grouping,   NULL,         PREC_PRIMARY, false };
+	case TOKEN_KIND_PLUS:        return (ParserRule){ parse_unary,      parse_binary, PREC_TERM,    false };
+	case TOKEN_KIND_MINUS:       return (ParserRule){ parse_unary,      parse_binary, PREC_TERM,    false };
+	case TOKEN_KIND_STAR:        return (ParserRule){ NULL,             parse_binary, PREC_FACTOR,  false };
+	case TOKEN_KIND_FSLASH:      return (ParserRule){ NULL,             parse_binary, PREC_FACTOR,  false };
+	case TOKEN_KIND_DOUBLE_STAR: return (ParserRule){ NULL,             parse_binary, PREC_POWER,   true };
 	default:
 		return (ParserRule){ 0, 0, 0, 0 };
 	}
@@ -513,7 +519,7 @@ static AstOperator operator_from_token(const Token token)
 	case TOKEN_KIND_FSLASH:
 		return AST_OPERATOR_FSLASH;
 	case TOKEN_KIND_DOUBLE_STAR:
-		return AST_OPERATOR_STAR;
+		return AST_OPERATOR_POW;
 	default:
 		unreachable();
 	}

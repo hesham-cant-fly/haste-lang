@@ -29,8 +29,9 @@ typedef enum AstOperator {
 #define AST_OPERATOR_ENUM_DEF(X)                                        \
     X(AST_OPERATOR_PLUS)                                                \
     X(AST_OPERATOR_MINUS)                                               \
-    X(AST_OPERATOR_STAR)                                                \
-    X(AST_OPERATOR_FSLASH)
+	X(AST_OPERATOR_STAR)                                                \
+	X(AST_OPERATOR_FSLASH)												\
+	X(AST_OPERATOR_POW)
 
     AST_OPERATOR_ENUM_DEF(X_ENUM)
 } AstOperator;
@@ -53,15 +54,16 @@ struct AstBinaryExpr {
 };
 
 typedef enum AstExprKind {
-#define EXPR_NODE_TAGGED_UNION_DEF(X)                                            \
-    X(AST_EXPR_KIND_UNARY, AstUnaryExpr, unary, print_ast_unary_expr)            \
-    X(AST_EXPR_KIND_BINARY, AstBinaryExpr, bin, print_ast_binary_expr)           \
-    X(AST_EXPR_KIND_GROUPING, const AstExpr *, grouping, print_ast_expr_ptr)     \
-    X(AST_EXPR_KIND_INT_LIT, int64_t, int_lit, PRINT_SSIZE_T)                    \
-    X(AST_EXPR_KIND_FLOAT_LIT, double, float_lit, PRINT_DOUBLE)                  \
-    X(AST_EXPR_KIND_AUTO_TYPE, uint8_t, auto_type, PRINT_NONE)                   \
-    X(AST_EXPR_KIND_FLOAT_TYPE, uint8_t, float_type, PRINT_NONE)                 \
-    X(AST_EXPR_KIND_INT_TYPE, uint8_t, int_type, PRINT_NONE)
+#define EXPR_NODE_TAGGED_UNION_DEF(X)									\
+	X(AST_EXPR_KIND_UNARY,      AstUnaryExpr,    unary, print_ast_unary_expr) \
+	X(AST_EXPR_KIND_BINARY,     AstBinaryExpr,   bin, print_ast_binary_expr) \
+	X(AST_EXPR_KIND_GROUPING,   const AstExpr*,  grouping, print_ast_expr_ptr) \
+	X(AST_EXPR_KIND_IDENTIFIER, Span,            identifier, print_span) \
+	X(AST_EXPR_KIND_INT_LIT,    int64_t,         int_lit, PRINT_SSIZE_T) \
+	X(AST_EXPR_KIND_FLOAT_LIT,  double,          float_lit, PRINT_DOUBLE) \
+	X(AST_EXPR_KIND_AUTO_TYPE,  uint8_t,         auto_type, PRINT_NONE)	\
+	X(AST_EXPR_KIND_FLOAT_TYPE, uint8_t,         float_type, PRINT_NONE) \
+    X(AST_EXPR_KIND_INT_TYPE,   uint8_t,         int_type, PRINT_NONE)
 
     EXPR_NODE_TAGGED_UNION_DEF(X_UNION_TAG)
 } AstExprKind;
