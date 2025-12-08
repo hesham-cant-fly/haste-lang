@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.12.0)
 project(haste)
 
+message(${CMAKE_BUILD_TYPE})
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(DEBUG_BUILD ON)
   set(DEBUG_DEV_BUILD OFF)
@@ -45,11 +46,17 @@ target_include_directories(${CMAKE_PROJECT_NAME} PUBLIC include/)
 
 if (DEBUG_BUILD)
   target_compile_definitions(${CMAKE_PROJECT_NAME} PUBLIC DEBUG)
-  target_compile_options(${CMAKE_PROJECT_NAME} PUBLIC -fsanitize=address)
+  target_compile_options(
+	${CMAKE_PROJECT_NAME} PUBLIC
+	-fsanitize=address
+	-fsanitize=undefined
+	-g
+  )
   target_link_options(
     ${CMAKE_PROJECT_NAME}
     PUBLIC
-    -fsanitize=address
+	-fsanitize=address
+	-fsanitize=undefined
   )
 else()
   target_compile_definitions(${CMAKE_PROJECT_NAME} PUBLIC RELEASE)

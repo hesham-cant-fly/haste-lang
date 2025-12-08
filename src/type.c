@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <string.h>
 
-
 TypesPool g_types_pool = {0};
 Type* g_primitive_types_table[] = {
 	[PRIMITIVE_INT] = NULL,
@@ -57,16 +56,23 @@ Type* create_type(Type tp)
 
 	g_types_pool.current->next = new_type;
 	g_types_pool.current = new_type;
+
+	return new_type;
 }
 
 Type *get_primitive_type(PrimitiveType type)
 {
-	return g_primitive_types_table[type];
+	Type *result = g_primitive_types_table[type];
+	return result;
 }
 
 void print_type(FILE *f, const Type tp)
 {
 	fprintf(f, "%s", tp.name);
+	/* for (const char* i=tp.name; *i; i += 1) */
+	/* { */
+	/* 	fprintf(f, "%d ", *i); */
+	/* } */
 }
 
 TypeMatchResult type_matches(const Type *tp1, const Type *tp2)

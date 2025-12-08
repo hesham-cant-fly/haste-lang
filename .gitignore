@@ -1,3 +1,5 @@
 .cache/
 .lsp/
 build/
+Release/
+Debug/

@@ -40,7 +40,7 @@ typedef struct HirInstruction {
 		Type* type;
 
 		struct HirStartDecl {
-			Span name;
+			volatile Span name;
 			size_t end;
 			/* TODO: Visibility */
 			/* enum HirVisibility { */

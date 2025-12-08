@@ -1,25 +1,3 @@
-const add: (int, int) -> int = (a: int, b: int) => a + b;
-
-const map(
-	T: type,
-	arr: []T,
-	callback: (T) -> T,
-	allocator: Allocator = context.Allocator
-): ![dynamic]T #optional_error {
-	var result: [dynamic]T;
-	result.reserve(arr.len);
-
-	for item in arr {
-		const new_value = callback(item);
-		try result.push(new_value);
-	}
-
-	return result;
-};
-
 const main() {
-	const xs = .[1, 2, 3, 4, 5];
-	const ys = map(xs, (x) => x * 2);
-	defer delete(yes);
-  @println("{}", ys);
+	@println("Hello, World!");
 }
