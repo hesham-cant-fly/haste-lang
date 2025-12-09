@@ -14,6 +14,21 @@ void ast_declaration_list_append(AstDeclarationList *list, const AstDeclarationL
 	list->end = (AstDeclarationListNode*)node;
 }
 
+
+Span get_declaration_name(const AstDecl declaration)
+{
+#define X(__tag, _, __name, ...)				\
+	case __tag:									\
+		return node.as.__name.name;	   
+
+	AstDeclNode node = declaration.node;
+	switch (node.tag)
+	{
+		AST_DECL_NODE_TAGGED_UNION_DEF(X)
+	}
+#undef X
+}
+
 GEN_COSTOM_PRINTER_IMPL_START(AstDeclarationList, print_declaration_list)
 {
 	if (v.head == NULL)

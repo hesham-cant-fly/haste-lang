@@ -148,6 +148,9 @@ struct ASTFile {
 
 void ast_declaration_list_append(AstDeclarationList *list, const AstDeclarationListNode *node);
 
+/* Other Methods */
+Span get_declaration_name(const AstDecl declaration);
+
 /* Printers */
 GEN_PRINTER_DEF(AstDeclarationList, print_declaration_list);
 GEN_PRINTER_DEF(ASTFile, print_ast_file);

@@ -116,110 +116,118 @@ void print_hir(FILE *f, Hir hir)
 	}
 }
 
-static size_t hir_push_instruction(Hir *hir, HirInstruction instruction);
+static HirInstruction hir_get(Hir* hir, const size_t at);
+static size_t hir_len(Hir *hir);
+
+static size_t hir_push_instruction(Hir *hir, const HirInstruction instruction);
+static void hir_insert_instruction(Hir *hir, const size_t at, const HirInstruction instruction);
 static void hoist_entry_append(HirHoistEntry* hoist_table, Span key, size_t value);
-static error hoist_expr(const AstExpr *expr, Hir *out);
+
+static error hoist_declaration(Hir *hir, const AstDecl declaration);
+static error hoist_expr(const AstExpr *expr, Hir *hir);
 
 error hoist_ast(ASTFile file, Hir *out)
 {
-	Hir result = {0};
-	result.hoist_table = arrinit(HirHoistEntry);
-	result.instructions = arrinit(HirInstruction);
+	Hir hir = {0};
+	hir.hoist_table = arrinit(HirHoistEntry);
+	hir.instructions = arrinit(HirInstruction);
 
 	const AstDeclarationListNode* current = file.declarations.head;
 	while (current != NULL)
 	{
-		const size_t begining = arrlen(result.instructions);
 		const AstDeclarationListNode* next = current->next;
-		const AstDecl declaration = current->node;
-		const AstDeclNode node = declaration.node;
-		HirInstruction instruction = {0};
-		instruction.span = declaration.span;
-		instruction.location = declaration.location;
-		size_t start_decl = 0;
-		{
-			HirInstruction instruction = {0};
-			instruction.span = declaration.span;
-			instruction.location = declaration.location;
-			instruction.tag = HIR_NODE_START_DECLARATION;
-			start_decl = hir_push_instruction(&result, instruction);
-		}
 
-		switch (declaration.node.tag)
-		{
-		case AST_DECL_KIND_CONSTANT: {
-			if (node.as.constant.value != NULL)
-			{
-				error err = hoist_expr(node.as.constant.value, &result);
-				if (err) return err;
-			}
-			if (node.as.constant.type != NULL)
-			{
-				error err = hoist_expr(node.as.constant.type, &result);
-				if (err) return err;
-			}
+		error err = hoist_declaration(&hir, current->node);
+		if (err) return err;
 
-			if (hoist_entry_find(result.hoist_table, node.as.constant.name) != NULL)
-			{
-				panic("");
-			}
-			result.instructions[start_decl].as.start_decl.name = node.as.constant.name;
-			instruction.tag = HIR_NODE_CONSTANT_DECLARATION;
-			instruction.as.constant = (struct HirConstantDecl){
-				.name = node.as.constant.name,
-				.begining = begining,
-				.explicit_typing = node.as.constant.type != NULL,
-				.initialized = node.as.constant.value != NULL,
-			};
+		hoist_entry_append(
+			hir.hoist_table,
+			get_declaration_name(current->node),
+			arrlen(hir.instructions) - 1
+		);
 
-			hoist_entry_append(
-				result.hoist_table,
-				node.as.constant.name,
-				arrlen(result.instructions) - 1
-			);
-		} break;
-		case AST_DECL_KIND_VARIABLE:
-			if (node.as.variable.value != NULL)
-			{
-				error err = hoist_expr(node.as.variable.value, &result);
-				if (err) return err;
-			}
-			if (node.as.variable.type != NULL)
-			{
-				error err = hoist_expr(node.as.variable.type, &result);
-				if (err) return err;
-			}
-
-			if (hoist_entry_find(result.hoist_table, node.as.variable.name) != NULL)
-			{
-				panic("");
-			}
-
-			result.instructions[start_decl].as.start_decl.name = node.as.variable.name;
-			instruction.tag = HIR_NODE_VARIABLE_DECLARATION;
-			instruction.as.variable = (struct HirVariableDecl){
-				.name = node.as.variable.name,
-				.begining = begining,
-				.explicit_typing = node.as.variable.type != NULL,
-				.initialized = node.as.variable.value != NULL,
-			};
-
-			hoist_entry_append(
-				result.hoist_table,
-				node.as.variable.name,
-				arrlen(result.instructions) - 1
-			);
-			break;
-		}
-
-		result.instructions[start_decl].as.start_decl.end = arrlen(result.instructions);
-
-		hir_push_instruction(&result, instruction);
-	   
 		current = next;
 	}
 
-	*out = result;
+	*out = hir;
+	return OK;
+}
+
+static error hoist_declaration(Hir *hir, const AstDecl declaration)
+{
+	const size_t begining = arrlen(hir->instructions);
+	const size_t start_decl = begining;
+	const AstDeclNode node = declaration.node;
+	HirInstruction instruction = {0};
+	instruction.span = declaration.span;
+	instruction.location = declaration.location;
+
+	switch (declaration.node.tag)
+	{
+	case AST_DECL_KIND_CONSTANT:
+		if (node.as.constant.value != NULL)
+		{
+			error err = hoist_expr(node.as.constant.value, hir);
+			if (err) return err;
+		}
+		if (node.as.constant.type != NULL)
+		{
+			error err = hoist_expr(node.as.constant.type, hir);
+			if (err) return err;
+		}
+
+		if (hoist_entry_find(hir->hoist_table, node.as.constant.name) != NULL)
+		{
+			panic("");
+		}
+
+		instruction.tag = HIR_NODE_CONSTANT_DECLARATION;
+		instruction.as.constant = (struct HirConstantDecl){
+			.name = node.as.constant.name,
+			.begining = begining,
+			.explicit_typing = node.as.constant.type != NULL,
+			.initialized = node.as.constant.value != NULL,
+		};
+		break;
+	case AST_DECL_KIND_VARIABLE:
+		if (node.as.variable.value != NULL)
+		{
+			error err = hoist_expr(node.as.variable.value, hir);
+			if (err) return err;
+		}
+		if (node.as.variable.type != NULL)
+		{
+			error err = hoist_expr(node.as.variable.type, hir);
+			if (err) return err;
+		}
+
+		if (hoist_entry_find(hir->hoist_table, node.as.variable.name) != NULL)
+		{
+			panic("");
+		}
+
+		instruction.tag = HIR_NODE_VARIABLE_DECLARATION;
+		instruction.as.variable = (struct HirVariableDecl){
+			.name = node.as.variable.name,
+			.begining = begining,
+			.explicit_typing = node.as.variable.type != NULL,
+			.initialized = node.as.variable.value != NULL,
+		};
+		break;
+	}
+
+	{
+		HirInstruction instruction = {0};
+		instruction.span = declaration.span;
+		instruction.location = declaration.location;
+		instruction.tag = HIR_NODE_START_DECLARATION;
+		instruction.as.start_decl.name = get_declaration_name(declaration);
+		instruction.as.start_decl.end = hir_len(hir) + 1;
+
+		hir_insert_instruction(hir, start_decl, instruction);
+	}
+
+	hir_push_instruction(hir, instruction);
 	return OK;
 }
 
@@ -360,7 +368,39 @@ HirHoistEntry* hoist_entry_find(HirHoistEntry* hoist_table, Span key)
 static size_t hir_push_instruction(Hir *hir, HirInstruction instruction)
 {
 	arrpush(hir->instructions, instruction);
-	return arrlen(hir->instructions) - 1;
+	return hir_len(hir) - 1;
+}
+
+static void hir_insert_instruction(Hir *hir, const size_t at, const HirInstruction instruction)
+{
+	const size_t len = hir_len(hir);
+	if (at > len) panic("Insert Out-of-bound.");
+
+	if (arrcap(hir->instructions) <= len + 1)
+	{
+		arrreserve(hir->instructions, len + 1);
+	}
+
+	arrsetlen(hir->instructions, len + 1);
+	for (size_t i = len; i > at; i--) {
+		hir->instructions[i] = hir_get(hir, i - 1);
+	}
+
+	hir->instructions[at] = instruction;
+}
+
+static HirInstruction hir_get(Hir* hir, const size_t at)
+{
+	if (at >= hir_len(hir))
+	{
+		panic("OUT OF BOUND: %zu >= %zu", at, hir_len(hir));
+	}
+	return hir->instructions[at];
+}
+
+static size_t hir_len(Hir *hir)
+{
+	return arrlen(hir->instructions);
 }
 
 static void hoist_entry_append(HirHoistEntry* hoist_table, Span key, size_t value)
