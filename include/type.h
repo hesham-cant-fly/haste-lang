@@ -6,13 +6,18 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-typedef enum TypeKind {
-	TYPE_UNTYPED_INT,
-	TYPE_UNTYPED_FLOAT,
-	TYPE_INT,
-	TYPE_FLOAT,
-	TYPE_AUTO,
-} TypeKind;
+typedef size_t TypeID;
+#define TYPE_ID_ENUM_DEF(X)						\
+	X(TYPE_AUTO, "auto")						\
+	X(TYPE_INT, "int")						    \
+	X(TYPE_FLOAT, "float")					    \
+	X(TYPE_UNTYPED_INT, "int")				    \
+	X(TYPE_UNTYPED_FLOAT, "float")					
+enum {
+#define X(__field_name, ...) __field_name,
+	TYPE_ID_ENUM_DEF(X)
+#undef X
+};
 
 typedef enum PrimitiveType {
 	PRIMITIVE_INT,
@@ -23,19 +28,16 @@ typedef enum PrimitiveType {
 } PrimitiveType;
 
 typedef struct Type {
-	TypeKind kind;
+	TypeID id;
 	const char *name;
-	struct Type *next;
 } Type;
 
 typedef struct TypesPool {
 	Arena arena;
-	Type *head;
-	Type *current;
+	Type** types;
 } TypesPool;
 
 extern TypesPool g_types_pool;
-extern Type* g_primitive_types_table[];
 
 typedef enum TypeMatchResult {
 	TYPE_MATCH_NONE = 1, /* ERROR */
@@ -45,14 +47,13 @@ typedef enum TypeMatchResult {
 
 void init_types_pool(void);
 void deinit_types_pool(void);
-Type* create_type(Type tp);
-Type* get_primitive_type(PrimitiveType type);
+TypeID create_type(Type tp);
 
-void print_type(FILE* f, const Type tp);
+void print_type(FILE* f, const TypeID id);
 
-TypeMatchResult type_matches(const Type *tp1, const Type *tp2);
-bool type_is_any_number(const Type *tp);
-bool type_is_any_int(const Type *tp);
-bool type_is_any_float(const Type *tp);
+TypeMatchResult type_matches(const TypeID id1, const TypeID id2);
+bool type_is_any_number(const TypeID id);
+bool type_is_any_int(const TypeID id);
+bool type_is_any_float(const TypeID id);
 
 #endif /* !__TYPE_H */

@@ -22,7 +22,7 @@ void print_hir_instruction(FILE *f, HirInstruction instruction)
 		break;
 	case HIR_NODE_TYPE:
 		fprintf(f, "type(");
-		print_type(f, *instruction.as.type);
+		print_type(f, instruction.as.type);
 		fprintf(f, ")");
 		break;
 
@@ -298,15 +298,15 @@ static error hoist_expr(const AstExpr *expr, Hir *out)
 		goto _defer;
 	case AST_EXPR_KIND_AUTO_TYPE:
 		instruction.tag = HIR_NODE_TYPE;
-		instruction.as.type = get_primitive_type(PRIMITIVE_AUTO);
+		instruction.as.type = TYPE_AUTO;
 		goto _defer;
 	case AST_EXPR_KIND_FLOAT_TYPE:
 		instruction.tag = HIR_NODE_TYPE;
-		instruction.as.type = get_primitive_type(PRIMITIVE_FLOAT);
+		instruction.as.type = TYPE_FLOAT;
 		goto _defer;
 	case AST_EXPR_KIND_INT_TYPE:
 		instruction.tag = HIR_NODE_TYPE;
-		instruction.as.type = get_primitive_type(PRIMITIVE_INT);
+		instruction.as.type = TYPE_INT;
 		goto _defer;
 	default:
 		unreachable();

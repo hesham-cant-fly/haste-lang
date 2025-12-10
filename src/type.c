@@ -1,124 +1,112 @@
 #include "type.h"
 #include "arena.h"
 #include "core/my_commons.h"
+#include "core/my_array.h"
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
 TypesPool g_types_pool = {0};
-Type* g_primitive_types_table[] = {
-	[PRIMITIVE_INT] = NULL,
-	[PRIMITIVE_FLOAT] = NULL,
-	[PRIMITIVE_UNTYPED_FLOAT] = NULL,
-	[PRIMITIVE_UNTYPED_INT] = NULL,
-	[PRIMITIVE_AUTO] = NULL,
-};
+
+#define get_type(__id) g_types_pool.types[(__id)]
+#define ASSERT_TYPE_ID(__id)					\
+	do											\
+	{											\
+		const Type* tp = get_type((__id));		\
+		assert((__id) == tp->id);				\
+	} while (0)
 
 void init_types_pool(void)
 {
-	Type tp = {0};
+	g_types_pool.types = arrinit(Type*);
 
-	tp.kind = TYPE_INT;
-	tp.name = "int";
-	g_primitive_types_table[PRIMITIVE_INT] = create_type(tp);
-
-	tp.kind = TYPE_FLOAT;
-	tp.name = "float";
-	g_primitive_types_table[PRIMITIVE_FLOAT] = create_type(tp);
-
-	tp.kind = TYPE_UNTYPED_FLOAT;
-	tp.name = "untyped_float";
-	g_primitive_types_table[PRIMITIVE_UNTYPED_FLOAT] = create_type(tp);
-
-	tp.kind = TYPE_UNTYPED_INT;
-	tp.name = "untyped_int";
-	g_primitive_types_table[PRIMITIVE_UNTYPED_INT] = create_type(tp);
-
-	tp.kind = TYPE_AUTO;
-	tp.name = "auto";
-	g_primitive_types_table[PRIMITIVE_AUTO] = create_type(tp);
+#define X(_, __name)							\
+	{											\
+		Type tp = {0};							\
+		tp.name = (__name);						\
+		create_type(tp);						\
+	}
+	TYPE_ID_ENUM_DEF(X)
+#undef X
 }
 
 void deinit_types_pool(void)
 {
 	arena_free(&g_types_pool.arena);
+	arrfree(g_types_pool.types);
 	g_types_pool = (TypesPool) {0};
 }
 
-Type* create_type(Type tp)
+TypeID create_type(Type tp)
 {
 	Type *new_type = arena_alloc(&g_types_pool.arena, sizeof(tp));
 	memcpy(new_type, &tp, sizeof(tp));
-	if (g_types_pool.head == NULL && g_types_pool.current == NULL)
-	{
-		g_types_pool.head = new_type;
-		g_types_pool.current = new_type;
-	}
 
-	g_types_pool.current->next = new_type;
-	g_types_pool.current = new_type;
+	arrpush(g_types_pool.types, new_type);
+	new_type->id = arrlen(g_types_pool.types) - 1;
 
-	return new_type;
+	return new_type->id;
 }
 
-Type *get_primitive_type(PrimitiveType type)
+void print_type(FILE *f, const TypeID id)
 {
-	Type *result = g_primitive_types_table[type];
-	return result;
+	const Type tp = *get_type(id);
+	assert(id == tp.id);
+
+	fprintf(f, "%zu:%s", id, tp.name);
 }
 
-void print_type(FILE *f, const Type tp)
+TypeMatchResult type_matches(const TypeID id1, const TypeID id2)
 {
-	fprintf(f, "%s", tp.name);
-	/* for (const char* i=tp.name; *i; i += 1) */
-	/* { */
-	/* 	fprintf(f, "%d ", *i); */
-	/* } */
-}
+	ASSERT_TYPE_ID(id1);
+	ASSERT_TYPE_ID(id2);
 
-TypeMatchResult type_matches(const Type *tp1, const Type *tp2)
-{
-	if (tp1 == tp2)
+	if (id1 == id2)
 	{
 		return TYPE_MATCH_EXACT;
 	}
 
-	if (tp2->kind == TYPE_AUTO) unreachable();
-	if (tp1->kind == TYPE_AUTO)
+	if (id1 == TYPE_AUTO) unreachable();
+	if (id2 == TYPE_AUTO)
 	{
 		return TYPE_MATCH_EXACT;
 	}
 
-	switch (tp1->kind)
+	switch (id1)
 	{
 	case TYPE_UNTYPED_INT:
-		if (type_is_any_int(tp2)) return TYPE_MATCH_EXACT;
-		if (type_is_any_float(tp2)) return TYPE_MATCH_EXACT;
+		if (type_is_any_int(id2)) return TYPE_MATCH_EXACT;
+		if (type_is_any_float(id2)) return TYPE_MATCH_EXACT;
 		return TYPE_MATCH_NONE;
 	case TYPE_UNTYPED_FLOAT:
-		if (type_is_any_float(tp2)) return TYPE_MATCH_EXACT;
-		if (type_is_any_int(tp2)) return TYPE_MATCH_NEED_CAST;
+		if (type_is_any_float(id2)) return TYPE_MATCH_EXACT;
+		if (type_is_any_int(id2)) return TYPE_MATCH_NEED_CAST;
 		return TYPE_MATCH_NONE;
 	case TYPE_INT:
-		if (type_is_any_int(tp2)) return TYPE_MATCH_EXACT;
-		if (type_is_any_float(tp2)) return TYPE_MATCH_NEED_CAST;
+		if (type_is_any_int(id2)) return TYPE_MATCH_EXACT;
+		if (type_is_any_float(id2)) return TYPE_MATCH_NEED_CAST;
 		return TYPE_MATCH_NONE;
 	case TYPE_FLOAT:
-		if (type_is_any_int(tp2)) return TYPE_MATCH_NEED_CAST;
-		if (type_is_any_float(tp2)) return TYPE_MATCH_EXACT;
+		if (type_is_any_int(id2)) return TYPE_MATCH_NEED_CAST;
+		if (type_is_any_float(id2)) return TYPE_MATCH_EXACT;
 		return TYPE_MATCH_NONE;
 	default:
 		return TYPE_MATCH_NONE;
 	}
 }
 
-bool type_is_any_number(const Type *tp)
+bool type_is_any_number(const TypeID id)
 {
-	return type_is_any_int(tp) || type_is_any_float(tp);
+	ASSERT_TYPE_ID(id);
+
+	return type_is_any_int(id) || type_is_any_float(id);
 }
 
-bool type_is_any_int(const Type *tp)
+bool type_is_any_int(const TypeID id)
 {
-	switch (tp->kind)
+	ASSERT_TYPE_ID(id);
+
+	switch (id)
 	{
 	case TYPE_UNTYPED_INT:
 	case TYPE_INT:
@@ -128,9 +116,11 @@ bool type_is_any_int(const Type *tp)
 	}
 }
 
-bool type_is_any_float(const Type *tp)
+bool type_is_any_float(const TypeID id)
 {
-	switch (tp->kind)
+	ASSERT_TYPE_ID(id);
+
+	switch (id)
 	{
 	case TYPE_UNTYPED_FLOAT:
 	case TYPE_FLOAT:

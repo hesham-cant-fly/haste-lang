@@ -37,7 +37,7 @@ typedef struct HirInstruction {
 		Span identifier;
 		int64_t integer;
 		double floating_point;
-		Type* type;
+		TypeID type;
 
 		struct HirStartDecl {
 			volatile Span name;
