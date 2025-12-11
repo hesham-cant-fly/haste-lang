@@ -36,10 +36,7 @@ The idea of treating types as values is borrowed from Zig. I find this model ide
    (Don’t worry, once the compiler and core language stabilize, I’m not going to pull the “breaking changes every week” move... besides, who’s even going to use this language anyway? 😄)
 3. *Simplity*:
    I want to keep things simple so my head doesn’t explode from juggling too many concepts at once. Just a bunch of straightforward rules to rule the world. :3
-.
-.
-.
-999. *What People Think*: ...yeah, that’s intentionally last.
+4. *What People Think*: ...yeah, that’s intentionally last.
 
 * The mascot (Turbo the Turtle)
 This turtle was the first pixel art I made back in 2020, so I decided to make it Haste’s mascot. It’s special to me because it marks where it all started.
