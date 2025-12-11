@@ -14,7 +14,7 @@ typedef size_t TirValue; // References to a TirInstruction in the current functi
 typedef size_t TirFunction;
 typedef size_t TirBlock;
 
-typedef enum TirKind {
+typedef enum TirOpCode {
 	TIR_LIT_I32,   // int32_t lit_i32
 	TIR_LIT_FLOAT, // float lit_float
 
@@ -23,18 +23,18 @@ typedef enum TirKind {
 	TIR_MUL_I32,
 	TIR_DIV_I32,
 	TIR_POW_I32,
-} TirKind;
+} TirOpCode;
 
 typedef struct TirInstruction {
 	TypeID type;
-	TirKind kind;
+	TirOpCode op_code;
 	size_t operands_count;
 	TirValue* operands;
 
 	union {
 		int32_t lit_i32;
 		float lit_float;
-	} as;
+	} value;
 } TirInstruction;
 
 typedef struct TirBlockInfo {
