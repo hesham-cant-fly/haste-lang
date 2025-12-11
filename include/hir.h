@@ -1,3 +1,7 @@
+/** HIR, stands for Haste Intermediant Representation. is an Untyped
+  * Stack Machine Code designed to make the analysis and compile time
+  * execution Easy and simple.
+  */
 #ifndef __HIR_H
 #define __HIR_H
 

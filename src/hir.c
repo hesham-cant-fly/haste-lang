@@ -61,10 +61,10 @@ void print_hir_instruction(FILE *f, HirInstruction instruction)
 		fprintf(
 			f,
 			"decl_const(\n"
-			"  name: \"%.*s\",\n"
-			"  begining: %%%zu,\n"
-			"  explicit_typing: %s,\n"
-			"  initialized: %s,\n"
+			"\tname: \"%.*s\",\n"
+			"\tbegining: %%%zu,\n"
+			"\texplicit_typing: %s,\n"
+			"\tinitialized: %s,\n"
 			")",
 			SPAN_ARG(instruction.as.constant.name),
 			instruction.as.constant.begining,
@@ -76,10 +76,10 @@ void print_hir_instruction(FILE *f, HirInstruction instruction)
 		fprintf(
 			f,
 			"decl_var(\n"
-			"  name: \"%.*s\",\n"
-			"  begining: %%%zu,\n"
-			"  explicit_typing: %s,\n"
-			"  initialized: %s,\n"
+			"\tname: \"%.*s\",\n"
+			"\tbegining: %%%zu,\n"
+			"\texplicit_typing: %s,\n"
+			"\tinitialized: %s,\n"
 			")",
 			SPAN_ARG(instruction.as.variable.name),
 			instruction.as.variable.begining,
@@ -96,7 +96,7 @@ static void print_hoist_table(FILE* f, HirHoistEntry *hoist_table)
 	for (size_t i=0; i<arrlen(hoist_table); i += 1)
 	{
 		HirHoistEntry entry = hoist_table[i];
-		fprintf(f, "  \"%.*s\": %%%zu,\n", SPAN_ARG(entry.key), entry.value);
+		fprintf(f, "\t\"%.*s\": %%%zu,\n", SPAN_ARG(entry.key), entry.value);
 	}
 	fprintf(f, "}");
 }
