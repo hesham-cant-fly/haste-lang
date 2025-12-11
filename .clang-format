@@ -1,0 +1,32 @@
+IndentWidth: 4
+BasedOnStyle: Microsoft
+UseTab: Always
+
+BreakBeforeBraces: Custom
+Cpp11BracedListStyle: false
+
+AlignAfterOpenBracket: false
+AlignArrayOfStructures: Left
+
+BraceWrapping:
+  AfterStruct: false
+  AfterEnum: false
+  AfterUnion: false
+
+AlignConsecutiveShortCaseStatements:
+  Enabled: true
+  AcrossEmptyLines: true
+  AcrossComments: true
+  AlignCaseColons: false
+
+AlignConsecutiveBitFields:
+  Enabled: true
+  AcrossEmptyLines: true
+  AcrossComments: false
+
+AlignConsecutiveAssignments:
+  Enabled: true
+  AcrossEmptyLines: true
+  AcrossComments: false
+
+

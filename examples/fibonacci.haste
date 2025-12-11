@@ -1,0 +1,4 @@
+const fibonacci(x: int): int {
+	if x <= 1 then return 1;
+	return fib(x - 1) + fib(x - 2);
+}

@@ -1,0 +1,3 @@
+const a: float = 20.0;
+const b: int = 67;
+const c: auto = b + 1;
