@@ -14,7 +14,8 @@
 #include <string.h>
 
 typedef struct Scanner {
-	Token *tokens;
+	const char* path;
+	Token* tokens;
 	utf8_iter iter;
 	size_t start;
 	Location current_location;
@@ -50,9 +51,10 @@ static void scan_lexem(Scanner *self);
 static void add_token(Scanner *self, TokenKind kind, Location start_location);
 static Span get_span(Scanner *self);
 
-error scan_entire_cstr(const char *content, Token **out)
+error scan_entire_cstr(const char *content, const char* path, Token **out)
 {
 	Scanner scanner = {0};
+	scanner.path = path;
 	utf8_init(&scanner.iter, content);
 	advance(&scanner); // initial advance
 	scanner.current_location = (Location){
@@ -163,7 +165,7 @@ static void scan_lexem(Scanner *self)
 		else
 		{
 			self->had_error = true;
-			report(stderr, "(BUF)", location, "Error", "Invalid character '%lc'.", ch);
+			report(stderr, self->path, location, "Error", "Invalid character '%lc'.", ch);
 		}
 		break;
 	}

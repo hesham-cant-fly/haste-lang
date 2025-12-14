@@ -77,12 +77,13 @@ typedef struct TirGlobalInfo {
 } TirGlobalInfo;
 
 typedef struct Tir {
+	const char* path;
 	TirConstInfo* constants;
 	TirFunctionInfo* functions;
 	TirGlobalInfo* globals;
 } Tir;
 
-Tir init_tir(void);
+Tir init_tir(const char* path);
 void deinit_tir(Tir *tir);
 TirConst tir_push_constant(Tir* self, const TirConstInfo constant);
 TirFunction tir_push_function(Tir* self, const TirFunctionInfo function);

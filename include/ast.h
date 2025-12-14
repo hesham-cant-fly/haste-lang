@@ -142,6 +142,7 @@ typedef struct AstDeclarationList {
 struct ASTFile {
 #define AST_FILE_STRUCT_DEF(X)                                                 \
     X(Arena, arena, PRINT_NONE)                                                \
+	X(const char*, path, PRINT_STRING)                                         \
     X(AstDeclarationList, declarations, print_declaration_list)
 
     AST_FILE_STRUCT_DEF(X_STRUCT)

@@ -17,7 +17,8 @@
 
 typedef struct Parser {
 	Arena arena;
-	const Token *tokens;
+	const char* path;
+	const Token* tokens;
 	jmp_buf jmpbuf;
 	size_t current;
 	bool had_error;
@@ -68,10 +69,11 @@ static ParserRule get_rule(TokenKind kind);
 static AstDecl parse_declaration(Parser *self);
 static AstExpr parse_expr(Parser *self);
 
-error parse_tokens(const Token *tokens, ASTFile *out)
+error parse_tokens(const Token* tokens, const char* path, ASTFile *out)
 {
 	Parser parser = { 0 };
 	parser.tokens = tokens;
+	parser.path = path;
 
 	/* AstDecl *declarations = arrinit(AstDecl); */
 	AstDeclarationList declarations = { 0 };
@@ -105,6 +107,7 @@ error parse_tokens(const Token *tokens, ASTFile *out)
 	}
 
 	*out			  = (ASTFile){ 0 };
+	out->path         = path;
 	out->arena		  = parser.arena;
 	out->declarations = declarations;
 	return OK;

@@ -1,13 +1,16 @@
 #include "analysis.h"
+#include "common.h"
 #include "core/my_commons.h"
 #include "hir.h"
 #include "my_math.h"
 #include "tir.h"
+#include "token.h"
 #include "type.h"
 #include "error.h"
 #include "core/my_array.h"
 #include <assert.h>
 #include <math.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -88,11 +91,19 @@ typedef struct Scope {
 	struct Scope* child;
 } Scope;
 
+typedef size_t CheckPoint;
+
+typedef struct CheckPointInfo {
+	size_t ip;
+} CheckPointInfo;
+
 typedef struct Analyzer {
 	Tir tir;
 	Hir hir;
-	size_t current_instruction;
+	const char* path;
+	size_t ip;
 	AnalysisStack stack;
+	CheckPointInfo *check_points;
 	Scope global_scope;
 	Scope* current_scope;
 	bool had_error;
@@ -100,11 +111,10 @@ typedef struct Analyzer {
 
 static Analyzer init_analyzer(Hir hir);
 static void deinit_analyzer(Analyzer* self);
+static void analyze_range(Analyzer* self, const size_t start, const size_t end);
 
-static size_t hir_len(const Analyzer* self);
-static HirInstruction peek(const Analyzer* self);
-static HirInstruction advance(Analyzer* self);
-static bool ended(const Analyzer* self);
+static CheckPoint start_check_point(Analyzer* self);
+static void end_check_point(Analyzer* self, const CheckPoint check_point);
 
 static void push(Analyzer* self, HasteValue value);
 static HasteValue pop(Analyzer* self);
@@ -122,6 +132,8 @@ static error declare_global(Analyzer* self, const char* name, const HasteValue v
 static error define_global(Analyzer* self, const char* name, const HasteValue value);
 static bool is_defined(Analyzer* self, const char* name);
 static bool is_declared(Analyzer* self, const char* name);
+
+static NORETURN void report_error(Analyzer* self, Location location, const char* fmt, ...);
 
 static AnalysisStack init_stack(void)
 {
@@ -224,9 +236,11 @@ static error define_symbol(SymbolTable self, const char* name, const HasteValue 
 static Analyzer init_analyzer(Hir hir)
 {
 	Analyzer result = {0};
+	result.path = hir.path;
 	result.hir = hir;
-	result.tir = init_tir();
+	result.tir = init_tir(hir.path);
 	result.stack = init_stack();
+	result.check_points = arrinit(CheckPointInfo);
 	result.global_scope = (Scope){
 		.symbols = arrinit(Symbol),
 		.parent = NULL,
@@ -239,6 +253,7 @@ static Analyzer init_analyzer(Hir hir)
 static void deinit_analyzer_ok(Analyzer* self)
 {
 	deinit_stack(&self->stack);
+	arrfree(self->check_points);
 	arrfree(self->global_scope.symbols);
 }
 
@@ -248,30 +263,24 @@ static void deinit_analyzer_err(Analyzer* self)
 	deinit_tir(&self->tir);
 }
 
-static size_t hir_len(const Analyzer* self)
+static CheckPoint start_check_point(Analyzer* self)
 {
-	return arrlen(self->hir.instructions);
+	CheckPointInfo check_point = {
+		.ip = self->ip,
+	};
+	arrpush(self->check_points, check_point);
+	return arrlen(self->check_points) - 1;
 }
 
-static HirInstruction peek(const Analyzer* self)
+static void end_check_point(Analyzer* self, const CheckPoint check_point)
 {
-	assert(arrlen(self->hir.instructions) > self->current_instruction);
-	return self->hir.instructions[self->current_instruction];
-}
+	const size_t top = arrlen(self->check_points) - 1;
+	assert(check_point <= top);
 
-static HirInstruction advance(Analyzer* self)
-{
-	if (ended(self))
-	{
-		return peek(self);
-	}
-	self->current_instruction += 1;
-	return self->hir.instructions[self->current_instruction - 1];
-}
+	const CheckPointInfo info = self->check_points[check_point];
+	self->ip = info.ip;
 
-static bool ended(const Analyzer* self)
-{
-	return hir_len(self) <= self->current_instruction;
+	arrsetlen(self->check_points, check_point);
 }
 
 static void push(Analyzer* self, HasteValue value)
@@ -433,12 +442,57 @@ static bool is_declared(Analyzer* self, const char* name)
 	return !symbol->defined;
 }
 
+static NORETURN void report_error(
+	Analyzer* self,
+	Location location,
+	const char* fmt, ...
+) {
+	va_list args;
+	va_start(args, fmt);
+	vreport(stderr, self->path, location, "Error", fmt, args);
+	va_end(args);
+	self->had_error = true;
+	// TODO:
+	panic("");
+}
+
 static void analyze_identifier(Analyzer* self, const HirInstruction instruction)
 {
 	const char* identifier = instruction.as.identifier;
 	const Symbol* symbol = find_local_first(self, identifier);
+	if (symbol == NULL)
+	{
+		report_error(
+			self,
+			instruction.location,
+			"Undefined Symbol `%s`",
+			identifier
+		);
+		// HirHoistEntry* entry = hoist_entry_find(self->hir.hoist_table, identifier);
+		// if (entry == NULL)
+		// {
+		// 	report_error(
+		// 		self,
+		// 		instruction.location,
+		// 		"Undefined Symbol `%s`",
+		// 		identifier
+		// 	);
+		// }
+		// const CheckPoint check_point = start_check_point(self);
+		// analyze_range(self, entry->range.start, entry->range.end);
+		// end_check_point(self, check_point);
+		// return;
+	}
+
 	if (!symbol->defined)
-		panic("Dependency loop detected!");
+	{
+		report_error(
+			self,
+			instruction.location,
+			"Dependency loop has been detected in '%s'",
+			identifier
+		);
+	}
 
 	const HasteValue value = value_of(self, symbol->value);
 	
@@ -554,8 +608,6 @@ static error check_binary_op(Analyzer* self, HasteValue a, HasteValue b)
 		panic("Type mismatch.");
 		return ERROR;
 	}
-
-	// assert(a.tag == b.tag);
 
 	return OK;
 }
@@ -738,35 +790,6 @@ static void analyze_binary_pow(Analyzer* self, const HirInstruction instruction)
 	push(self, result);
 }
 
-static void analyze_start_declaration(Analyzer* self, const HirInstruction instruction)
-{
-	const HirStartDecl decl = instruction.as.start_decl;
-	SymbolKind kind = SYMBOL_CONSTANT;
-	switch (decl.kind) {
-	case HIR_DECL_CONST:
-		kind = SYMBOL_CONSTANT;
-		break;
-	case HIR_DECL_VAR:
-		kind = SYMBOL_VARIABLE;
-		break;
-	}
-
-	SymbolVisibility visibility = SYMBOL_PRIVATE;
-	switch (decl.visibility) {
-	case HIR_PUBLIC:
-		visibility = SYMBOL_PRIVATE;
-		break;
-	case HIR_PRIVATE:
-		visibility = SYMBOL_PUBLIC;
-		break;
-	case HIR_SCOPED:
-		break;
-	}
-
-	error err = declare_local(self, decl.name, (HasteValue) {0}, kind, visibility);
-	if (err) panic("Dependency loop detected!");
-}
-
 static void analyze_constant_declaration(Analyzer* self, const HirInstruction instruction)
 {
 	const HirConstantDecl constant = instruction.as.constant;
@@ -774,7 +797,7 @@ static void analyze_constant_declaration(Analyzer* self, const HirInstruction in
 	if (!(constant.explicit_typing || constant.initialized))
 		panic("no value, no initializatio. how tf I'm gonna tell the type?!");
 
-	TypeID type = {0};
+	TypeID type = TYPE_AUTO;
 	if (constant.explicit_typing)
 	{
 		const HasteValue type_value = pop(self);
@@ -828,59 +851,63 @@ static void analyze_variable_declaration(Analyzer* self, const HirInstruction in
 	}
 }
 
+static void analyze_instruction(Analyzer* self, const HirInstruction instruction)
+{
+	switch (instruction.tag)
+	{
+	case HIR_NODE_END:
+		return;
+	case HIR_NODE_IDENTIFIER:
+		analyze_identifier(self, instruction);
+		break;
+	case HIR_NODE_INTEGER:
+		analyze_integer(self, instruction);
+		break;
+	case HIR_NODE_FLOAT:
+		analyze_float(self, instruction);
+		break;
+	case HIR_NODE_TYPE:
+		analyze_type(self, instruction);
+		break;
+	case HIR_NODE_UNARY_PLUS:
+		analyze_unary_plus(self, instruction);
+		break;
+	case HIR_NODE_UNARY_MINUS:
+		analyze_unary_minus(self, instruction);
+		break;
+	case HIR_NODE_ADD:
+		analyze_binary_add(self, instruction);
+		break;
+	case HIR_NODE_SUB:
+		analyze_binary_sub(self, instruction);
+		break;
+	case HIR_NODE_MUL:
+		analyze_binary_mul(self, instruction);
+		break;
+	case HIR_NODE_DIV:
+		analyze_binary_div(self, instruction);
+		break;
+	case HIR_NODE_POW:
+		analyze_binary_pow(self, instruction);
+		break;
+	case HIR_NODE_CONSTANT_DECLARATION:
+		analyze_constant_declaration(self, instruction);
+		break;
+	case HIR_NODE_VARIABLE_DECLARATION:
+		analyze_variable_declaration(self, instruction);
+		break;
+	}
+}
+
 static void start_analyzing(Analyzer* self)
 {
-	while (!ended(self))
-	{
-		const HirInstruction instruction = advance(self);
-		switch (instruction.tag)
-		{
-		case HIR_NODE_END:
-			return;
-		case HIR_NODE_IDENTIFIER:
-			analyze_identifier(self, instruction);
-			break;
-		case HIR_NODE_INTEGER:
-			analyze_integer(self, instruction);
-			break;
-		case HIR_NODE_FLOAT:
-			analyze_float(self, instruction);
-			break;
-		case HIR_NODE_TYPE:
-			analyze_type(self, instruction);
-			break;
-		case HIR_NODE_UNARY_PLUS:
-			analyze_unary_plus(self, instruction);
-			break;
-		case HIR_NODE_UNARY_MINUS:
-			analyze_unary_minus(self, instruction);
-			break;
-		case HIR_NODE_ADD:
-			analyze_binary_add(self, instruction);
-			break;
-		case HIR_NODE_SUB:
-			analyze_binary_sub(self, instruction);
-			break;
-		case HIR_NODE_MUL:
-			analyze_binary_mul(self, instruction);
-			break;
-		case HIR_NODE_DIV:
-			analyze_binary_div(self, instruction);
-			break;
-		case HIR_NODE_POW:
-			analyze_binary_pow(self, instruction);
-			break;
-		case HIR_NODE_START_DECLARATION:
-			analyze_start_declaration(self, instruction);
-			break;
-		case HIR_NODE_CONSTANT_DECLARATION:
-			analyze_constant_declaration(self, instruction);
-			break;
-		case HIR_NODE_VARIABLE_DECLARATION:
-			analyze_variable_declaration(self, instruction);
-			break;
-		}
-	}
+	unused(self);
+	// TODO:
+	// while (!ended(self))
+	// {
+	// 	const HirInstruction instruction = advance(self);
+	// 	analyze_instruction(self, instruction);
+	// }
 	return;
 }
 

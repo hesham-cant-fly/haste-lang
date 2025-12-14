@@ -12,6 +12,16 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+typedef enum HirDeclKind {
+	HIR_DECL_CONST,
+	HIR_DECL_VAR,
+} HirDeclKind;
+
+typedef enum HirVisibility {
+	HIR_PUBLIC,
+	HIR_PRIVATE,
+} HirVisibility;
+
 typedef enum HirInstructionNodeKind {
 	HIR_NODE_END,                  // Halt | EOF
 	HIR_NODE_IDENTIFIER,           // Span indentifier
@@ -28,7 +38,6 @@ typedef enum HirInstructionNodeKind {
 	HIR_NODE_DIV,                  // <something> /  <something>
 	HIR_NODE_POW,                  // <something> ** <something>
 
-	HIR_NODE_START_DECLARATION,
 	HIR_NODE_CONSTANT_DECLARATION, // HirConstant constant
 	HIR_NODE_VARIABLE_DECLARATION, // HirVariable variable
 } HirInstructionNodeKind;
@@ -43,51 +52,39 @@ typedef struct HirInstruction {
 		double floating_point;
 		TypeID type;
 
-		struct HirStartDecl {
-			const char* name;
-			size_t end;
-			enum HirStartDeclKind {
-				HIR_DECL_CONST,
-				HIR_DECL_VAR,
-			} kind;
-			enum HirVisibility {
-				HIR_PUBLIC,
-				HIR_PRIVATE,
-				HIR_SCOPED,
-			} visibility;
-		} start_decl;
-
 		struct HirConstantDecl {
 			const char* name;
-			size_t begining;
 			bool explicit_typing;
 			bool initialized;
 		} constant;
 
 		struct HirVariableDecl {
 			const char* name;
-			size_t begining;
 			bool explicit_typing;
 			bool initialized;
 		} variable;
 	} as;
 } HirInstruction;
 
-typedef enum HirStartDeclKind HirStartDeclKind;
-typedef enum HirVisibility HirVisibility;
 typedef struct HirStartDecl HirStartDecl;
 typedef struct HirConstantDecl HirConstantDecl;
 typedef struct HirVariableDecl HirVariableDecl;
 
-typedef struct HirHoistEntry {
-	Span key;
-	size_t value;
-} HirHoistEntry;
+typedef struct HirGlobal {
+	Location location;
+	Span span;
+	const char* name;
+	HirVisibility visibility;
+	HirDeclKind kind;
+	bool explicit_typing;
+	bool initialized;
+	HirInstruction* instructions;
+} HirGlobal;
 
 typedef struct Hir {
+	const char* path;
 	Arena string_pool;
-	HirHoistEntry* hoist_table;
-	HirInstruction* instructions;
+	HirGlobal* globals;
 } Hir;
 
 void print_hir_instruction(FILE* f, HirInstruction instruction);
@@ -95,6 +92,6 @@ void print_hir(FILE *f, Hir hir);
 
 error hoist_ast(ASTFile file, Hir *out);
 void deinit_hir(Hir hir);
-HirHoistEntry* hoist_entry_find(HirHoistEntry* hoist_table, Span key);
+HirGlobal* hir_find_global(HirGlobal* globals, const char* name);
 
 #endif // !__HIR_H

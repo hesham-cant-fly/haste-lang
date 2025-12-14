@@ -6,9 +6,10 @@
 #include <stddef.h>
 #include <stdio.h>
 
-Tir init_tir(void)
+Tir init_tir(const char* path)
 {
 	Tir result = {0};
+	result.path = path;
 	result.constants = arrinit(TirConstInfo);
 	result.functions = arrinit(TirFunctionInfo);
 	result.globals = arrinit(TirGlobalInfo);

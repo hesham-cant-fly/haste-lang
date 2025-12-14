@@ -1,4 +1,5 @@
 #include "analysis.h"
+#include "common.h"
 #include "hir.h"
 #include "ast.h"
 #include "core/my_array.h"
@@ -13,6 +14,7 @@
 #include <locale.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 static void print_errno(void)
@@ -73,30 +75,37 @@ int main(void)
 	setlocale(LC_ALL, "C.UTF-8");
 	init_types_pool();
 
-	char *src = read_entire_file("./main.haste");
-	if (src == NULL)
+	char* full_path = NULL;
+	error err = get_full_path("./main.haste", &full_path);
+	if (err)
 	{
+		printf("FILE doesn't exits.");
 		return 1;
 	}
+
+	char *src = read_entire_file(full_path);
+	if (src == NULL)
+	{
+		free(full_path);
+		return 1;
+	}
+
 	Token *tokens = NULL;
-	error err = scan_entire_cstr(src, &tokens);
+	err = scan_entire_cstr(src, full_path, &tokens);
 	if (err)
 	{
 		free(src);
+		free(full_path);
 		return 1;
 	}
 
-	for (size_t i=0; i < arrlen(tokens); i += 1)
-	{
-		print_tokenln(stdout, tokens[i]);
-	}
-
 	ASTFile ast = { 0 };
-	err = parse_tokens(tokens, &ast);
+	err = parse_tokens(tokens, full_path, &ast);
 	if (err)
 	{
 		arrfree(tokens);
 		free(src);
+		free(full_path);
 		return 1;
 	}
 
@@ -108,30 +117,34 @@ int main(void)
 	{
 		arrfree(tokens);
 		free(src);
+		free(full_path);
 		arena_free(&ast.arena);
 		return 1;
 	}
 
-	// print_hir(stdout, hir);
-	Tir tir = {0};
-	err = analyze_hir(hir, &tir);
-	if (err)
-	{
-		arrfree(tokens);
-		free(src);
-		arena_free(&ast.arena);
-		deinit_hir(hir);
-		deinit_types_pool();
-		return 1;
-	}
+	print_hir(stdout, hir);
 
-	print_tir(stdout, tir);
+	// Tir tir = {0};
+	// err = analyze_hir(hir, &tir);
+	// if (err)
+	// {
+	// 	arrfree(tokens);
+	// 	free(src);
+	// 	free(full_path);
+	// 	arena_free(&ast.arena);
+	// 	deinit_hir(hir);
+	// 	deinit_types_pool();
+	// 	return 1;
+	// }
+	//
+	// print_tir(stdout, tir);
 
 	arrfree(tokens);
 	free(src);
+	free(full_path);
 	arena_free(&ast.arena);
 	deinit_hir(hir);
-	deinit_tir(&tir);
+	// deinit_tir(&tir);
 	deinit_types_pool();
 	return 0;
 }

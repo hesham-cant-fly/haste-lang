@@ -4,6 +4,6 @@
 #include "ast.h"
 #include "error.h"
 
-error parse_tokens(const Token *tokens, ASTFile *out);
+error parse_tokens(const Token *tokens, const char* path, ASTFile *out);
 
 #endif // !__PARSER_H

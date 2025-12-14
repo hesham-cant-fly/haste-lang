@@ -1,8 +1,10 @@
 #include "hir.h"
 #include "ast.h"
+#include "core/my_commons.h"
 #include "token.h"
 #include "type.h"
 #include "core/my_array.h"
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -51,25 +53,15 @@ void print_hir_instruction(FILE *f, HirInstruction instruction)
 		fprintf(f, "binary_op(pow)");
 		break;
 
-	case HIR_NODE_START_DECLARATION:
-		fprintf(
-			f,
-			"start_declaration(\"%s\", at: %%%zu)",
-			instruction.as.start_decl.name,
-			instruction.as.start_decl.end
-		);
-		break;
 	case HIR_NODE_CONSTANT_DECLARATION:
 		fprintf(
 			f,
 			"decl_const(\n"
 			"\tname: \"%s\",\n"
-			"\tbegining: %%%zu,\n"
 			"\texplicit_typing: %s,\n"
 			"\tinitialized: %s,\n"
 			")",
 			instruction.as.constant.name,
-			instruction.as.constant.begining,
 			BOOL_ARG(instruction.as.constant.explicit_typing),
 			BOOL_ARG(instruction.as.variable.initialized)
 		);
@@ -79,12 +71,10 @@ void print_hir_instruction(FILE *f, HirInstruction instruction)
 			f,
 			"decl_var(\n"
 			"\tname: \"%s\",\n"
-			"\tbegining: %%%zu,\n"
 			"\texplicit_typing: %s,\n"
 			"\tinitialized: %s,\n"
 			")",
 			instruction.as.variable.name,
-			instruction.as.variable.begining,
 			BOOL_ARG(instruction.as.variable.explicit_typing),
 			BOOL_ARG(instruction.as.variable.initialized)
 		);
@@ -92,61 +82,77 @@ void print_hir_instruction(FILE *f, HirInstruction instruction)
 	}
 }
 
-static void print_hoist_table(FILE* f, HirHoistEntry *hoist_table)
+void print_hir_global(FILE* f, HirGlobal global)
 {
-	fprintf(f, "{\n");
-	for (size_t i=0; i<arrlen(hoist_table); i += 1)
+	fprintf(f, "[");
+	switch (global.visibility)
 	{
-		HirHoistEntry entry = hoist_table[i];
-		fprintf(f, "\t\"%.*s\": %%%zu,\n", SPAN_ARG(entry.key), entry.value);
+	case HIR_PUBLIC:
+		fprintf(f, "public");
+		break;
+	case HIR_PRIVATE:
+		fprintf(f, "private");
+		break;
 	}
-	fprintf(f, "}");
+	fprintf(f, ",");
+	fprintf(f, "type=%d", global.explicit_typing);
+	fprintf(f, ",");
+	fprintf(f, "init=%d", global.initialized);
+	fprintf(f, "]\n");
+	switch (global.kind)
+	{
+	case HIR_DECL_CONST:
+		fprintf(f, "const ");
+		break;
+	case HIR_DECL_VAR:
+		fprintf(f, "var ");
+		break;
+	}
+	fprintf(f, "%s {\n", global.name);
+
+	for (size_t i=0; i < arrlen(global.instructions); i+=1)
+	{
+		fprintf(f, "\t%%%05zu -> ", i);
+		print_hir_instruction(f, global.instructions[i]);
+		fprintf(f, "\n");
+	}
+
+	fprintf(f, "}\n");
 }
 
 void print_hir(FILE *f, Hir hir)
 {
-	fprintf(f, "hoist_table: ");
-	print_hoist_table(f, hir.hoist_table);
-	fprintf(f, "\n");
-
-	for (size_t i=0; i < arrlen(hir.instructions); i += 1)
+	for (size_t i=0; i < arrlen(hir.globals); i += 1)
 	{
-		HirInstruction instruction = hir.instructions[i];
-		fprintf(f, "%%%010zu -> ", i);
-		print_hir_instruction(f, instruction);
-		fprintf(f, "\n");
+		HirGlobal global = hir.globals[i];
+		print_hir_global(f, global);
 	}
 }
 
 static HirInstruction hir_get(Hir* hir, const size_t at);
 static size_t hir_len(Hir *hir);
 
-static size_t hir_push_instruction(Hir *hir, const HirInstruction instruction);
-static void hir_insert_instruction(Hir *hir, const size_t at, const HirInstruction instruction);
-static void hoist_entry_append(HirHoistEntry* hoist_table, Span key, size_t value);
+static size_t push_instruction(HirGlobal* global, HirInstruction instruction);
+static void insert_instruction(HirGlobal *global, const size_t at, const HirInstruction instruction);
+static void append_global(Hir* hir, const HirGlobal global);
 
-static error hoist_declaration(Hir* self, const AstDecl declaration);
-static error hoist_expr(Hir* self, const AstExpr *expr);
+static const char* hoist_span(Hir* hir, const Span span);
+static error hoist_global_declaration(Hir* self, const AstDecl declaration);
+static error hoist_expr(HirInstruction* self, Hir* hir, const AstExpr *expr);
 
 error hoist_ast(ASTFile file, Hir *out)
 {
 	Hir hir = {0};
-	hir.hoist_table = arrinit(HirHoistEntry);
-	hir.instructions = arrinit(HirInstruction);
+	hir.path = file.path;
+	hir.globals = arrinit(HirGlobal);
 
 	const AstDeclarationListNode* current = file.declarations.head;
 	while (current != NULL)
 	{
 		const AstDeclarationListNode* next = current->next;
 
-		error err = hoist_declaration(&hir, current->node);
+		error err = hoist_global_declaration(&hir, current->node);
 		if (err) return err;
-
-		hoist_entry_append(
-			hir.hoist_table,
-			get_declaration_name(current->node),
-			arrlen(hir.instructions) - 1
-		);
 
 		current = next;
 	}
@@ -166,91 +172,55 @@ static const char* hoist_span(Hir* hir, const Span span)
 	return result;
 }
 
-static error hoist_declaration(Hir* self, const AstDecl declaration)
+static error hoist_global_declaration(Hir* self, const AstDecl declaration)
 {
-	const size_t begining = arrlen(self->instructions);
-	const size_t start_decl = begining;
 	const AstDeclNode node = declaration.node;
-	HirInstruction instruction = {0};
-	instruction.span = declaration.span;
-	instruction.location = declaration.location;
 
-	HirStartDeclKind kind = HIR_DECL_CONST;
-	HirVisibility visibility = HIR_PRIVATE;
+	HirGlobal global = {0};
+	global.instructions = arrinit(HirInstruction);
+	global.kind = HIR_DECL_CONST;
+	global.visibility = HIR_PUBLIC;
 
 	switch (declaration.node.tag)
 	{
 	case AST_DECL_KIND_CONSTANT:
+		global.kind = HIR_DECL_CONST;
 		if (node.as.constant.value != NULL)
 		{
-			error err = hoist_expr(self, node.as.constant.value);
-			if (err) return err;
+			hoist_expr(global.instructions, self, node.as.constant.value);
+			global.initialized = true;
 		}
 		if (node.as.constant.type != NULL)
 		{
-			error err = hoist_expr(self, node.as.constant.type);
-			if (err) return err;
+			hoist_expr(global.instructions, self, node.as.constant.type);
+			global.explicit_typing = true;
 		}
 
-		if (hoist_entry_find(self->hoist_table, node.as.constant.name) != NULL)
-		{
-			panic("");
-		}
-
-		instruction.tag = HIR_NODE_CONSTANT_DECLARATION;
-		instruction.as.constant = (struct HirConstantDecl){
-			.name = hoist_span(self, node.as.constant.name),
-			.begining = begining,
-			.explicit_typing = node.as.constant.type != NULL,
-			.initialized = node.as.constant.value != NULL,
-		};
+		global.name = hoist_span(self, node.as.constant.name);
 		break;
 	case AST_DECL_KIND_VARIABLE:
-		kind = HIR_DECL_VAR;
+		global.kind = HIR_DECL_VAR;
 		if (node.as.variable.value != NULL)
 		{
-			error err = hoist_expr(self, node.as.variable.value);
-			if (err) return err;
+			hoist_expr(global.instructions, self, node.as.variable.value);
+			global.initialized = true;
 		}
 		if (node.as.variable.type != NULL)
 		{
-			error err = hoist_expr(self, node.as.variable.type);
-			if (err) return err;
+			hoist_expr(global.instructions, self, node.as.variable.type);
+			global.explicit_typing = true;
 		}
 
-		if (hoist_entry_find(self->hoist_table, node.as.variable.name) != NULL)
-		{
-			panic("");
-		}
-
-		instruction.tag = HIR_NODE_VARIABLE_DECLARATION;
-		instruction.as.variable = (struct HirVariableDecl){
-			.name = hoist_span(self, node.as.variable.name),
-			.begining = begining,
-			.explicit_typing = node.as.variable.type != NULL,
-			.initialized = node.as.variable.value != NULL,
-		};
+		global.name = hoist_span(self, node.as.variable.name);
 		break;
 	}
 
-	{
-		HirInstruction instruction = {0};
-		instruction.span = declaration.span;
-		instruction.location = declaration.location;
-		instruction.tag = HIR_NODE_START_DECLARATION;
-		instruction.as.start_decl.kind = kind;
-		instruction.as.start_decl.visibility = visibility;
-		instruction.as.start_decl.name = hoist_span(self, get_declaration_name(declaration));
-		instruction.as.start_decl.end = hir_len(self) + 1;
+	append_global(self, global);
 
-		hir_insert_instruction(self, start_decl, instruction);
-	}
-
-	hir_push_instruction(self, instruction);
 	return OK;
 }
 
-static error hoist_expr(Hir *self, const AstExpr *expr)
+static error hoist_expr(HirInstruction* self, Hir* hir, const AstExpr *expr)
 {
 	error err = OK;
 	AstExprNode node = expr->node;
@@ -261,7 +231,7 @@ static error hoist_expr(Hir *self, const AstExpr *expr)
 	switch (node.tag)
 	{
 	case AST_EXPR_KIND_UNARY:
-		err = hoist_expr(self, node.as.unary.rhs);
+		err = hoist_expr(self, hir, node.as.unary.rhs);
 		if (err) return err;
 		switch (node.as.unary.op)
 		{
@@ -276,9 +246,9 @@ static error hoist_expr(Hir *self, const AstExpr *expr)
 		}
 		goto _defer;
 	case AST_EXPR_KIND_BINARY:
-		err = hoist_expr(self, node.as.bin.lhs);
+		err = hoist_expr(self, hir, node.as.bin.lhs);
 		if (err) return err;
-		err = hoist_expr(self, node.as.bin.rhs);
+		err = hoist_expr(self, hir, node.as.bin.rhs);
 		if (err) return err;
 
 		switch (node.as.bin.op)
@@ -302,10 +272,10 @@ static error hoist_expr(Hir *self, const AstExpr *expr)
 		}
 		goto _defer;
 	case AST_EXPR_KIND_GROUPING:
-		return hoist_expr(self, node.as.grouping);
+		return hoist_expr(self, hir, node.as.grouping);
 	case AST_EXPR_KIND_IDENTIFIER:
 		instruction.tag = HIR_NODE_IDENTIFIER;
-		instruction.as.identifier = hoist_span(self, node.as.identifier);
+		instruction.as.identifier = hoist_span(hir, node.as.identifier);
 		goto _defer;
 	case AST_EXPR_KIND_INT_LIT:
 		instruction.tag = HIR_NODE_INTEGER;
@@ -333,79 +303,42 @@ static error hoist_expr(Hir *self, const AstExpr *expr)
 		goto _defer;
 	}
 _defer:
-	hir_push_instruction(self, instruction);
+	arrpush(self, instruction);
 	return err;
 }
 
 void deinit_hir(Hir hir)
 {
 	arena_free(&hir.string_pool);
-	arrfree(hir.hoist_table);
-	arrfree(hir.instructions);
-}
-
-static size_t hir_push_instruction(Hir *hir, HirInstruction instruction)
-{
-	arrpush(hir->instructions, instruction);
-	return hir_len(hir) - 1;
-}
-
-static void hir_insert_instruction(Hir *hir, const size_t at, const HirInstruction instruction)
-{
-	const size_t len = hir_len(hir);
-	if (at > len) panic("Insert Out-of-bound.");
-
-	if (arrcap(hir->instructions) <= len + 1)
+	for (size_t i=0; i<arrlen(hir.globals); i += 1)
 	{
-		arrreserve(hir->instructions, len + 1);
+		arrfree(hir.globals[i].instructions);
 	}
-
-	arrsetlen(hir->instructions, len + 1);
-	for (size_t i = len; i > at; i--) {
-		hir->instructions[i] = hir_get(hir, i - 1);
-	}
-
-	hir->instructions[at] = instruction;
+	arrfree(hir.globals);
 }
 
-static HirInstruction hir_get(Hir* hir, const size_t at)
+static size_t hir_push_instruction(HirGlobal* global, HirInstruction instruction)
 {
-	if (at >= hir_len(hir))
-	{
-		panic("OUT OF BOUND: %zu >= %zu", at, hir_len(hir));
-	}
-	return hir->instructions[at];
+	arrpush(global->instructions, instruction);
+	return arrlen(global->instructions) - 1;
 }
 
-static size_t hir_len(Hir *hir)
+HirGlobal* hir_find_global(HirGlobal* globals, const char* name)
 {
-	return arrlen(hir->instructions);
-}
-
-HirHoistEntry* hoist_entry_find(HirHoistEntry* hoist_table, Span key)
-{
-	if (arrlen(hoist_table) == 0) return NULL;
+	if (arrlen(globals) == 0) return NULL;
 
 	ssize_t left = 0;
-	ssize_t right = arrlen(hoist_table) - 1;
+	ssize_t right = arrlen(globals) - 1;
 
 	while (left <= right)
 	{
 		ssize_t mid = left + (right - left) / 2;
-		HirHoistEntry* e = &hoist_table[mid];
+		HirGlobal* e = &globals[mid];
 
-		size_t min_len = span_len(key) < span_len(e->key) ? span_len(key) : span_len(e->key);
-		int cmp = strncmp(e->key.start, key.start, min_len);
+		const int cmp = strcmp(e->name, name);
 
 		if (cmp == 0)
-		{
-			if (span_len(e->key) == span_len(key))
-				return e;
-			else if (span_len(e->key) > span_len(key))
-				left = mid + 1;
-			else
-				right = mid - 1;
-		}
+			return e;
 		else if (cmp > 0)
 			left = mid + 1;
 		else
@@ -415,29 +348,20 @@ HirHoistEntry* hoist_entry_find(HirHoistEntry* hoist_table, Span key)
 	return NULL;
 }
 
-static void hoist_entry_append(HirHoistEntry* hoist_table, Span key, size_t value)
+static void append_global(Hir* self, const HirGlobal global)
 {
-	if (arrcap(hoist_table) <= arrlen(hoist_table))
-	{
-		arrreserve(hoist_table, arrlen(hoist_table) + 1);
-	}
+	arrreserve(self->globals, arrlen(self->globals) + 1);
 
-	ssize_t i = arrlen(hoist_table) - 1;
+	ssize_t i = arrlen(self->globals) - 1;
 	for (; i >= 0; i -= 1)
 	{
-		HirHoistEntry e = hoist_table[i];
-		size_t len = span_len(e.key);
-		if (span_len(key) < len)
-			len = span_len(key);
-		if (strncmp(e.key.start, key.start, len) > 0)
-			break;
+		HirGlobal e = self->globals[i];
+		const int cmp = strcmp(e.name, global.name);
+		if (cmp > 0) break;
 
-		hoist_table[i + 1] = hoist_table[i];
+		self->globals[i + 1] = e;
 	}
 
-	arrsetlen(hoist_table, arrlen(hoist_table) + 1);
-	hoist_table[i + 1] = (HirHoistEntry){
-		.key = key,
-		.value = value,
-	};
+	arrsetlen(self->globals, arrlen(self->globals) + 1);
+	self->globals[i + 1] = global;
 }

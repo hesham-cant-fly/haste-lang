@@ -1,6 +1,15 @@
 #include "common.h"
+#include "error.h"
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
+
+error get_full_path(const char* path, char** out)
+{
+	*out = realpath(path, NULL);
+	if (out == NULL) return ERROR;
+	return OK;
+}
 
 void report(
 	FILE* f,

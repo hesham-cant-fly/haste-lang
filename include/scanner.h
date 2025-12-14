@@ -4,6 +4,6 @@
 #include "token.h"
 #include "error.h"
 
-error scan_entire_cstr(const char *content, Token **out);
+error scan_entire_cstr(const char *content, const char* path, Token **out);
 
 #endif // !__SCANNER_H
