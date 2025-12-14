@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.12.0)
 project(haste)
 
-message(${CMAKE_BUILD_TYPE})
+# message(${CMAKE_BUILD_TYPE})
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(DEBUG_BUILD ON)
   set(DEBUG_DEV_BUILD OFF)
@@ -43,6 +43,7 @@ endif()
 file(GLOB_RECURSE SOURCES PUBLIC src/*.c)
 add_executable(${CMAKE_PROJECT_NAME} main.c ${SOURCES})
 target_include_directories(${CMAKE_PROJECT_NAME} PUBLIC include/)
+target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC m)
 
 if (DEBUG_BUILD)
   target_compile_definitions(${CMAKE_PROJECT_NAME} PUBLIC DEBUG)

@@ -9,6 +9,7 @@
 typedef size_t TypeID;
 #define TYPE_ID_ENUM_DEF(X)						\
 	X(TYPE_AUTO, "auto")						\
+	X(TYPE_TYPE, "type")						\
 	X(TYPE_INT, "int")						    \
 	X(TYPE_FLOAT, "float")					    \
 	X(TYPE_UNTYPED_INT, "int")				    \
@@ -52,7 +53,7 @@ TypeID create_type(Type tp);
 void print_type(FILE* f, const TypeID id);
 
 TypeMatchResult type_matches(const TypeID id1, const TypeID id2);
-bool type_is_any_number(const TypeID id);
+bool type_is_numiric(const TypeID id);
 bool type_is_any_int(const TypeID id);
 bool type_is_any_float(const TypeID id);
 

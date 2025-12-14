@@ -53,7 +53,7 @@ void print_type(FILE *f, const TypeID id)
 	const Type tp = *get_type(id);
 	assert(id == tp.id);
 
-	fprintf(f, "%zu:%s", id, tp.name);
+	fprintf(f, "%s", tp.name);
 }
 
 TypeMatchResult type_matches(const TypeID id1, const TypeID id2)
@@ -61,16 +61,10 @@ TypeMatchResult type_matches(const TypeID id1, const TypeID id2)
 	ASSERT_TYPE_ID(id1);
 	ASSERT_TYPE_ID(id2);
 
-	if (id1 == id2)
-	{
-		return TYPE_MATCH_EXACT;
-	}
+	if (id1 == id2) return TYPE_MATCH_EXACT;
 
-	if (id1 == TYPE_AUTO) unreachable();
-	if (id2 == TYPE_AUTO)
-	{
-		return TYPE_MATCH_EXACT;
-	}
+	if (id1 == TYPE_AUTO) return TYPE_MATCH_EXACT;
+	if (id2 == TYPE_AUTO) unreachable();
 
 	switch (id1)
 	{
@@ -95,7 +89,7 @@ TypeMatchResult type_matches(const TypeID id1, const TypeID id2)
 	}
 }
 
-bool type_is_any_number(const TypeID id)
+bool type_is_numiric(const TypeID id)
 {
 	ASSERT_TYPE_ID(id);
 

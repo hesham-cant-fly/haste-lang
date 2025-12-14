@@ -1,9 +1,11 @@
+#include "analysis.h"
 #include "hir.h"
 #include "ast.h"
 #include "core/my_array.h"
 #include "error.h"
 #include "parser.h"
 #include "scanner.h"
+#include "tir.h"
 #include "token.h"
 #include "type.h"
 
@@ -105,12 +107,26 @@ int main(void)
 		return 1;
 	}
 
-	print_hir(stdout, hir);
+	// print_hir(stdout, hir);
+	Tir tir = {0};
+	err = analyze_hir(hir, &tir);
+	if (err)
+	{
+		arrfree(tokens);
+		free(src);
+		arena_free(&ast.arena);
+		deinit_hir(hir);
+		deinit_types_pool();
+		return 1;
+	}
+
+	print_tir(stdout, tir);
 
 	arrfree(tokens);
 	free(src);
 	arena_free(&ast.arena);
 	deinit_hir(hir);
+	deinit_tir(&tir);
 	deinit_types_pool();
 	return 0;
 }

@@ -38,31 +38,34 @@ typedef struct HirInstruction {
 	Location location;
 	HirInstructionNodeKind tag;
 	union {
-		Span identifier;
+		const char* identifier;
 		int64_t integer;
 		double floating_point;
 		TypeID type;
 
 		struct HirStartDecl {
-			volatile Span name;
+			const char* name;
 			size_t end;
-			/* TODO: Visibility */
-			/* enum HirVisibility { */
-			/* 	HIR_PUBLIC, */
-			/* 	HIR_PRIVATE, */
-			/* 	HIR_SCOPED, */
-			/* } visibility; */
+			enum HirStartDeclKind {
+				HIR_DECL_CONST,
+				HIR_DECL_VAR,
+			} kind;
+			enum HirVisibility {
+				HIR_PUBLIC,
+				HIR_PRIVATE,
+				HIR_SCOPED,
+			} visibility;
 		} start_decl;
 
 		struct HirConstantDecl {
-			Span name;
+			const char* name;
 			size_t begining;
 			bool explicit_typing;
 			bool initialized;
 		} constant;
 
-		struct HirVariableDecl  {
-			Span name;
+		struct HirVariableDecl {
+			const char* name;
 			size_t begining;
 			bool explicit_typing;
 			bool initialized;
@@ -70,12 +73,19 @@ typedef struct HirInstruction {
 	} as;
 } HirInstruction;
 
+typedef enum HirStartDeclKind HirStartDeclKind;
+typedef enum HirVisibility HirVisibility;
+typedef struct HirStartDecl HirStartDecl;
+typedef struct HirConstantDecl HirConstantDecl;
+typedef struct HirVariableDecl HirVariableDecl;
+
 typedef struct HirHoistEntry {
 	Span key;
 	size_t value;
 } HirHoistEntry;
 
 typedef struct Hir {
+	Arena string_pool;
 	HirHoistEntry* hoist_table;
 	HirInstruction* instructions;
 } Hir;
