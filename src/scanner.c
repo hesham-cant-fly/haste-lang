@@ -1,4 +1,5 @@
 #include "scanner.h"
+#include "common.h"
 #include "core/my_array.h"
 #include "core/my_commons.h"
 #include "error.h"
@@ -27,15 +28,17 @@ typedef struct KeywordEntry {
 } KeywordEntry;
 
 static const KeywordEntry keywords[] = {
-	{"int",	TOKEN_KIND_INT  },
-	{"float", TOKEN_KIND_FLOAT},
-	{"auto",	 TOKEN_KIND_AUTO },
-	{"const", TOKEN_KIND_CONST},
-	{"var",	TOKEN_KIND_VAR  },
-	{0,		0			   },
+	{"typeid", TOKEN_KIND_TYPEID },
+	{"int",	   TOKEN_KIND_INT   },
+	{"float",  TOKEN_KIND_FLOAT },
+	{"auto",   TOKEN_KIND_AUTO  },
+	{"const",  TOKEN_KIND_CONST },
+	{"var",	   TOKEN_KIND_VAR   },
+	{0,        0                },
 };
 
 static uint32_t peek(const Scanner *self);
+static uint32_t peek_next(const Scanner *self);
 static uint32_t advance(Scanner *self);
 static bool check(const Scanner *self, uint32_t ch);
 static bool match(Scanner *self, uint32_t ch);
@@ -87,6 +90,12 @@ static void skip_whitespaces(Scanner *self)
 		uint32_t ch = peek(self);
 		switch (ch)
 		{
+		case '/':
+			if (peek_next(self) == '/')
+				while (peek(self) != '\n') ch = advance(self);
+			else 
+				ch = advance(self);
+			break;
 		case '\n':
 			self->current_location.line += 1;
 			self->current_location.column = 0;
@@ -154,7 +163,7 @@ static void scan_lexem(Scanner *self)
 		else
 		{
 			self->had_error = true;
-			fprintf(stderr, "huh: '%lc'\n", ch);
+			report(stderr, "(BUF)", location, "Error", "Invalid character '%lc'.", ch);
 		}
 		break;
 	}
@@ -252,6 +261,11 @@ static Span get_span(Scanner *self)
 static uint32_t peek(const Scanner *self)
 {
 	return self->iter.codepoint;
+}
+
+static uint32_t peek_next(const Scanner *self)
+{
+	return self->iter.next_codepoint;
 }
 
 static uint32_t advance(Scanner *self)

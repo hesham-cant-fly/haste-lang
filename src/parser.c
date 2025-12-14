@@ -1,5 +1,6 @@
 #include "parser.h"
 #include "ast.h"
+#include "common.h"
 #include "converters.h"
 #include "core/my_array.h"
 #include "core/my_commons.h"
@@ -299,6 +300,18 @@ static AstExpr parse_auto_type(Parser *self)
 	};
 }
 
+static AstExpr parse_typeid_type(Parser* self)
+{
+	Token token = previous(self);
+	return (AstExpr){
+		.location = token.location,
+		.span	  = token.span,
+		.node = {
+			.tag = AST_EXPR_KIND_TYPEID_TYPE,
+		},
+	};
+}
+
 static AstExpr parse_int_type(Parser *self)
 {
 	Token token = previous(self);
@@ -397,6 +410,7 @@ static ParserRule get_rule(TokenKind kind)
 	case TOKEN_KIND_INT_LIT:     return (ParserRule){ parse_int_lit,    NULL,         PREC_PRIMARY, false };
 	case TOKEN_KIND_FLOAT_LIT:   return (ParserRule){ parse_float_lit,  NULL,         PREC_PRIMARY, false };
 	case TOKEN_KIND_AUTO:        return (ParserRule){ parse_auto_type,  NULL,         PREC_PRIMARY, false };
+	case TOKEN_KIND_TYPEID:      return (ParserRule){ parse_typeid_type,NULL,         PREC_PRIMARY, false };
 	case TOKEN_KIND_INT:         return (ParserRule){ parse_int_type,   NULL,         PREC_PRIMARY, false };
 	case TOKEN_KIND_FLOAT:       return (ParserRule){ parse_float_type, NULL,         PREC_PRIMARY, false };
 	case TOKEN_KIND_OPEN_PAREN:  return (ParserRule){ parse_grouping,   NULL,         PREC_PRIMARY, false };
@@ -525,30 +539,28 @@ static AstOperator operator_from_token(const Token token)
 	}
 }
 
-static NORETURN void report_error(Parser *parser, Location at, const char *fmt, ...)
-{
-	fprintf(stderr, "%s:%u:%u: Error: ", "(BUF)", at.line, at.column);
+static NORETURN void report_error(
+	Parser *parser,
+	Location at,
+	const char *fmt, ...) {
 
 	va_list args;
 	va_start(args, fmt);
-	vfprintf(stderr, fmt, args);
+	vreport(stderr, "(BUF)", at, "Error", fmt, args);
 	va_end(args);
-	fprintf(stderr, "\n");
 
 	parser->had_error = true;
 
 	longjmp(parser->jmpbuf, ERROR);
 }
 
-static NORETURN void vareport_error(Parser *parser, Location at, const char *fmt, va_list args)
-{
-	fprintf(stderr, "%s:%u:%u: Error: ", "(BUF)", at.line, at.column);
+static NORETURN void vareport_error(
+	Parser *parser,
+	Location at,
+	const char *fmt,
+	va_list args) {
 
-	vfprintf(stderr, fmt, args);
-	va_end(args);
-	fprintf(stderr, "\n");
-
+	vreport(stderr, "(BUF)", at, "Error", fmt, args);
 	parser->had_error = true;
-
 	longjmp(parser->jmpbuf, ERROR);
 }

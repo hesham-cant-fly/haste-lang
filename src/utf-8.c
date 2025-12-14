@@ -30,35 +30,35 @@ SOFTWARE.
 
 void utf8_init(utf8_iter* iter, const char* ptr) {
 	if (iter) {
-		iter->ptr       = ptr;
-		iter->codepoint = 0;
-		iter->position  = 0;
-		iter->next      = 0;
-		iter->count     = 0;
-		iter->length    = ptr == NULL ? 0 : strlen(ptr);
+		iter->ptr            = ptr;
+		iter->codepoint      = 0;
+		iter->next_codepoint = 0;
+		iter->position       = 0;
+		iter->next           = 0;
+		iter->count          = 0;
+		iter->length         = ptr == NULL ? 0 : strlen(ptr);
 	}
 }
 
 void utf8_initEx(utf8_iter* iter, const char* ptr, uint32_t length) {
 	if (iter) {
-		iter->ptr       = ptr;
-		iter->codepoint = 0;
-		iter->position  = 0;
-		iter->next      = 0;
-		iter->count     = 0;
-		iter->length    = length;
+		iter->ptr            = ptr;
+		iter->codepoint      = 0;
+		iter->next_codepoint = 0;
+		iter->position       = 0;
+		iter->next           = 0;
+		iter->count          = 0;
+		iter->length         = length;
 	}
 }
 
 uint8_t	utf8_next(utf8_iter* iter) {
-
 	if (iter == NULL) return 0;
 	if (iter->ptr == NULL) return 0;
 
 	const char* pointer;
 
 	if (iter->next < iter->length) {
-
 		iter->position = iter->next;
 
 		pointer 	= iter->ptr + iter->next; //Set Current Pointer
@@ -68,6 +68,7 @@ uint8_t	utf8_next(utf8_iter* iter) {
 
 		iter->next 		= iter->next + iter->size;
 		iter->codepoint = utf8_converter(pointer, iter->size);
+		iter->next_codepoint = utf8_converter(iter->ptr + iter->next, utf8_charsize(iter->ptr + iter->next));
 
 		if (iter->codepoint == 0) return 0;
 

@@ -18,6 +18,7 @@ typedef size_t TirConst;
 typedef enum TirConstKind {
 	TIR_CONST_I32,
 	TIR_CONST_F32,
+	TIR_CONST_TYPE,
 
 	TIR_CONST_GLOBAL_REF, // &other_global
 	TIR_CONST_ZERO,       // zero-initialized aggregate
@@ -30,6 +31,7 @@ typedef struct TirConstInfo {
 	union {
 		int32_t i32;
 		float   f32;
+		TypeID  type;
 		TirGlobal global_ref;
 	} as;
 } TirConstInfo;
@@ -69,6 +71,7 @@ typedef struct TirFunctionInfo {
 
 typedef struct TirGlobalInfo {
 	const char* name;
+	bool is_constant;
 	TirConst initializer;
 	// A way to represent values
 } TirGlobalInfo;

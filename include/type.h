@@ -9,7 +9,7 @@
 typedef size_t TypeID;
 #define TYPE_ID_ENUM_DEF(X)						\
 	X(TYPE_AUTO, "auto")						\
-	X(TYPE_TYPE, "type")						\
+	X(TYPE_TYPEID, "typeid")					\
 	X(TYPE_INT, "int")						    \
 	X(TYPE_FLOAT, "float")					    \
 	X(TYPE_UNTYPED_INT, "int")				    \

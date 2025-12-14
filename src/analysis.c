@@ -8,7 +8,6 @@
 #include "core/my_array.h"
 #include <assert.h>
 #include <math.h>
-#include <signal.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -316,10 +315,11 @@ static void tirrify_the_symbol(Analyzer* self, Symbol* symbol)
 		constant_info.kind = TIR_CONST_F32;
 		constant_info.as.f32 = value.as.float_literal;
 		break;
-	case VALUE_KIND_SYMBOL: {
-		unreachable();
-	} break;
 	case VALUE_KIND_TYPE:
+		constant_info.kind = TIR_CONST_TYPE;
+		constant_info.as.type = value.as.type;
+		break;
+	case VALUE_KIND_SYMBOL:
 		unreachable();
 	case VALUE_KIND_UNKNOWN:
 		unreachable();
@@ -329,6 +329,7 @@ static void tirrify_the_symbol(Analyzer* self, Symbol* symbol)
 	const TirGlobalInfo global = {
 		.name = symbol->name,
 		.initializer = constant,
+		.is_constant = symbol->kind == SYMBOL_CONSTANT,
 	};
 
 	tir_push_global(&self->tir, global);
@@ -477,7 +478,7 @@ static void analyze_type(Analyzer* self, const HirInstruction instruction)
 {
 	const TypeID type = instruction.as.type;
 	const HasteValue value = {
-		.type = TYPE_TYPE,
+		.type = TYPE_TYPEID,
 		.tag = VALUE_KIND_TYPE,
 		.as = {
 			.type = type,
@@ -777,9 +778,10 @@ static void analyze_constant_declaration(Analyzer* self, const HirInstruction in
 	if (constant.explicit_typing)
 	{
 		const HasteValue type_value = pop(self);
-		if (type_value.tag != VALUE_KIND_TYPE)
+		const HasteValue actual_value = value_of(self, type_value);
+		if (actual_value.tag != VALUE_KIND_TYPE)
 			panic("Not a type!");
-		type = type_value.as.type;
+		type = actual_value.as.type;
 	}
 
 	if (constant.initialized)
@@ -800,7 +802,7 @@ static void analyze_variable_declaration(Analyzer* self, const HirInstruction in
 {
 	const HirVariableDecl variable = instruction.as.variable;
 
-	if (variable.explicit_typing && variable.initialized)
+	if (!variable.explicit_typing && !variable.initialized)
 		panic("no value, no initializatio. how tf I'm gonna tell the tell?!");
 
 	TypeID type = {0};

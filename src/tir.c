@@ -105,6 +105,9 @@ void print_tir_constant(FILE* f, const Tir tir, const TirConstInfo constant)
 	case TIR_CONST_GLOBAL_REF:
 		fprintf(f, "%s", tir.globals[constant.as.global_ref].name);
 		break;
+	case TIR_CONST_TYPE:
+		print_type(f, constant.as.type);
+		break;
 	case TIR_CONST_ZERO:
 		fprintf(f, "---");
 		break;
@@ -123,7 +126,8 @@ void print_tir_global(FILE* f, const Tir tir, const TirGlobalInfo global)
 	const TirConstInfo constant = tir.constants[global.initializer];
 	fprintf(
 		f,
-		"define $\"%s\": ",
+		"define %s $\"%s\": ",
+		global.is_constant ? "const" : "var",
 		global.name
 	);
 	print_type(f, constant.type);

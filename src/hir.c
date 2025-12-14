@@ -1,4 +1,5 @@
 #include "hir.h"
+#include "ast.h"
 #include "token.h"
 #include "type.h"
 #include "core/my_array.h"
@@ -326,8 +327,10 @@ static error hoist_expr(Hir *self, const AstExpr *expr)
 		instruction.tag = HIR_NODE_TYPE;
 		instruction.as.type = TYPE_INT;
 		goto _defer;
-	default:
-		unreachable();
+	case AST_EXPR_KIND_TYPEID_TYPE:
+		instruction.tag = HIR_NODE_TYPE;
+		instruction.as.type = TYPE_TYPEID;
+		goto _defer;
 	}
 _defer:
 	hir_push_instruction(self, instruction);

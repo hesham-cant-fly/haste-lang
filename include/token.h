@@ -6,6 +6,7 @@
 
 typedef enum TokenKind {
 #define TOKEN_KIND_ENUM_DEF(X)                                                 \
+	X(TOKEN_KIND_TYPEID)                                                       \
     X(TOKEN_KIND_INT)                                                          \
     X(TOKEN_KIND_FLOAT)                                                        \
     X(TOKEN_KIND_AUTO)                                                         \

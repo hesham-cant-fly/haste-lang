@@ -63,6 +63,7 @@ typedef enum AstExprKind {
 	X(AST_EXPR_KIND_FLOAT_LIT,  double,          float_lit, PRINT_DOUBLE) \
 	X(AST_EXPR_KIND_AUTO_TYPE,  uint8_t,         auto_type, PRINT_NONE)	\
 	X(AST_EXPR_KIND_FLOAT_TYPE, uint8_t,         float_type, PRINT_NONE) \
+    X(AST_EXPR_KIND_TYPEID_TYPE, uint8_t,        typeid_type, PRINT_NONE) \
     X(AST_EXPR_KIND_INT_TYPE,   uint8_t,         int_type, PRINT_NONE)
 
     EXPR_NODE_TAGGED_UNION_DEF(X_UNION_TAG)

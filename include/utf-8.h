@@ -31,6 +31,7 @@ typedef struct utf8_iter {
 
 	const char* ptr;
 	uint32_t	codepoint;
+	uint32_t    next_codepoint;
 
 	uint8_t		size; 		// character size in bytes
 	uint32_t 	position; 	// current character position

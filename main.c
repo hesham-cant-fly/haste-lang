@@ -86,6 +86,11 @@ int main(void)
 		return 1;
 	}
 
+	for (size_t i=0; i < arrlen(tokens); i += 1)
+	{
+		print_tokenln(stdout, tokens[i]);
+	}
+
 	ASTFile ast = { 0 };
 	err = parse_tokens(tokens, &ast);
 	if (err)

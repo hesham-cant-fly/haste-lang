@@ -1,3 +1,8 @@
-const b: int = 66;
-const c: auto = b + 1;
-const a = c + b ** 2;
+// Types
+var Automatic: typeid = auto;
+const Number:  typeid = int;
+
+// Variables
+const b: Number = 66;
+const c: Number = b + 1;
+const a: Automatic = c + b ** 2;
