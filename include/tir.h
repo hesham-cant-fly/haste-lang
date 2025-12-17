@@ -29,9 +29,9 @@ typedef struct TirConstInfo {
 	TirConstKind kind;
 
 	union {
-		int32_t i32;
-		float   f32;
-		TypeID  type;
+		int32_t   i32;
+		float     f32;
+		TypeID    type;
 		TirGlobal global_ref;
 	} as;
 } TirConstInfo;

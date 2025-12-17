@@ -71,14 +71,15 @@ typedef struct HirConstantDecl HirConstantDecl;
 typedef struct HirVariableDecl HirVariableDecl;
 
 typedef struct HirGlobal {
+	bool visited;
 	Location location;
 	Span span;
 	const char* name;
+	HirInstruction* instructions;
 	HirVisibility visibility;
 	HirDeclKind kind;
 	bool explicit_typing;
 	bool initialized;
-	HirInstruction* instructions;
 } HirGlobal;
 
 typedef struct Hir {

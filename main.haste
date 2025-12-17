@@ -1,6 +1,6 @@
 // Types
 var Automatic: typeid = auto;
-const Number:    typeid = int;
+const Number: typeid = int;
 
 // Variables
 const b: Number = 66 + c;
