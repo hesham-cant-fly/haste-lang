@@ -18,7 +18,7 @@
 typedef struct Parser {
 	Arena arena;
 	const char* path;
-	const Token* tokens;
+	struct TokenList tokens;
 	jmp_buf jmpbuf;
 	size_t current;
 	bool had_error;
@@ -69,7 +69,7 @@ static ParserRule get_rule(TokenKind kind);
 static AstDecl parse_declaration(Parser *self);
 static AstExpr parse_expr(Parser *self);
 
-error parse_tokens(const Token* tokens, const char* path, ASTFile *out)
+error parse_tokens(const struct TokenList tokens, const char* path, ASTFile *out)
 {
 	Parser parser = { 0 };
 	parser.tokens = tokens;
@@ -77,30 +77,24 @@ error parse_tokens(const Token* tokens, const char* path, ASTFile *out)
 
 	/* AstDecl *declarations = arrinit(AstDecl); */
 	AstDeclarationList declarations = { 0 };
-	while (parser.current < arrlen(parser.tokens))
-	{
+	while (parser.current < parser.tokens.len) {
 		error err			= OK;
 		AstDecl declaration = { 0 };
-		if ((err = setjmp(parser.jmpbuf)) == OK)
-		{
+		if ((err = setjmp(parser.jmpbuf)) == OK) {
 			declaration = parse_declaration(&parser);
-		}
-		else
-		{
+		} else {
 			// TODO: Static Synchronize or assume tokens
 		}
 
 		// its a waste of memory to allocate when we already got an error
-		if (!parser.had_error)
-		{
+		if (!parser.had_error) {
 			AstDeclarationListNode node = { 0 };
 			node.node					= declaration;
 			ast_declaration_list_append(&declarations, create(&parser, node));
 		}
 	}
 
-	if (parser.had_error)
-	{
+	if (parser.had_error) {
 		arena_free(&parser.arena);
 		*out = (ASTFile){ 0 };
 		return ERROR;
@@ -119,8 +113,7 @@ static AstDecl parse_var_declaration(Parser *self);
 static AstDecl parse_declaration(Parser *self)
 {
 	const Token token = advance(self);
-	switch (token.kind)
-	{
+	switch (token.kind) {
 	case TOKEN_KIND_CONST:
 		return parse_const_declaration(self);
 	case TOKEN_KIND_VAR:
@@ -135,8 +128,7 @@ static AstDecl parse_const_declaration(Parser *self)
 	const Token start	   = previous(self);
 	const Token identifier = consume(self, TOKEN_KIND_IDENTIFIER, "Expected a Constant Name.\n");
 	const AstExpr *type	   = NULL;
-	if (match(self, TOKEN_KIND_COLON))
-	{
+	if (match(self, TOKEN_KIND_COLON)) {
 		const AstExpr tp = parse_expr(self);
 		type			 = create(self, tp);
 	}
@@ -166,8 +158,7 @@ static AstDecl parse_var_declaration(Parser *self)
 	const Token start	   = previous(self);
 	const Token identifier = consume(self, TOKEN_KIND_IDENTIFIER, "Expected a Variable Name.\n");
 	const AstExpr *type	   = NULL;
-	if (match(self, TOKEN_KIND_COLON))
-	{
+	if (match(self, TOKEN_KIND_COLON)) {
 		const AstExpr tp = parse_expr(self);
 		type			 = create(self, tp);
 	}
@@ -202,8 +193,7 @@ static AstExpr parse_precedence(Parser *self, Precedence precedence)
 {
 	Token token				  = advance(self);
 	ParsePrefixFn prefix_rule = get_rule(token.kind).prefix;
-	if (prefix_rule == NULL)
-	{
+	if (prefix_rule == NULL) {
 		report_error(self, token.location, "Expected an expression, got `%.*s` instead.", span_len(token.span),
 			token.span.start);
 	}
@@ -212,14 +202,16 @@ static AstExpr parse_precedence(Parser *self, Precedence precedence)
 
 	ParserRule rule;
 	for (rule = get_rule(peek(self).kind); (!ended(self)) && precedence <= rule.precedence;
-		rule  = get_rule(peek(self).kind))
-	{
+		rule  = get_rule(peek(self).kind)) {
 		Token tok				= advance(self);
 		ParseInfixFn infix_rule = get_rule(tok.kind).infix;
-		if (infix_rule == NULL)
-		{
+		if (infix_rule == NULL) {
 			report_error(
-				self, tok.location, "Expected a valid operator, got `%.*s`.", span_len(tok.span), tok.span.start);
+				self,
+				tok.location,
+				"Expected a valid operator, got `%.*s`.",
+				span_len(tok.span),
+				tok.span.start);
 		}
 
 		const AstExpr *left_expr = create(self, left);
@@ -251,8 +243,7 @@ static AstExpr parse_int_lit(Parser *self)
 
 	int64_t value	  = 0;
 	error err		  = strn_to_i64(token.span.start, span_len(token.span), 10, &value);
-	if (err)
-	{
+	if (err) {
 		panic("Something bad has happened.");
 	}
 
@@ -274,8 +265,7 @@ static AstExpr parse_float_lit(Parser *self)
 
 	double value = 0;
 	error err	 = strn_to_double(token.span.start, span_len(token.span), &value);
-	if (err)
-	{
+	if (err) {
 		panic("Something bad has happened.");
 	}
 
@@ -382,8 +372,7 @@ static AstExpr parse_binary(Parser *self, const AstExpr *left)
 
 	ParserRule rule		  = get_rule(op.kind);
 	Precedence precedence = rule.precedence + 1;
-	if (rule.right_assoc)
-	{
+	if (rule.right_assoc) {
 		precedence = rule.precedence;
 	}
 
@@ -407,8 +396,7 @@ static AstExpr parse_binary(Parser *self, const AstExpr *left)
 
 static ParserRule get_rule(TokenKind kind)
 {
-	switch (kind)
-	{
+	switch (kind) {
 	case TOKEN_KIND_IDENTIFIER:  return (ParserRule){ parse_identifier, NULL,         PREC_PRIMARY, false };
 	case TOKEN_KIND_INT_LIT:     return (ParserRule){ parse_int_lit,    NULL,         PREC_PRIMARY, false };
 	case TOKEN_KIND_FLOAT_LIT:   return (ParserRule){ parse_float_lit,  NULL,         PREC_PRIMARY, false };
@@ -422,18 +410,18 @@ static ParserRule get_rule(TokenKind kind)
 	case TOKEN_KIND_STAR:        return (ParserRule){ NULL,             parse_binary, PREC_FACTOR,  false };
 	case TOKEN_KIND_FSLASH:      return (ParserRule){ NULL,             parse_binary, PREC_FACTOR,  false };
 	case TOKEN_KIND_DOUBLE_STAR: return (ParserRule){ NULL,             parse_binary, PREC_POWER,   true };
-	default:
-		return (ParserRule){ 0, 0, 0, 0 };
+	default:                     return (ParserRule){ 0, 0, 0, 0 };
 	}
 }
 
 static const void *_create(Parser *self, size_t size, const void *value)
 {
-	if (self->had_error)
+	if (self->had_error) {
 		return NULL;
+	}
+
 	void *result = arena_alloc(&self->arena, size);
-	if (result == NULL)
-	{
+	if (result == NULL) {
 		panic("BUY MORE RAM lol");
 	}
 	memcpy(result, value, size);
@@ -442,8 +430,7 @@ static const void *_create(Parser *self, size_t size, const void *value)
 
 static bool check(const Parser *self, TokenKind kind)
 {
-	if (ended(self))
-	{
+	if (ended(self)) {
 		return false;
 	}
 	return peek(self).kind == kind;
@@ -451,8 +438,7 @@ static bool check(const Parser *self, TokenKind kind)
 
 static bool match(Parser *self, TokenKind kind)
 {
-	if (check(self, kind))
-	{
+	if (check(self, kind)) {
 		advance(self);
 		return true;
 	}
@@ -462,8 +448,7 @@ static bool match(Parser *self, TokenKind kind)
 static Token consume(Parser *self, TokenKind kind, const char *fmt, ...)
 {
 	Token token = peek(self);
-	if (match(self, kind))
-	{
+	if (match(self, kind)) {
 		return token;
 	}
 
@@ -475,47 +460,42 @@ static Token consume(Parser *self, TokenKind kind, const char *fmt, ...)
 static Token advance(Parser *self)
 {
 	Token token = peek(self);
-	if (!ended(self))
-	{
+	if (!ended(self)) {
 		self->current += 1;
 	}
 	return token;
 }
 
-static Token previous(const Parser *self)
+static struct Token previous(const Parser *self)
 {
-	if (self->current == 0)
-	{
-		return self->tokens[0];
+	if (self->current == 0) {
+		return self->tokens.items[0];
 	}
-	return self->tokens[self->current - 1];
+	return self->tokens.items[self->current - 1];
 }
 
 static Token peek(const Parser *self)
 {
-	if (ended(self))
-	{
-		return self->tokens[self->current - 1];
+	if (ended(self)) {
+		return self->tokens.items[self->current - 1];
 	}
-	return self->tokens[self->current];
+	return self->tokens.items[self->current];
 }
 
 static Token peek_next(const Parser *self)
 {
-	if (self->current + 1 >= arrlen(self->tokens))
-	{
+	if (self->current + 1 >= self->tokens.len) {
 		return peek(self);
 	}
-	return self->tokens[self->current + 1];
+	return self->tokens.items[self->current + 1];
 }
 
 static Token peek_ahead(const Parser *self, ssize_t offset)
 {
-	if (self->current + offset >= arrlen(self->tokens))
-	{
+	if (self->current + offset >= self->tokens.len) {
 		return peek(self);
 	}
-	return self->tokens[self->current + offset];
+	return self->tokens.items[self->current + offset];
 }
 
 static bool ended(const Parser *self)
@@ -525,8 +505,7 @@ static bool ended(const Parser *self)
 
 static AstOperator operator_from_token(const Token token)
 {
-	switch (token.kind)
-	{
+	switch (token.kind) {
 	case TOKEN_KIND_PLUS:
 		return AST_OPERATOR_PLUS;
 	case TOKEN_KIND_MINUS:
@@ -549,7 +528,7 @@ static NORETURN void report_error(
 
 	va_list args;
 	va_start(args, fmt);
-	vreport(stderr, "(BUF)", at, "Error", fmt, args);
+	vreport(stderr, parser->path, at, "Error", fmt, args);
 	va_end(args);
 
 	parser->had_error = true;
@@ -563,7 +542,7 @@ static NORETURN void vareport_error(
 	const char *fmt,
 	va_list args) {
 
-	vreport(stderr, "(BUF)", at, "Error", fmt, args);
+	vreport(stderr, parser->path, at, "Error", fmt, args);
 	parser->had_error = true;
 	longjmp(parser->jmpbuf, ERROR);
 }

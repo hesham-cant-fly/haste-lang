@@ -10,7 +10,6 @@
 #include "core/my_array.h"
 #include <assert.h>
 #include <linux/limits.h>
-#include <math.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -79,19 +78,23 @@ static void deinit_stack(struct AnalysisStack* self);
 static void push_value(struct AnalysisStack* self, const struct HasteValue value);
 static struct HasteValue pop_value(struct AnalysisStack* self);
 
-typedef struct Symbol* SymbolTable;
+struct SymbolTable {
+	struct Symbol* items;
+	size_t len;
+	size_t cap;
+};
 
 /** @return -1 if not found */
-static int32_t find_symbol(const SymbolTable self, const char* name);
+static int32_t find_symbol(const struct SymbolTable self, const char* name);
 static error declare_symbol(
-	SymbolTable table,
+	struct SymbolTable* table,
 	const char* name,
 	const enum SymbolKind kind,
 	const enum SymbolVisibility visibility);
-static error define_symbol(SymbolTable self, const char* name, const struct HasteValue value);
+static error define_symbol(struct SymbolTable self, const char* name, const struct HasteValue value);
 
 struct Scope {
-	SymbolTable symbols;
+	struct SymbolTable symbols;
 	struct Scope* parent;
 	struct Scope* child;
 };
@@ -108,7 +111,11 @@ struct Analyzer {
 	const char* path;
 	size_t ip;
 	struct AnalysisStack stack;
-	struct CheckPointInfo *check_points;
+	struct CheckPointInfoList {
+		struct CheckPointInfo* items;
+		size_t len;
+		size_t cap;
+	} check_points;
 	struct Scope global_scope;
 	struct Scope* current_scope;
 	bool had_error;
@@ -186,9 +193,9 @@ static struct HasteValue pop_value(struct AnalysisStack* self)
 	return value;
 }
 
-static int32_t find_symbol(const SymbolTable self, const char* name)
+static int32_t find_symbol(const struct SymbolTable self, const char* name)
 {
-	const size_t len = arrlen(self);
+	const size_t len = self.len;
 	if (len == 0) return -1;
 
 	int32_t left = 0;
@@ -196,7 +203,7 @@ static int32_t find_symbol(const SymbolTable self, const char* name)
 
 	while (left <= right) {
 		const int32_t mid = left + (right - left) / 2;
-		const struct Symbol symbol = self[mid];
+		const struct Symbol symbol = self.items[mid];
 		const int cmp = strcmp(symbol.name, name);
 
 		if (cmp == 0)
@@ -211,26 +218,26 @@ static int32_t find_symbol(const SymbolTable self, const char* name)
 }
 
 static error declare_symbol(
-	SymbolTable table,
+	struct SymbolTable* table,
 	const char* name,
 	const enum SymbolKind kind,
 	const enum SymbolVisibility visibility)
 {
-	const size_t len = arrlen(table);
-	arrreserve(table, len + 1);
+	const size_t len = table->len;
+	arrreserve(*table, len + 1);
 
 	ssize_t i = len - 1;
 	for (; i >= 0; i -= 1) {
-		const struct Symbol symbol = table[i];
+		const struct Symbol symbol = table->items[i];
 		const int cmp_res = strcmp(symbol.name, name);
 		if (cmp_res == 0) return ERROR;
 		if (cmp_res > 0)  break;
 
-		table[i + 1] = symbol;
+		table->items[i + 1] = symbol;
 	}
 
-	arrsetlen(table, len + 1);
-	table[i + 1] = (struct Symbol) {
+	table->len += 1;
+	table->items[i + 1] = (struct Symbol) {
 		.name = name,
 		.defined = false,
 		.kind = kind,
@@ -241,13 +248,17 @@ static error declare_symbol(
 	return OK;
 }
 
-static error define_symbol(SymbolTable self, const char* name, const struct HasteValue value)
+static error define_symbol(struct SymbolTable self, const char* name, const struct HasteValue value)
 {
 	const int32_t index = find_symbol(self, name);
-	if (index == -1) return ERROR;
+	if (index == -1) {
+		return ERROR;
+	}
 
-	struct Symbol* const symbol = &self[index];
-	if (symbol->defined) return ERROR;
+	struct Symbol* const symbol = &self.items[index];
+	if (symbol->defined) {
+		return ERROR;
+	}
 
 	symbol->defined = true;
 	symbol->value = value;
@@ -262,9 +273,8 @@ static struct Analyzer init_analyzer(Hir hir)
 	result.hir = hir;
 	result.tir = init_tir(hir.path);
 	result.stack = init_stack();
-	result.check_points = arrinit(struct CheckPointInfo);
 	result.global_scope = (struct Scope){
-		.symbols = arrinit(struct Symbol),
+		.symbols = {0},
 		.parent = NULL,
 		.child = NULL,
 	};
@@ -291,18 +301,18 @@ static CheckPoint start_check_point(struct Analyzer* self)
 		.ip = self->ip,
 	};
 	arrpush(self->check_points, check_point);
-	return arrlen(self->check_points) - 1;
+	return self->check_points.len - 1;
 }
 
 static void end_check_point(struct Analyzer* self, const CheckPoint check_point)
 {
-	const size_t top = arrlen(self->check_points) - 1;
+	const size_t top = self->check_points.len - 1;
 	assert(check_point <= top);
 
-	const struct CheckPointInfo info = self->check_points[check_point];
+	const struct CheckPointInfo info = self->check_points.items[check_point];
 	self->ip = info.ip;
 
-	arrsetlen(self->check_points, check_point);
+	self->check_points.len = check_point;
 }
 
 static void push(struct Analyzer* self, struct HasteValue value)
@@ -318,15 +328,15 @@ static struct HasteValue pop(struct Analyzer* self)
 static struct HasteValue value_of(struct Analyzer* self, const struct HasteValue value)
 {
 	switch (value.tag) {
-		case VALUE_KIND_INT:
-		case VALUE_KIND_FLOAT:
-		case VALUE_KIND_TYPE:
-		case VALUE_KIND_UNKNOWN:
-			return value;
-		case VALUE_KIND_SYMBOL: {
-			const struct Symbol* symbol = find_local_first(self, value.as.symbol);
-			return value_of(self, symbol->value);
-		}
+	case VALUE_KIND_INT:
+	case VALUE_KIND_FLOAT:
+	case VALUE_KIND_TYPE:
+	case VALUE_KIND_UNKNOWN:
+		return value;
+	case VALUE_KIND_SYMBOL: {
+		const struct Symbol *symbol = find_local_first(self, value.as.symbol);
+		return value_of(self, symbol->value);
+	}
 	}
 }
 
@@ -335,22 +345,22 @@ static TirConst tirrify_the_value(struct Analyzer* self, struct HasteValue value
 	struct TirConstInfo constant_info = {0};
 	constant_info.type = type_of_value(value);
 	switch (value.tag) {
-		case VALUE_KIND_INT:
-			constant_info.kind = TIR_CONST_I32;
-			constant_info.as.i32 = value.as.integer;
-			break;
-		case VALUE_KIND_FLOAT:
-			constant_info.kind = TIR_CONST_F32;
-			constant_info.as.f32 = value.as.float_literal;
-			break;
-		case VALUE_KIND_TYPE:
-			constant_info.kind = TIR_CONST_TYPE;
-			constant_info.as.type = value.as.type;
-			break;
-		case VALUE_KIND_SYMBOL:
-			unreachable();
-		case VALUE_KIND_UNKNOWN:
-			unreachable();
+	case VALUE_KIND_INT:
+		constant_info.kind	 = TIR_CONST_I32;
+		constant_info.as.i32 = value.as.integer;
+		break;
+	case VALUE_KIND_FLOAT:
+		constant_info.kind	 = TIR_CONST_F32;
+		constant_info.as.f32 = value.as.float_literal;
+		break;
+	case VALUE_KIND_TYPE:
+		constant_info.kind	  = TIR_CONST_TYPE;
+		constant_info.as.type = value.as.type;
+		break;
+	case VALUE_KIND_SYMBOL:
+		unreachable();
+	case VALUE_KIND_UNKNOWN:
+		unreachable();
 	}
 
 	const TirConst constant = tir_push_constant(&self->tir, constant_info);
@@ -363,22 +373,22 @@ static void tirrify_the_symbol(struct Analyzer* self, struct Symbol* symbol)
 	TirConstInfo constant_info = {0};
 	constant_info.type = type_of_symbol(*symbol);
 	switch (value.tag) {
-		case VALUE_KIND_INT:
-			constant_info.kind = TIR_CONST_I32;
-			constant_info.as.i32 = value.as.integer;
-			break;
-		case VALUE_KIND_FLOAT:
-			constant_info.kind = TIR_CONST_F32;
-			constant_info.as.f32 = value.as.float_literal;
-			break;
-		case VALUE_KIND_TYPE:
-			constant_info.kind = TIR_CONST_TYPE;
-			constant_info.as.type = value.as.type;
-			break;
-		case VALUE_KIND_SYMBOL:
-			unreachable();
-		case VALUE_KIND_UNKNOWN:
-			unreachable();
+	case VALUE_KIND_INT:
+		constant_info.kind	 = TIR_CONST_I32;
+		constant_info.as.i32 = value.as.integer;
+		break;
+	case VALUE_KIND_FLOAT:
+		constant_info.kind	 = TIR_CONST_F32;
+		constant_info.as.f32 = value.as.float_literal;
+		break;
+	case VALUE_KIND_TYPE:
+		constant_info.kind	  = TIR_CONST_TYPE;
+		constant_info.as.type = value.as.type;
+		break;
+	case VALUE_KIND_SYMBOL:
+		unreachable();
+	case VALUE_KIND_UNKNOWN:
+		unreachable();
 	}
 
 	const TirConst constant = tir_push_constant(&self->tir, constant_info);
@@ -399,7 +409,7 @@ static struct Symbol* find_local_first(struct Analyzer* self, const char* name)
 		struct Scope* const parent = current->parent;
 		const int index = find_symbol(current->symbols, name);
 		if (index != -1) {
-			return &current->symbols[index];
+			return &current->symbols.items[index];
 		}
 
 		current = parent;
@@ -415,7 +425,7 @@ static struct Symbol* find_local_only(struct Analyzer* self, const char* name)
 	const int index = find_symbol(current->symbols, name);
 	if (index != -1) return NULL;
 
-	return &current->symbols[index];
+	return &current->symbols.items[index];
 }
 
 static struct Symbol* find_global_first(struct Analyzer* self, const char* name)
@@ -426,7 +436,7 @@ static struct Symbol* find_global_first(struct Analyzer* self, const char* name)
 		struct Scope* const child = current->child;
 		const int index = find_symbol(current->symbols, name);
 		if (index != -1) {
-			return &current->symbols[index];
+			return &current->symbols.items[index];
 		}
 
 		current = child;
@@ -442,7 +452,7 @@ static struct Symbol* find_global_only(struct Analyzer* self, const char* name)
 	const int index = find_symbol(current.symbols, name);
 	if (index == -1) return NULL;
 
-	return &current.symbols[index];
+	return &current.symbols.items[index];
 }
 
 static error declare_local(
@@ -452,7 +462,7 @@ static error declare_local(
 	const enum SymbolVisibility visibility)
 {
 	struct Scope* current = self->current_scope;
-	const error err = declare_symbol(current->symbols, name, kind, visibility);
+	const error err = declare_symbol(&current->symbols, name, kind, visibility);
 	return err;
 }
 
@@ -469,16 +479,15 @@ static error declare_global(
 	const enum SymbolKind kind,
 	const enum SymbolVisibility visibility)
 {
-	struct Scope current = self->global_scope;
-	const error err = declare_symbol(current.symbols, name, kind, visibility);
+	struct Scope* current = &self->global_scope;
+	const error err = declare_symbol(&current->symbols, name, kind, visibility);
 	return err;
 }
 
 static error define_global(struct Analyzer* self, const char* name, const struct HasteValue value)
 {
 	struct Scope current = self->global_scope;
-	const  error err = define_symbol(current.symbols, name, value);
-	return err;
+	return define_symbol(current.symbols, name, value);
 }
 
 static bool is_defined(struct Analyzer* self, const char* name)
@@ -525,61 +534,61 @@ static void analyze_global(struct Analyzer* self, const struct HirGlobal global)
 	enum SymbolKind symbol_kind = SYMBOL_CONSTANT;
 	
 	switch (global.kind) {
-		case HIR_DECL_VAR:
-			symbol_kind = SYMBOL_VARIABLE;
-		case HIR_DECL_CONST: {
-			error err = declare_global(self, global.name, symbol_kind, visibility);
-			if (err) panic("TODO:");
+	case HIR_DECL_VAR:
+		symbol_kind = SYMBOL_VARIABLE;
+	case HIR_DECL_CONST: {
+		error err = declare_global(self, global.name, symbol_kind, visibility);
+		if (err) panic("TODO:");
 
-			const size_t len = arrlen(global.instructions);
-			for (size_t i=0; i < len; i += 1) {
-				const struct HirInstruction instruction = global.instructions[i];
-				analyze_instruction(self, instruction);
-			}
-
-			TypeID type = TYPE_AUTO;
-			if (global.explicit_typing) {
-				const struct HasteValue type_value = pop(self);
-				const struct HasteValue actual_type = value_of(self, type_value);
-				if (actual_type.tag != VALUE_KIND_TYPE) {
-					report_error(
-						self, 
-						global.location,
-						"No known type has been provided.");
-				}
-				type = actual_type.as.type;
-			}
-
-			struct HasteValue value = {0};
-			if (global.initialized) {
-				const struct HasteValue avalue = pop(self);
-				const struct HasteValue actual_value = value_of(self, avalue);
-				const TypeID value_type = type_of_value(actual_value);
-				const enum TypeMatchResult match_result = type_matches(type, value_type);
-				if (match_result != TYPE_MATCH_EXACT) {
-					report_error(
-						self,
-						global.location,
-						"Type mismatch.");
-				}
-
-				value = actual_value;
-			}
-
-			const TirConst tir_constant = tirrify_the_value(self, value);
-			const struct TirGlobalInfo tir_global_info = {
-				.name = global.name,
-				.is_constant = global.kind == HIR_DECL_CONST,
-				.initializer = tir_constant,
-			};
-
-			tir_push_global(&self->tir, tir_global_info);
-
-			err = define_global(self, global.name, value);
-			if (err) panic("TODO:");
-
-			break;
+		const size_t len = global.instructions.len;
+		for (size_t i=0; i < len; i += 1) {
+			const struct HirInstruction instruction = global.instructions.items[i];
+			analyze_instruction(self, instruction);
 		}
+
+		TypeID type = TYPE_AUTO;
+		if (global.explicit_typing) {
+			const struct HasteValue type_value = pop(self);
+			const struct HasteValue actual_type = value_of(self, type_value);
+			if (actual_type.tag != VALUE_KIND_TYPE) {
+				report_error(
+					self, 
+					global.location,
+					"No known type has been provided.");
+			}
+			type = actual_type.as.type;
+		}
+
+		struct HasteValue value = {0};
+		if (global.initialized) {
+			const struct HasteValue avalue = pop(self);
+			const struct HasteValue actual_value = value_of(self, avalue);
+			const TypeID value_type = type_of_value(actual_value);
+			const enum TypeMatchResult match_result = type_matches(type, value_type);
+			if (match_result != TYPE_MATCH_EXACT) {
+				report_error(
+					self,
+					global.location,
+					"Type mismatch.");
+			}
+
+			value = actual_value;
+		}
+
+		const TirConst tir_constant = tirrify_the_value(self, value);
+		const struct TirGlobalInfo tir_global_info = {
+			.name = global.name,
+			.is_constant = global.kind == HIR_DECL_CONST,
+			.initializer = tir_constant,
+		};
+
+		tir_push_global(&self->tir, tir_global_info);
+
+		err = define_global(self, global.name, value);
+		if (err) panic("TODO:");
+
+		break;
+	}
 	}
 }
 
@@ -612,7 +621,6 @@ static void analyze_identifier(struct Analyzer* self, const HirInstruction instr
 	}
 
 	const struct HasteValue value = value_of(self, symbol->value);
-	
 	push(self, value);
 }
 
@@ -813,16 +821,16 @@ static struct HasteValue power(struct Analyzer* self, const struct HasteValue a,
 	unused(self);
 	struct HasteValue result = a;
 	switch (b.tag) {
-		case VALUE_KIND_INT:
-			result.as.integer = powi64(result.as.integer, b.as.integer);
-			break;
-		case VALUE_KIND_FLOAT:
-			result.as.float_literal = pow(result.as.float_literal, b.as.float_literal);
-			break;
-		case VALUE_KIND_SYMBOL:
-		case VALUE_KIND_TYPE:
-		case VALUE_KIND_UNKNOWN:
-			unreachable();
+	case VALUE_KIND_INT:
+		result.as.integer = powi64(result.as.integer, b.as.integer);
+		break;
+	case VALUE_KIND_FLOAT:
+		result.as.float_literal = powf(result.as.float_literal, b.as.float_literal);
+		break;
+	case VALUE_KIND_SYMBOL:
+	case VALUE_KIND_TYPE:
+	case VALUE_KIND_UNKNOWN:
+		unreachable();
 	}
 	return result;
 }
@@ -970,55 +978,55 @@ static void analyze_variable_declaration(struct Analyzer* self, const HirInstruc
 static void analyze_instruction(struct Analyzer* self, const HirInstruction instruction)
 {
 	switch (instruction.tag) {
-		case HIR_NODE_END:
-			return;
-		case HIR_NODE_IDENTIFIER:
-			analyze_identifier(self, instruction);
-			break;
-		case HIR_NODE_INTEGER:
-			analyze_integer(self, instruction);
-			break;
-		case HIR_NODE_FLOAT:
-			analyze_float(self, instruction);
-			break;
-		case HIR_NODE_TYPE:
-			analyze_type(self, instruction);
-			break;
-		case HIR_NODE_UNARY_PLUS:
-			analyze_unary_plus(self, instruction);
-			break;
-		case HIR_NODE_UNARY_MINUS:
-			analyze_unary_minus(self, instruction);
-			break;
-		case HIR_NODE_ADD:
-			analyze_binary_add(self, instruction);
-			break;
-		case HIR_NODE_SUB:
-			analyze_binary_sub(self, instruction);
-			break;
-		case HIR_NODE_MUL:
-			analyze_binary_mul(self, instruction);
-			break;
-		case HIR_NODE_DIV:
-			analyze_binary_div(self, instruction);
-			break;
-		case HIR_NODE_POW:
-			analyze_binary_pow(self, instruction);
-			break;
-		case HIR_NODE_CONSTANT_DECLARATION:
-			analyze_constant_declaration(self, instruction);
-			break;
-		case HIR_NODE_VARIABLE_DECLARATION:
-			analyze_variable_declaration(self, instruction);
-			break;
+	case HIR_NODE_END:
+		return;
+	case HIR_NODE_IDENTIFIER:
+		analyze_identifier(self, instruction);
+		break;
+	case HIR_NODE_INTEGER:
+		analyze_integer(self, instruction);
+		break;
+	case HIR_NODE_FLOAT:
+		analyze_float(self, instruction);
+		break;
+	case HIR_NODE_TYPE:
+		analyze_type(self, instruction);
+		break;
+	case HIR_NODE_UNARY_PLUS:
+		analyze_unary_plus(self, instruction);
+		break;
+	case HIR_NODE_UNARY_MINUS:
+		analyze_unary_minus(self, instruction);
+		break;
+	case HIR_NODE_ADD:
+		analyze_binary_add(self, instruction);
+		break;
+	case HIR_NODE_SUB:
+		analyze_binary_sub(self, instruction);
+		break;
+	case HIR_NODE_MUL:
+		analyze_binary_mul(self, instruction);
+		break;
+	case HIR_NODE_DIV:
+		analyze_binary_div(self, instruction);
+		break;
+	case HIR_NODE_POW:
+		analyze_binary_pow(self, instruction);
+		break;
+	case HIR_NODE_CONSTANT_DECLARATION:
+		analyze_constant_declaration(self, instruction);
+		break;
+	case HIR_NODE_VARIABLE_DECLARATION:
+		analyze_variable_declaration(self, instruction);
+		break;
 	}
 }
 
 static void start_analyzing(struct Analyzer* self)
 {
-	const size_t len = arrlen(self->hir.globals);
+	const size_t len = self->hir.globals.len;
 	for (size_t i=0; i < len; i += 1) {
-		HirGlobal* global = &self->hir.globals[i];
+		HirGlobal* global = &self->hir.globals.items[i];
 		if (global->visited) continue;
 		analyze_global(self, *global);
 		global->visited = true;

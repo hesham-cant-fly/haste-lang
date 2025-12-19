@@ -10,31 +10,28 @@ Tir init_tir(const char* path)
 {
 	Tir result = {0};
 	result.path = path;
-	result.constants = arrinit(TirConstInfo);
-	result.functions = arrinit(TirFunctionInfo);
-	result.globals = arrinit(TirGlobalInfo);
 	return result;
 }
 
 void deinit_tir(Tir* tir)
 {
-	for (size_t i=0; i < arrlen(tir->constants); i += 1)
+	for (size_t i=0; i < tir->constants.len; i += 1)
 	{
-		TirConstInfo constant = tir->constants[i];
+		TirConstInfo constant = tir->constants.items[i];
 		unused(constant);
 	}
 	arrfree(tir->constants);
 
 	for (size_t i=0; i < arrlen(tir->globals); i += 1)
 	{
-		TirGlobalInfo global = tir->globals[i];
+		TirGlobalInfo global = tir->globals.items[i];
 		unused(global);
 	}
 	arrfree(tir->globals);
 
 	for (size_t i=0; i < arrlen(tir->functions); i += 1)
 	{
-		TirFunctionInfo function = tir->functions[i];
+		TirFunctionInfo function = tir->functions.items[i];
 		arrfree(function.instructions);
 		arrfree(function.blocks);
 	}
@@ -73,9 +70,8 @@ TirBlock tir_block_begin(TirFunctionInfo* self)
 {
 	size_t instructions_len = arrlen(self->instructions);
 	TirBlock result = arrlen(self->blocks);
-	if (result != 0)
-	{
-		self->blocks[result - 1].end_instruction = instructions_len == 0 ? 0 : instructions_len - 1;
+	if (result != 0) {
+		self->blocks.items[result - 1].end_instruction = instructions_len == 0 ? 0 : instructions_len - 1;
 	}
 
 	TirBlockInfo new_block = {0};
@@ -88,7 +84,7 @@ TirBlock tir_block_begin(TirFunctionInfo* self)
 void tir_block_end(TirFunctionInfo* self)
 {
 	size_t instructions_len = arrlen(self->instructions);
-	self->blocks[arrlen(self->blocks) - 1].end_instruction = instructions_len == 0 ? 0 : instructions_len - 1;
+	self->blocks.items[arrlen(self->blocks) - 1].end_instruction = instructions_len == 0 ? 0 : instructions_len - 1;
 }
 
 void print_tir_constant(FILE* f, const Tir tir, const TirConstInfo constant)
@@ -104,7 +100,7 @@ void print_tir_constant(FILE* f, const Tir tir, const TirConstInfo constant)
 		fprintf(f, "%f", constant.as.f32);
 		break;
 	case TIR_CONST_GLOBAL_REF:
-		fprintf(f, "%s", tir.globals[constant.as.global_ref].name);
+		fprintf(f, "%s", tir.globals.items[constant.as.global_ref].name);
 		break;
 	case TIR_CONST_TYPE:
 		print_type(f, constant.as.type);
@@ -124,7 +120,7 @@ void print_tir_function(FILE* f, const Tir tir, const TirFunctionInfo function)
 
 void print_tir_global(FILE* f, const Tir tir, const TirGlobalInfo global)
 {
-	const TirConstInfo constant = tir.constants[global.initializer];
+	const TirConstInfo constant = tir.constants.items[global.initializer];
 	fprintf(
 		f,
 		"define %s $\"%s\": ",
@@ -142,14 +138,14 @@ void print_tir(FILE* f, const Tir tir)
 	const size_t globals_len = arrlen(tir.globals);
 	for (size_t i=0; i<globals_len; i += 1)
 	{
-		const TirGlobalInfo global = tir.globals[i];
+		const TirGlobalInfo global = tir.globals.items[i];
 		print_tir_global(f, tir, global);
 	}
 
 	const size_t functions_len = arrlen(tir.functions);
 	for (size_t i=0; i<functions_len; i += 1)
 	{
-		const TirFunctionInfo function = tir.functions[i];
+		const TirFunctionInfo function = tir.functions.items[i];
 		print_tir_function(f, tir, function);
 	}
 }

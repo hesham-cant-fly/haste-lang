@@ -65,8 +65,16 @@ typedef struct TirBlockInfo {
 
 typedef struct TirFunctionInfo {
 	const char* name;
-	TirInstruction* instructions;
-	TirBlockInfo* blocks;
+	struct TirInstructionList {
+		TirInstruction* items;
+		size_t len;
+		size_t cap;
+	} instructions;
+	struct TirBlockList {
+		TirBlockInfo* items;
+		size_t len;
+		size_t cap;
+	} blocks;
 } TirFunctionInfo;
 
 typedef struct TirGlobalInfo {
@@ -78,9 +86,21 @@ typedef struct TirGlobalInfo {
 
 typedef struct Tir {
 	const char* path;
-	TirConstInfo* constants;
-	TirFunctionInfo* functions;
-	TirGlobalInfo* globals;
+	struct TirConstList {
+		TirConstInfo* items;
+		size_t len;
+		size_t cap;
+	} constants;
+	struct TirFunctionList {
+		TirFunctionInfo* items;
+		size_t len;
+		size_t cap;
+	} functions;
+	struct TirGlobalList {
+		TirGlobalInfo* items;
+		size_t len;
+		size_t cap;
+	} globals;
 } Tir;
 
 Tir init_tir(const char* path);

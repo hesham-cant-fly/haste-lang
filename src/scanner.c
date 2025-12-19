@@ -15,7 +15,7 @@
 
 typedef struct Scanner {
 	const char* path;
-	Token* tokens;
+	struct TokenList tokens;
 	utf8_iter iter;
 	size_t start;
 	Location current_location;
@@ -51,7 +51,7 @@ static void scan_lexem(Scanner *self);
 static void add_token(Scanner *self, TokenKind kind, Location start_location);
 static Span get_span(Scanner *self);
 
-error scan_entire_cstr(const char *content, const char* path, Token **out)
+error scan_entire_cstr(const char *content, const char* path, struct TokenList *out)
 {
 	Scanner scanner = {0};
 	scanner.path = path;
@@ -61,10 +61,6 @@ error scan_entire_cstr(const char *content, const char* path, Token **out)
 		.column = 1,
 		.line	= 1,
 	};
-
-	scanner.tokens = arrinit(Token);
-	if (scanner.tokens == NULL)
-		panic("Buy more RAM lol");
 
 	while (!ended(&scanner))
 	{
@@ -78,7 +74,6 @@ error scan_entire_cstr(const char *content, const char* path, Token **out)
 	if (scanner.had_error)
 	{
 		arrfree(scanner.tokens);
-		*out = NULL;
 		return ERROR;
 	}
 	*out = scanner.tokens;

@@ -34,8 +34,11 @@ typedef struct Type {
 } Type;
 
 typedef struct TypesPool {
-	Arena arena;
-	Type** types;
+	struct TypeList {
+		Type *items;
+		size_t len;
+		size_t cap;
+	} types;
 } TypesPool;
 
 extern TypesPool g_types_pool;

@@ -110,10 +110,10 @@ void print_hir_global(FILE* f, HirGlobal global)
 	}
 	fprintf(f, "%s {\n", global.name);
 
-	for (size_t i=0; i < arrlen(global.instructions); i+=1)
+	for (size_t i=0; i < global.instructions.len; i+=1)
 	{
 		fprintf(f, "\t%%%05zu -> ", i);
-		print_hir_instruction(f, global.instructions[i]);
+		print_hir_instruction(f, global.instructions.items[i]);
 		fprintf(f, "\n");
 	}
 
@@ -122,9 +122,9 @@ void print_hir_global(FILE* f, HirGlobal global)
 
 void print_hir(FILE *f, Hir hir)
 {
-	for (size_t i=0; i < arrlen(hir.globals); i += 1)
+	for (size_t i=0; i < hir.globals.len; i += 1)
 	{
-		HirGlobal global = hir.globals[i];
+		HirGlobal global = hir.globals.items[i];
 		print_hir_global(f, global);
 	}
 }
@@ -133,18 +133,16 @@ static HirInstruction hir_get(Hir* hir, const size_t at);
 static size_t hir_len(Hir *hir);
 
 static size_t push_instruction(HirGlobal* global, HirInstruction instruction);
-static void insert_instruction(HirGlobal *global, const size_t at, const HirInstruction instruction);
 static void append_global(Hir* hir, const HirGlobal global);
 
 static const char* hoist_span(Hir* hir, const Span span);
 static error hoist_global_declaration(Hir* self, const AstDecl declaration);
-static error hoist_expr(HirInstruction* self, Hir* hir, const AstExpr *expr);
+static error hoist_expr(struct HirInstructionList* self, Hir* hir, const AstExpr *expr);
 
 error hoist_ast(ASTFile file, Hir *out)
 {
 	Hir hir = {0};
 	hir.path = file.path;
-	hir.globals = arrinit(HirGlobal);
 
 	const AstDeclarationListNode* current = file.declarations.head;
 	while (current != NULL)
@@ -177,7 +175,6 @@ static error hoist_global_declaration(Hir* self, const AstDecl declaration)
 	const AstDeclNode node = declaration.node;
 
 	HirGlobal global = {0};
-	global.instructions = arrinit(HirInstruction);
 	global.kind = HIR_DECL_CONST;
 	global.visibility = HIR_PUBLIC;
 
@@ -187,12 +184,12 @@ static error hoist_global_declaration(Hir* self, const AstDecl declaration)
 		global.kind = HIR_DECL_CONST;
 		if (node.as.constant.value != NULL)
 		{
-			hoist_expr(global.instructions, self, node.as.constant.value);
+			hoist_expr(&global.instructions, self, node.as.constant.value);
 			global.initialized = true;
 		}
 		if (node.as.constant.type != NULL)
 		{
-			hoist_expr(global.instructions, self, node.as.constant.type);
+			hoist_expr(&global.instructions, self, node.as.constant.type);
 			global.explicit_typing = true;
 		}
 
@@ -202,12 +199,12 @@ static error hoist_global_declaration(Hir* self, const AstDecl declaration)
 		global.kind = HIR_DECL_VAR;
 		if (node.as.variable.value != NULL)
 		{
-			hoist_expr(global.instructions, self, node.as.variable.value);
+			hoist_expr(&global.instructions, self, node.as.variable.value);
 			global.initialized = true;
 		}
 		if (node.as.variable.type != NULL)
 		{
-			hoist_expr(global.instructions, self, node.as.variable.type);
+			hoist_expr(&global.instructions, self, node.as.variable.type);
 			global.explicit_typing = true;
 		}
 
@@ -220,7 +217,7 @@ static error hoist_global_declaration(Hir* self, const AstDecl declaration)
 	return OK;
 }
 
-static error hoist_expr(HirInstruction* self, Hir* hir, const AstExpr *expr)
+static error hoist_expr(struct HirInstructionList* self, Hir* hir, const AstExpr *expr)
 {
 	error err = OK;
 	AstExprNode node = expr->node;
@@ -303,16 +300,15 @@ static error hoist_expr(HirInstruction* self, Hir* hir, const AstExpr *expr)
 		goto _defer;
 	}
 _defer:
-	arrpush(self, instruction);
+	arrpush(*self, instruction);
 	return err;
 }
 
 void deinit_hir(Hir hir)
 {
 	arena_free(&hir.string_pool);
-	for (size_t i=0; i<arrlen(hir.globals); i += 1)
-	{
-		arrfree(hir.globals[i].instructions);
+	arreach(hir.globals, i) {
+		arrfree(hir.globals.items[i].instructions);
 	}
 	arrfree(hir.globals);
 }
@@ -320,20 +316,19 @@ void deinit_hir(Hir hir)
 static size_t hir_push_instruction(HirGlobal* global, HirInstruction instruction)
 {
 	arrpush(global->instructions, instruction);
-	return arrlen(global->instructions) - 1;
+	return global->instructions.len - 1;
 }
 
-HirGlobal* hir_find_global(HirGlobal* globals, const char* name)
+struct HirGlobal* hir_find_global(struct HirGlobalList globals, const char* name)
 {
-	if (arrlen(globals) == 0) return NULL;
+	if (globals.len == 0) return NULL;
 
 	ssize_t left = 0;
-	ssize_t right = arrlen(globals) - 1;
+	ssize_t right = globals.len - 1;
 
-	while (left <= right)
-	{
+	while (left <= right) {
 		ssize_t mid = left + (right - left) / 2;
-		HirGlobal* e = &globals[mid];
+		HirGlobal* e = &globals.items[mid];
 
 		const int cmp = strcmp(e->name, name);
 
@@ -350,18 +345,17 @@ HirGlobal* hir_find_global(HirGlobal* globals, const char* name)
 
 static void append_global(Hir* self, const HirGlobal global)
 {
-	arrreserve(self->globals, arrlen(self->globals) + 1);
+	arrreserve(self->globals, self->globals.len + 1);
 
-	ssize_t i = arrlen(self->globals) - 1;
-	for (; i >= 0; i -= 1)
-	{
-		HirGlobal e = self->globals[i];
+	ssize_t i = self->globals.len - 1;
+	for (; i >= 0; i -= 1) {
+		HirGlobal e = self->globals.items[i];
 		const int cmp = strcmp(e.name, global.name);
 		if (cmp > 0) break;
 
-		self->globals[i + 1] = e;
+		self->globals.items[i + 1] = e;
 	}
 
-	arrsetlen(self->globals, arrlen(self->globals) + 1);
-	self->globals[i + 1] = global;
+	self->globals.len += 1;
+	self->globals.items[i + 1] = global;
 }

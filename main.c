@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static void print_errno(void)
 {
@@ -25,22 +26,19 @@ static void print_errno(void)
 static char *read_entire_file(const char *path)
 {
 	FILE *f = fopen(path, "rb");
-	if (f == NULL)
-	{
+	if (f == NULL) {
 		print_errno();
 		return NULL;
 	}
 
-	if (fseek(f, 0, SEEK_END) == -1)
-	{
+	if (fseek(f, 0, SEEK_END) == -1) {
 		print_errno();
 		fclose(f);
 		return NULL;
 	}
 
 	int32_t len = ftell(f);
-	if (len == -1)
-	{
+	if (len == -1) {
 		print_errno();
 		fclose(f);
 		return NULL;
@@ -49,16 +47,14 @@ static char *read_entire_file(const char *path)
 	rewind(f);
 
 	char *result = malloc(len + 1);
-	if (result == NULL)
-	{
+	if (result == NULL) {
 		print_errno();
 		fclose(f);
 		return NULL;
 	}
 
 	size_t bytes_read = fread(result, 1, len, f);
-	if (bytes_read != (size_t)len)
-	{
+	if (bytes_read != (size_t)len) {
 		print_errno();
 		free(result);
 		fclose(f);
@@ -77,23 +73,20 @@ int main(void)
 
 	char* full_path = NULL;
 	error err = get_full_path("./main.haste", &full_path);
-	if (err)
-	{
+	if (err) {
 		printf("FILE doesn't exits.");
 		return 1;
 	}
 
 	char *src = read_entire_file(full_path);
-	if (src == NULL)
-	{
+	if (src == NULL) {
 		free(full_path);
 		return 1;
 	}
 
-	Token *tokens = NULL;
+	struct TokenList tokens = {0};
 	err = scan_entire_cstr(src, full_path, &tokens);
-	if (err)
-	{
+	if (err) {
 		free(src);
 		free(full_path);
 		return 1;
@@ -101,8 +94,7 @@ int main(void)
 
 	ASTFile ast = { 0 };
 	err = parse_tokens(tokens, full_path, &ast);
-	if (err)
-	{
+	if (err) {
 		arrfree(tokens);
 		free(src);
 		free(full_path);
@@ -113,8 +105,7 @@ int main(void)
 
 	Hir hir = {0};
 	err = hoist_ast(ast, &hir);
-	if (err)
-	{
+	if (err) {
 		arrfree(tokens);
 		free(src);
 		free(full_path);
@@ -126,8 +117,7 @@ int main(void)
 
 	Tir tir = {0};
 	err = analyze_hir(hir, &tir);
-	if (err)
-	{
+	if (err) {
 		arrfree(tokens);
 		free(src);
 		free(full_path);

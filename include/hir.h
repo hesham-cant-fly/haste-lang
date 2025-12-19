@@ -75,7 +75,11 @@ typedef struct HirGlobal {
 	Location location;
 	Span span;
 	const char* name;
-	HirInstruction* instructions;
+	struct HirInstructionList {
+		HirInstruction* items;
+		size_t len;
+		size_t cap;
+	} instructions;
 	HirVisibility visibility;
 	HirDeclKind kind;
 	bool explicit_typing;
@@ -85,7 +89,11 @@ typedef struct HirGlobal {
 typedef struct Hir {
 	const char* path;
 	Arena string_pool;
-	HirGlobal* globals;
+	struct HirGlobalList {
+		struct HirGlobal* items;
+		size_t len;
+		size_t cap;
+	} globals;
 } Hir;
 
 void print_hir_instruction(FILE* f, HirInstruction instruction);
@@ -93,6 +101,6 @@ void print_hir(FILE *f, Hir hir);
 
 error hoist_ast(ASTFile file, Hir *out);
 void deinit_hir(Hir hir);
-HirGlobal* hir_find_global(HirGlobal* globals, const char* name);
+struct HirGlobal* hir_find_global(struct HirGlobalList globals, const char* name);
 
 #endif // !__HIR_H

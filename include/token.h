@@ -54,6 +54,12 @@ typedef struct Token {
     TOKEN_STRUCT_DEF(X_STRUCT)
 } Token;
 
+struct TokenList {
+	struct Token* items;
+	size_t len;
+	size_t cap;
+};
+
 #define SPAN_ARG(__span) (int)span_len(__span), (__span).start
 size_t span_len(Span self);
 Span span_conjoin(Span a, Span b);

@@ -8,17 +8,16 @@
 
 TypesPool g_types_pool = {0};
 
-#define get_type(__id) g_types_pool.types[(__id)]
-#define ASSERT_TYPE_ID(__id)					\
-	do											\
-	{											\
-		const Type* tp = get_type((__id));		\
-		assert((__id) == tp->id);				\
+#define get_type(id__) g_types_pool.types.items[(id__)]
+#define ASSERT_TYPE_ID(id__) \
+	do { \
+		const struct Type tp = get_type((id__)); \
+		assert((id__) == tp.id); \
 	} while (0)
 
 void init_types_pool(void)
 {
-	g_types_pool.types = arrinit(Type*);
+	g_types_pool.types = (struct TypeList) {0};
 
 #define X(_, __name)							\
 	{											\
@@ -32,25 +31,21 @@ void init_types_pool(void)
 
 void deinit_types_pool(void)
 {
-	arena_free(&g_types_pool.arena);
 	arrfree(g_types_pool.types);
 	g_types_pool = (TypesPool) {0};
 }
 
 TypeID create_type(Type tp)
 {
-	Type *new_type = arena_alloc(&g_types_pool.arena, sizeof(tp));
-	memcpy(new_type, &tp, sizeof(tp));
+	tp.id = g_types_pool.types.len;
+	arrpush(g_types_pool.types, tp);
 
-	arrpush(g_types_pool.types, new_type);
-	new_type->id = arrlen(g_types_pool.types) - 1;
-
-	return new_type->id;
+	return tp.id;
 }
 
 void print_type(FILE *f, const TypeID id)
 {
-	const Type tp = *get_type(id);
+	const Type tp = get_type(id);
 	assert(id == tp.id);
 
 	fprintf(f, "%s", tp.name);
