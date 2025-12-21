@@ -12,17 +12,17 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-typedef enum HirDeclKind {
+enum HirDeclKind {
 	HIR_DECL_CONST,
 	HIR_DECL_VAR,
-} HirDeclKind;
+};
 
-typedef enum HirVisibility {
+enum HirVisibility {
 	HIR_PUBLIC,
 	HIR_PRIVATE,
-} HirVisibility;
+};
 
-typedef enum HirInstructionNodeKind {
+enum HirInstructionNodeKind {
 	HIR_NODE_END,                  // Halt | EOF
 	HIR_NODE_IDENTIFIER,           // Span indentifier
 	HIR_NODE_INTEGER,              // int64_t integer
@@ -40,12 +40,12 @@ typedef enum HirInstructionNodeKind {
 
 	HIR_NODE_CONSTANT_DECLARATION, // HirConstant constant
 	HIR_NODE_VARIABLE_DECLARATION, // HirVariable variable
-} HirInstructionNodeKind;
+};
 
-typedef struct HirInstruction {
-	Span span;
-	Location location;
-	HirInstructionNodeKind tag;
+struct HirInstruction {
+	struct Span span;
+	struct Location location;
+	enum HirInstructionNodeKind tag;
 	union {
 		const char* identifier;
 		int64_t integer;
@@ -64,29 +64,25 @@ typedef struct HirInstruction {
 			bool initialized;
 		} variable;
 	} as;
-} HirInstruction;
+};
 
-typedef struct HirStartDecl HirStartDecl;
-typedef struct HirConstantDecl HirConstantDecl;
-typedef struct HirVariableDecl HirVariableDecl;
-
-typedef struct HirGlobal {
+struct HirGlobal {
 	bool visited;
-	Location location;
-	Span span;
+	struct Location location;
+	struct Span span;
 	const char* name;
 	struct HirInstructionList {
-		HirInstruction* items;
+		struct HirInstruction* items;
 		size_t len;
 		size_t cap;
 	} instructions;
-	HirVisibility visibility;
-	HirDeclKind kind;
+	enum HirVisibility visibility;
+	enum HirDeclKind kind;
 	bool explicit_typing;
 	bool initialized;
-} HirGlobal;
+};
 
-typedef struct Hir {
+struct Hir {
 	const char* path;
 	Arena string_pool;
 	struct HirGlobalList {
@@ -94,13 +90,13 @@ typedef struct Hir {
 		size_t len;
 		size_t cap;
 	} globals;
-} Hir;
+};
 
-void print_hir_instruction(FILE* f, HirInstruction instruction);
-void print_hir(FILE *f, Hir hir);
+void print_hir_instruction(FILE* f, struct HirInstruction instruction);
+void print_hir(FILE *f, struct Hir hir);
 
-error hoist_ast(ASTFile file, Hir *out);
-void deinit_hir(Hir hir);
+error hoist_ast(struct ASTFile file, struct Hir *out);
+void deinit_hir(struct Hir hir);
 struct HirGlobal* hir_find_global(struct HirGlobalList globals, const char* name);
 
 #endif // !__HIR_H

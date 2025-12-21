@@ -13,22 +13,22 @@
 #include <stdio.h>
 #include <string.h>
 
-typedef struct Scanner {
+struct Scanner {
 	const char* path;
 	struct TokenList tokens;
 	utf8_iter iter;
 	size_t start;
-	Location current_location;
+	struct Location current_location;
 	bool had_error;
 	bool ended;
-} Scanner;
+};
 
-typedef struct KeywordEntry {
+struct KeywordEntry {
 	const char *lexem;
-	TokenKind kind;
-} KeywordEntry;
+	enum TokenKind kind;
+};
 
-static const KeywordEntry keywords[] = {
+static const struct KeywordEntry keywords[] = {
 	{"typeid", TOKEN_KIND_TYPEID },
 	{"int",	   TOKEN_KIND_INT   },
 	{"float",  TOKEN_KIND_FLOAT },
@@ -38,26 +38,26 @@ static const KeywordEntry keywords[] = {
 	{0,        0                },
 };
 
-static uint32_t peek(const Scanner *self);
-static uint32_t peek_next(const Scanner *self);
-static uint32_t advance(Scanner *self);
-static bool check(const Scanner *self, uint32_t ch);
-static bool match(Scanner *self, uint32_t ch);
-static bool ended(const Scanner *self);
+static uint32_t peek(const struct Scanner *self);
+static uint32_t peek_next(const struct Scanner *self);
+static uint32_t advance(struct Scanner *self);
+static bool check(const struct Scanner *self, uint32_t ch);
+static bool match(struct Scanner *self, uint32_t ch);
+static bool ended(const struct Scanner *self);
 
-static void skip_whitespaces(Scanner *self);
+static void skip_whitespaces(struct Scanner *self);
 
-static void scan_lexem(Scanner *self);
-static void add_token(Scanner *self, TokenKind kind, Location start_location);
-static Span get_span(Scanner *self);
+static void scan_lexem(struct Scanner *self);
+static void add_token(struct Scanner *self, enum TokenKind kind, struct Location start_location);
+static struct Span get_span(struct Scanner *self);
 
 error scan_entire_cstr(const char *content, const char* path, struct TokenList *out)
 {
-	Scanner scanner = {0};
+	struct Scanner scanner = {0};
 	scanner.path = path;
 	utf8_init(&scanner.iter, content);
 	advance(&scanner); // initial advance
-	scanner.current_location = (Location){
+	scanner.current_location = (struct Location){
 		.column = 1,
 		.line	= 1,
 	};
@@ -80,7 +80,7 @@ error scan_entire_cstr(const char *content, const char* path, struct TokenList *
 	return OK;
 }
 
-static void skip_whitespaces(Scanner *self)
+static void skip_whitespaces(struct Scanner *self)
 {
 	while (!ended(self))
 	{
@@ -121,12 +121,12 @@ static bool is_symbol(uint32_t ch)
 	return is_identifier_starter(ch) || isdigit(ch);
 }
 
-static void scan_number(Scanner *self, const Location location);
-static void scan_identifier(Scanner *self, const Location location);
+static void scan_number(struct Scanner *self, const struct Location location);
+static void scan_identifier(struct Scanner *self, const struct Location location);
 
-static void scan_lexem(Scanner *self)
+static void scan_lexem(struct Scanner *self)
 {
-	const Location location = self->current_location;
+	const struct Location location = self->current_location;
 	const uint32_t ch		= advance(self);
 	switch (ch)
 	{
@@ -166,7 +166,7 @@ static void scan_lexem(Scanner *self)
 	}
 }
 
-static void scan_number(Scanner *self, const Location location)
+static void scan_number(struct Scanner *self, const struct Location location)
 {
 	while (!ended(self))
 	{
@@ -203,7 +203,7 @@ static void scan_number(Scanner *self, const Location location)
 	}
 }
 
-static void scan_identifier(Scanner *self, const Location location)
+static void scan_identifier(struct Scanner *self, const struct Location location)
 {
 	while (!ended(self))
 	{
@@ -215,12 +215,12 @@ static void scan_identifier(Scanner *self, const Location location)
 		advance(self);
 	}
 
-	TokenKind kind		   = TOKEN_KIND_IDENTIFIER;
-	const Span span		   = get_span(self);
+	enum TokenKind kind		   = TOKEN_KIND_IDENTIFIER;
+	const struct Span span		   = get_span(self);
 	const size_t lexem_len = span_len(span);
 	for (size_t i = 0; keywords[i].lexem != NULL; i += 1)
 	{
-		const KeywordEntry entry = keywords[i];
+		const struct KeywordEntry entry = keywords[i];
 		const size_t len		 = strlen(entry.lexem);
 		if (len != lexem_len)
 			continue;
@@ -234,12 +234,12 @@ static void scan_identifier(Scanner *self, const Location location)
 	add_token(self, kind, location);
 }
 
-static void add_token(Scanner *self, TokenKind kind, Location start_location)
+static void add_token(struct Scanner *self, enum TokenKind kind, struct Location start_location)
 {
 	if (self->had_error)
 		return; // No need for new allocations
-	Span span	= get_span(self);
-	Token token = {
+	struct Span span	= get_span(self);
+	struct Token token = {
 		.kind	  = kind,
 		.span	  = span,
 		.location = start_location,
@@ -247,25 +247,25 @@ static void add_token(Scanner *self, TokenKind kind, Location start_location)
 	arrpush(self->tokens, token);
 }
 
-static Span get_span(Scanner *self)
+static struct Span get_span(struct Scanner *self)
 {
-	return (Span){
+	return (struct Span){
 		.start = (char *)self->iter.ptr + self->start,
 		.end   = (char *)self->iter.ptr + self->iter.position,
 	};
 }
 
-static uint32_t peek(const Scanner *self)
+static uint32_t peek(const struct Scanner *self)
 {
 	return self->iter.codepoint;
 }
 
-static uint32_t peek_next(const Scanner *self)
+static uint32_t peek_next(const struct Scanner *self)
 {
 	return self->iter.next_codepoint;
 }
 
-static uint32_t advance(Scanner *self)
+static uint32_t advance(struct Scanner *self)
 {
 	uint32_t prev = self->iter.codepoint;
 	if (!ended(self))
@@ -276,7 +276,7 @@ static uint32_t advance(Scanner *self)
 	return prev;
 }
 
-static bool check(const Scanner *self, uint32_t ch)
+static bool check(const struct Scanner *self, uint32_t ch)
 {
 	if (ended(self))
 	{
@@ -285,7 +285,7 @@ static bool check(const Scanner *self, uint32_t ch)
 	return peek(self) == ch;
 }
 
-static bool match(Scanner *self, uint32_t ch)
+static bool match(struct Scanner *self, uint32_t ch)
 {
 	if (check(self, ch))
 	{
@@ -295,7 +295,7 @@ static bool match(Scanner *self, uint32_t ch)
 	return false;
 }
 
-static bool ended(const Scanner *self)
+static bool ended(const struct Scanner *self)
 {
 	return self->ended;
 }

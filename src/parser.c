@@ -15,16 +15,16 @@
 #include <stdnoreturn.h>
 #include <string.h>
 
-typedef struct Parser {
+struct Parser {
 	Arena arena;
 	const char* path;
 	struct TokenList tokens;
 	jmp_buf jmpbuf;
 	size_t current;
 	bool had_error;
-} Parser;
+};
 
-typedef enum Precedence {
+enum Precedence {
 	PREC_NONE,
 	PREC_ASSIGNMENT, // = (unimplemented)
 	PREC_TERM,		 // + -
@@ -32,54 +32,54 @@ typedef enum Precedence {
 	PREC_POWER,		 // **
 	PREC_UNARY,		 // - +
 	PREC_PRIMARY
-} Precedence;
+};
 
-typedef AstExpr (*ParsePrefixFn)(Parser *restrict);
-typedef AstExpr (*ParseInfixFn)(Parser *restrict, const AstExpr *left);
+typedef struct AstExpr (*ParsePrefixFn)(struct Parser *restrict);
+typedef struct AstExpr (*ParseInfixFn)(struct Parser *restrict, const struct AstExpr *left);
 
-typedef struct ParserRule {
+struct ParserRule {
 	ParsePrefixFn prefix;
 	ParseInfixFn infix;
-	Precedence precedence;
+	enum Precedence precedence;
 	bool right_assoc;
-} ParserRule;
+};
 
 #define create(self, ...) _create(self, sizeof(__VA_ARGS__), &(__VA_ARGS__))
 
-static const void *_create(Parser *self, size_t size, const void *value);
+static const void *_create(struct Parser *self, size_t size, const void *value);
 
-static bool check(const Parser *self, TokenKind kind);
-static bool match(Parser *self, TokenKind kind);
-static Token consume(Parser *self, TokenKind kind, const char *fmt, ...);
+static bool check(const struct Parser *self, enum TokenKind kind);
+static bool match(struct Parser *self, enum TokenKind kind);
+static struct Token consume(struct Parser *self, enum TokenKind kind, const char *fmt, ...);
 
-static NORETURN void report_error(Parser *parser, Location at, const char *fmt, ...);
-static NORETURN void vareport_error(Parser *parser, Location at, const char *fmt, va_list args);
+static NORETURN void report_error(struct Parser *parser, struct Location at, const char *fmt, ...);
+static NORETURN void vareport_error(struct Parser *parser, struct Location at, const char *fmt, va_list args);
 
-static Token advance(Parser *self);
-static Token previous(const Parser *self);
-static Token peek(const Parser *self);
-static Token peek_next(const Parser *self);
-static Token peek_ahead(const Parser *self, ssize_t offset);
-static bool ended(const Parser *self);
-static AstOperator operator_from_token(const Token token);
+static struct Token advance(struct Parser *self);
+static struct Token previous(const struct Parser *self);
+static struct Token peek(const struct Parser *self);
+static struct Token peek_next(const struct Parser *self);
+static struct Token peek_ahead(const struct Parser *self, ssize_t offset);
+static bool ended(const struct Parser *self);
+static enum AstOperator operator_from_token(const struct Token token);
 
-static AstExpr parse_precedence(Parser *self, Precedence precedence);
-static ParserRule get_rule(TokenKind kind);
+static struct AstExpr parse_precedence(struct Parser *self, enum Precedence precedence);
+static struct ParserRule get_rule(enum TokenKind kind);
 
-static AstDecl parse_declaration(Parser *self);
-static AstExpr parse_expr(Parser *self);
+static struct AstDecl parse_declaration(struct Parser *self);
+static struct AstExpr parse_expr(struct Parser *self);
 
-error parse_tokens(const struct TokenList tokens, const char* path, ASTFile *out)
+error parse_tokens(const struct TokenList tokens, const char* path, struct ASTFile *out)
 {
-	Parser parser = { 0 };
+	struct Parser parser = { 0 };
 	parser.tokens = tokens;
 	parser.path = path;
 
 	/* AstDecl *declarations = arrinit(AstDecl); */
-	AstDeclarationList declarations = { 0 };
+	struct AstDeclarationList declarations = { 0 };
 	while (parser.current < parser.tokens.len) {
 		error err			= OK;
-		AstDecl declaration = { 0 };
+		struct AstDecl declaration = { 0 };
 		if ((err = setjmp(parser.jmpbuf)) == OK) {
 			declaration = parse_declaration(&parser);
 		} else {
@@ -88,7 +88,7 @@ error parse_tokens(const struct TokenList tokens, const char* path, ASTFile *out
 
 		// its a waste of memory to allocate when we already got an error
 		if (!parser.had_error) {
-			AstDeclarationListNode node = { 0 };
+			struct AstDeclarationListNode node = { 0 };
 			node.node					= declaration;
 			ast_declaration_list_append(&declarations, create(&parser, node));
 		}
@@ -96,23 +96,23 @@ error parse_tokens(const struct TokenList tokens, const char* path, ASTFile *out
 
 	if (parser.had_error) {
 		arena_free(&parser.arena);
-		*out = (ASTFile){ 0 };
+		*out = (struct ASTFile){ 0 };
 		return ERROR;
 	}
 
-	*out			  = (ASTFile){ 0 };
+	*out			  = (struct ASTFile){ 0 };
 	out->path         = path;
 	out->arena		  = parser.arena;
 	out->declarations = declarations;
 	return OK;
 }
 
-static AstDecl parse_const_declaration(Parser *self);
-static AstDecl parse_var_declaration(Parser *self);
+static struct AstDecl parse_const_declaration(struct Parser *self);
+static struct AstDecl parse_var_declaration(struct Parser *self);
 
-static AstDecl parse_declaration(Parser *self)
+static struct AstDecl parse_declaration(struct Parser *self)
 {
-	const Token token = advance(self);
+	const struct Token token = advance(self);
 	switch (token.kind) {
 	case TOKEN_KIND_CONST:
 		return parse_const_declaration(self);
@@ -123,21 +123,21 @@ static AstDecl parse_declaration(Parser *self)
 	}
 }
 
-static AstDecl parse_const_declaration(Parser *self)
+static struct AstDecl parse_const_declaration(struct Parser *self)
 {
-	const Token start	   = previous(self);
-	const Token identifier = consume(self, TOKEN_KIND_IDENTIFIER, "Expected a Constant Name.\n");
-	const AstExpr *type	   = NULL;
+	const struct Token start	   = previous(self);
+	const struct Token identifier = consume(self, TOKEN_KIND_IDENTIFIER, "Expected a Constant Name.\n");
+	const struct AstExpr *type	   = NULL;
 	if (match(self, TOKEN_KIND_COLON)) {
-		const AstExpr tp = parse_expr(self);
+		const struct AstExpr tp = parse_expr(self);
 		type			 = create(self, tp);
 	}
 
 	consume(self, TOKEN_KIND_EQUAL, "Expected `=`.");
-	AstExpr value = parse_expr(self);
-	Token end	  = consume(self, TOKEN_KIND_SEMICOLON, "Expected `;`.");
+	struct AstExpr value = parse_expr(self);
+	struct Token end	  = consume(self, TOKEN_KIND_SEMICOLON, "Expected `;`.");
 
-	return (AstDecl){
+	return (struct AstDecl){
 		.location = start.location,
 		.span = span_conjoin(start.span, end.span),
 		.node = {
@@ -153,22 +153,22 @@ static AstDecl parse_const_declaration(Parser *self)
 	};
 }
 
-static AstDecl parse_var_declaration(Parser *self)
+static struct AstDecl parse_var_declaration(struct Parser *self)
 {
-	const Token start	   = previous(self);
-	const Token identifier = consume(self, TOKEN_KIND_IDENTIFIER, "Expected a Variable Name.\n");
-	const AstExpr *type	   = NULL;
+	const struct Token start	   = previous(self);
+	const struct Token identifier = consume(self, TOKEN_KIND_IDENTIFIER, "Expected a Variable Name.\n");
+	const struct AstExpr *type	   = NULL;
 	if (match(self, TOKEN_KIND_COLON)) {
-		const AstExpr tp = parse_expr(self);
+		const struct AstExpr tp = parse_expr(self);
 		type			 = create(self, tp);
 	}
 
 	consume(self, TOKEN_KIND_EQUAL, "Expected `=`.");
-	const AstExpr value = parse_expr(self);
+	const struct AstExpr value = parse_expr(self);
 
-	const Token end		= consume(self, TOKEN_KIND_SEMICOLON, "Expected `;`.");
+	const struct Token end		= consume(self, TOKEN_KIND_SEMICOLON, "Expected `;`.");
 
-	return (AstDecl){
+	return (struct AstDecl){
 		.location = start.location,
 		.span	  = span_conjoin(start.span, end.span),
 		.node = {
@@ -184,26 +184,26 @@ static AstDecl parse_var_declaration(Parser *self)
 	};
 }
 
-static AstExpr parse_expr(Parser *self)
+static struct AstExpr parse_expr(struct Parser *self)
 {
 	return parse_precedence(self, PREC_ASSIGNMENT);
 }
 
-static AstExpr parse_precedence(Parser *self, Precedence precedence)
+static struct AstExpr parse_precedence(struct Parser *self, enum Precedence precedence)
 {
-	Token token				  = advance(self);
+	struct Token token				  = advance(self);
 	ParsePrefixFn prefix_rule = get_rule(token.kind).prefix;
 	if (prefix_rule == NULL) {
 		report_error(self, token.location, "Expected an expression, got `%.*s` instead.", span_len(token.span),
 			token.span.start);
 	}
 
-	AstExpr left = prefix_rule(self);
+	struct AstExpr left = prefix_rule(self);
 
-	ParserRule rule;
+	struct ParserRule rule;
 	for (rule = get_rule(peek(self).kind); (!ended(self)) && precedence <= rule.precedence;
 		rule  = get_rule(peek(self).kind)) {
-		Token tok				= advance(self);
+		struct Token tok				= advance(self);
 		ParseInfixFn infix_rule = get_rule(tok.kind).infix;
 		if (infix_rule == NULL) {
 			report_error(
@@ -214,18 +214,18 @@ static AstExpr parse_precedence(Parser *self, Precedence precedence)
 				tok.span.start);
 		}
 
-		const AstExpr *left_expr = create(self, left);
+		const struct AstExpr *left_expr = create(self, left);
 		left					 = infix_rule(self, left_expr);
 	}
 
 	return left;
 }
 
-static AstExpr parse_identifier(Parser *self)
+static struct AstExpr parse_identifier(struct Parser *self)
 {
-	const Token token = previous(self);
+	const struct Token token = previous(self);
 
-	return (AstExpr) {
+	return (struct AstExpr) {
 		.location = token.location,
 		.span = token.span,
 		.node = {
@@ -237,9 +237,9 @@ static AstExpr parse_identifier(Parser *self)
 	};
 }
 
-static AstExpr parse_int_lit(Parser *self)
+static struct AstExpr parse_int_lit(struct Parser *self)
 {
-	const Token token = previous(self);
+	const struct Token token = previous(self);
 
 	int64_t value	  = 0;
 	error err		  = strn_to_i64(token.span.start, span_len(token.span), 10, &value);
@@ -247,7 +247,7 @@ static AstExpr parse_int_lit(Parser *self)
 		panic("Something bad has happened.");
 	}
 
-	return (AstExpr){
+	return (struct AstExpr){
 		.location = token.location,
 		.span	  = token.span,
 		.node = {
@@ -259,9 +259,9 @@ static AstExpr parse_int_lit(Parser *self)
 	};
 }
 
-static AstExpr parse_float_lit(Parser *self)
+static struct AstExpr parse_float_lit(struct Parser *self)
 {
-	Token token	 = previous(self);
+	struct Token token	 = previous(self);
 
 	double value = 0;
 	error err	 = strn_to_double(token.span.start, span_len(token.span), &value);
@@ -269,7 +269,7 @@ static AstExpr parse_float_lit(Parser *self)
 		panic("Something bad has happened.");
 	}
 
-	return (AstExpr){
+	return (struct AstExpr){
 		.location = token.location,
 		.span	  = token.span,
 		.node = {
@@ -281,10 +281,10 @@ static AstExpr parse_float_lit(Parser *self)
 	};
 }
 
-static AstExpr parse_auto_type(Parser *self)
+static struct AstExpr parse_auto_type(struct Parser *self)
 {
-	Token token = previous(self);
-	return (AstExpr){
+	struct Token token = previous(self);
+	return (struct AstExpr){
 		.location = token.location,
 		.span	  = token.span,
 		.node = {
@@ -293,10 +293,10 @@ static AstExpr parse_auto_type(Parser *self)
 	};
 }
 
-static AstExpr parse_typeid_type(Parser* self)
+static struct AstExpr parse_typeid_type(struct Parser* self)
 {
-	Token token = previous(self);
-	return (AstExpr){
+	struct Token token = previous(self);
+	return (struct AstExpr){
 		.location = token.location,
 		.span	  = token.span,
 		.node = {
@@ -305,10 +305,10 @@ static AstExpr parse_typeid_type(Parser* self)
 	};
 }
 
-static AstExpr parse_int_type(Parser *self)
+static struct AstExpr parse_int_type(struct Parser *self)
 {
-	Token token = previous(self);
-	return (AstExpr){
+	struct Token token = previous(self);
+	return (struct AstExpr){
 		.location = token.location,
 		.span	  = token.span,
 		.node = {
@@ -317,10 +317,10 @@ static AstExpr parse_int_type(Parser *self)
 	};
 }
 
-static AstExpr parse_float_type(Parser *self)
+static struct AstExpr parse_float_type(struct Parser *self)
 {
-	Token token = previous(self);
-	return (AstExpr){
+	struct Token token = previous(self);
+	return (struct AstExpr){
 		.location = token.location,
 		.span	  = token.span,
 		.node = {
@@ -329,12 +329,12 @@ static AstExpr parse_float_type(Parser *self)
 	};
 }
 
-static AstExpr parse_grouping(Parser *self)
+static struct AstExpr parse_grouping(struct Parser *self)
 {
-	Token start	  = previous(self);
-	AstExpr child = parse_expr(self);
-	Token end	  = consume(self, TOKEN_KIND_CLOSE_PAREN, "Expected a ')'.");
-	return (AstExpr){
+	struct Token start	  = previous(self);
+	struct AstExpr child = parse_expr(self);
+	struct Token end	  = consume(self, TOKEN_KIND_CLOSE_PAREN, "Expected a ')'.");
+	return (struct AstExpr){
 		.location = start.location,
 		.span	  = span_conjoin(start.span, end.span),
 		.node = {
@@ -346,12 +346,12 @@ static AstExpr parse_grouping(Parser *self)
 	};
 }
 
-static AstExpr parse_unary(Parser *self)
+static struct AstExpr parse_unary(struct Parser *self)
 {
-	Token op	= previous(self);
-	AstExpr rhs = parse_precedence(self, PREC_UNARY);
-	Token end	= previous(self);
-	return (AstExpr){
+	struct Token op	= previous(self);
+	struct AstExpr rhs = parse_precedence(self, PREC_UNARY);
+	struct Token end	= previous(self);
+	return (struct AstExpr){
 		.location = op.location,
 		.span	  = span_conjoin(op.span, end.span),
 		.node = {
@@ -366,19 +366,19 @@ static AstExpr parse_unary(Parser *self)
 	};
 }
 
-static AstExpr parse_binary(Parser *self, const AstExpr *left)
+static struct AstExpr parse_binary(struct Parser *self, const struct AstExpr *left)
 {
-	Token op			  = previous(self);
+	struct Token op			  = previous(self);
 
-	ParserRule rule		  = get_rule(op.kind);
-	Precedence precedence = rule.precedence + 1;
+	struct ParserRule rule		  = get_rule(op.kind);
+	enum Precedence precedence = rule.precedence + 1;
 	if (rule.right_assoc) {
 		precedence = rule.precedence;
 	}
 
-	AstExpr rhs = parse_precedence(self, precedence);
-	Token end	= previous(self);
-	return (AstExpr){
+	struct AstExpr rhs = parse_precedence(self, precedence);
+	struct Token end	= previous(self);
+	return (struct AstExpr){
 		.location = left->location,
 		.span	  = span_conjoin(left->span, end.span),
 		.node = {
@@ -394,27 +394,27 @@ static AstExpr parse_binary(Parser *self, const AstExpr *left)
 	};
 }
 
-static ParserRule get_rule(TokenKind kind)
+static struct ParserRule get_rule(enum TokenKind kind)
 {
 	switch (kind) {
-	case TOKEN_KIND_IDENTIFIER:  return (ParserRule){ parse_identifier, NULL,         PREC_PRIMARY, false };
-	case TOKEN_KIND_INT_LIT:     return (ParserRule){ parse_int_lit,    NULL,         PREC_PRIMARY, false };
-	case TOKEN_KIND_FLOAT_LIT:   return (ParserRule){ parse_float_lit,  NULL,         PREC_PRIMARY, false };
-	case TOKEN_KIND_AUTO:        return (ParserRule){ parse_auto_type,  NULL,         PREC_PRIMARY, false };
-	case TOKEN_KIND_TYPEID:      return (ParserRule){ parse_typeid_type,NULL,         PREC_PRIMARY, false };
-	case TOKEN_KIND_INT:         return (ParserRule){ parse_int_type,   NULL,         PREC_PRIMARY, false };
-	case TOKEN_KIND_FLOAT:       return (ParserRule){ parse_float_type, NULL,         PREC_PRIMARY, false };
-	case TOKEN_KIND_OPEN_PAREN:  return (ParserRule){ parse_grouping,   NULL,         PREC_PRIMARY, false };
-	case TOKEN_KIND_PLUS:        return (ParserRule){ parse_unary,      parse_binary, PREC_TERM,    false };
-	case TOKEN_KIND_MINUS:       return (ParserRule){ parse_unary,      parse_binary, PREC_TERM,    false };
-	case TOKEN_KIND_STAR:        return (ParserRule){ NULL,             parse_binary, PREC_FACTOR,  false };
-	case TOKEN_KIND_FSLASH:      return (ParserRule){ NULL,             parse_binary, PREC_FACTOR,  false };
-	case TOKEN_KIND_DOUBLE_STAR: return (ParserRule){ NULL,             parse_binary, PREC_POWER,   true };
-	default:                     return (ParserRule){ 0, 0, 0, 0 };
+	case TOKEN_KIND_IDENTIFIER:  return (struct ParserRule){ parse_identifier, NULL,         PREC_PRIMARY, false };
+	case TOKEN_KIND_INT_LIT:     return (struct ParserRule){ parse_int_lit,    NULL,         PREC_PRIMARY, false };
+	case TOKEN_KIND_FLOAT_LIT:   return (struct ParserRule){ parse_float_lit,  NULL,         PREC_PRIMARY, false };
+	case TOKEN_KIND_AUTO:        return (struct ParserRule){ parse_auto_type,  NULL,         PREC_PRIMARY, false };
+	case TOKEN_KIND_TYPEID:      return (struct ParserRule){ parse_typeid_type,NULL,         PREC_PRIMARY, false };
+	case TOKEN_KIND_INT:         return (struct ParserRule){ parse_int_type,   NULL,         PREC_PRIMARY, false };
+	case TOKEN_KIND_FLOAT:       return (struct ParserRule){ parse_float_type, NULL,         PREC_PRIMARY, false };
+	case TOKEN_KIND_OPEN_PAREN:  return (struct ParserRule){ parse_grouping,   NULL,         PREC_PRIMARY, false };
+	case TOKEN_KIND_PLUS:        return (struct ParserRule){ parse_unary,      parse_binary, PREC_TERM,    false };
+	case TOKEN_KIND_MINUS:       return (struct ParserRule){ parse_unary,      parse_binary, PREC_TERM,    false };
+	case TOKEN_KIND_STAR:        return (struct ParserRule){ NULL,             parse_binary, PREC_FACTOR,  false };
+	case TOKEN_KIND_FSLASH:      return (struct ParserRule){ NULL,             parse_binary, PREC_FACTOR,  false };
+	case TOKEN_KIND_DOUBLE_STAR: return (struct ParserRule){ NULL,             parse_binary, PREC_POWER,   true };
+	default:                     return (struct ParserRule){ 0, 0, 0, 0 };
 	}
 }
 
-static const void *_create(Parser *self, size_t size, const void *value)
+static const void *_create(struct Parser *self, size_t size, const void *value)
 {
 	if (self->had_error) {
 		return NULL;
@@ -428,7 +428,7 @@ static const void *_create(Parser *self, size_t size, const void *value)
 	return result;
 }
 
-static bool check(const Parser *self, TokenKind kind)
+static bool check(const struct Parser *self, enum TokenKind kind)
 {
 	if (ended(self)) {
 		return false;
@@ -436,7 +436,7 @@ static bool check(const Parser *self, TokenKind kind)
 	return peek(self).kind == kind;
 }
 
-static bool match(Parser *self, TokenKind kind)
+static bool match(struct Parser *self, enum TokenKind kind)
 {
 	if (check(self, kind)) {
 		advance(self);
@@ -445,9 +445,9 @@ static bool match(Parser *self, TokenKind kind)
 	return false;
 }
 
-static Token consume(Parser *self, TokenKind kind, const char *fmt, ...)
+static struct Token consume(struct Parser *self, enum TokenKind kind, const char *fmt, ...)
 {
-	Token token = peek(self);
+	struct Token token = peek(self);
 	if (match(self, kind)) {
 		return token;
 	}
@@ -457,16 +457,16 @@ static Token consume(Parser *self, TokenKind kind, const char *fmt, ...)
 	vareport_error(self, token.location, fmt, args);
 }
 
-static Token advance(Parser *self)
+static struct Token advance(struct Parser *self)
 {
-	Token token = peek(self);
+	struct Token token = peek(self);
 	if (!ended(self)) {
 		self->current += 1;
 	}
 	return token;
 }
 
-static struct Token previous(const Parser *self)
+static struct Token previous(const struct Parser *self)
 {
 	if (self->current == 0) {
 		return self->tokens.items[0];
@@ -474,7 +474,7 @@ static struct Token previous(const Parser *self)
 	return self->tokens.items[self->current - 1];
 }
 
-static Token peek(const Parser *self)
+static struct Token peek(const struct Parser *self)
 {
 	if (ended(self)) {
 		return self->tokens.items[self->current - 1];
@@ -482,7 +482,7 @@ static Token peek(const Parser *self)
 	return self->tokens.items[self->current];
 }
 
-static Token peek_next(const Parser *self)
+static struct Token peek_next(const struct Parser *self)
 {
 	if (self->current + 1 >= self->tokens.len) {
 		return peek(self);
@@ -490,7 +490,7 @@ static Token peek_next(const Parser *self)
 	return self->tokens.items[self->current + 1];
 }
 
-static Token peek_ahead(const Parser *self, ssize_t offset)
+static struct Token peek_ahead(const struct Parser *self, ssize_t offset)
 {
 	if (self->current + offset >= self->tokens.len) {
 		return peek(self);
@@ -498,12 +498,12 @@ static Token peek_ahead(const Parser *self, ssize_t offset)
 	return self->tokens.items[self->current + offset];
 }
 
-static bool ended(const Parser *self)
+static bool ended(const struct Parser *self)
 {
 	return self->current >= arrlen(self->tokens);
 }
 
-static AstOperator operator_from_token(const Token token)
+static enum AstOperator operator_from_token(const struct Token token)
 {
 	switch (token.kind) {
 	case TOKEN_KIND_PLUS:
@@ -522,8 +522,8 @@ static AstOperator operator_from_token(const Token token)
 }
 
 static NORETURN void report_error(
-	Parser *parser,
-	Location at,
+	struct Parser *parser,
+	struct Location at,
 	const char *fmt, ...) {
 
 	va_list args;
@@ -537,8 +537,8 @@ static NORETURN void report_error(
 }
 
 static NORETURN void vareport_error(
-	Parser *parser,
-	Location at,
+	struct Parser *parser,
+	struct Location at,
 	const char *fmt,
 	va_list args) {
 

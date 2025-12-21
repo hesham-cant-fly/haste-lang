@@ -6,67 +6,67 @@
 #include <stddef.h>
 #include <stdio.h>
 
-Tir init_tir(const char* path)
+struct Tir init_tir(const char* path)
 {
-	Tir result = {0};
+	struct Tir result = {0};
 	result.path = path;
 	return result;
 }
 
-void deinit_tir(Tir* tir)
+void deinit_tir(struct Tir* tir)
 {
 	for (size_t i=0; i < tir->constants.len; i += 1)
 	{
-		TirConstInfo constant = tir->constants.items[i];
+		struct TirConstInfo constant = tir->constants.items[i];
 		unused(constant);
 	}
 	arrfree(tir->constants);
 
 	for (size_t i=0; i < arrlen(tir->globals); i += 1)
 	{
-		TirGlobalInfo global = tir->globals.items[i];
+		struct TirGlobalInfo global = tir->globals.items[i];
 		unused(global);
 	}
 	arrfree(tir->globals);
 
 	for (size_t i=0; i < arrlen(tir->functions); i += 1)
 	{
-		TirFunctionInfo function = tir->functions.items[i];
+		struct TirFunctionInfo function = tir->functions.items[i];
 		arrfree(function.instructions);
 		arrfree(function.blocks);
 	}
 	arrfree(tir->functions);
 }
 
-TirConst tir_push_constant(Tir* self, const TirConstInfo constant)
+TirConst tir_push_constant(struct Tir* self, const struct TirConstInfo constant)
 {
 	TirFunction result = arrlen(self->constants);
 	arrpush(self->constants, constant);
 	return result;
 }
 
-TirFunction tir_push_function(Tir* self, const TirFunctionInfo function)
+TirFunction tir_push_function(struct Tir* self, const struct TirFunctionInfo function)
 {
 	TirFunction result = arrlen(self->functions);
 	arrpush(self->functions, function);
 	return result;
 }
 
-TirGlobal tir_push_global(Tir* self, const TirGlobalInfo global)
+TirGlobal tir_push_global(struct Tir* self, const struct TirGlobalInfo global)
 {
 	TirGlobal result = arrlen(self->globals);
 	arrpush(self->globals, global);
 	return result;
 }
 
-TirValue tir_push_instruction(TirFunctionInfo* self, TirInstruction instruction)
+TirValue tir_push_instruction(struct TirFunctionInfo* self, struct TirInstruction instruction)
 {
 	TirValue result = arrlen(self->instructions);
 	arrpush(self->instructions, instruction);
 	return result;
 }
 
-TirBlock tir_block_begin(TirFunctionInfo* self)
+TirBlock tir_block_begin(struct TirFunctionInfo* self)
 {
 	size_t instructions_len = arrlen(self->instructions);
 	TirBlock result = arrlen(self->blocks);
@@ -74,20 +74,20 @@ TirBlock tir_block_begin(TirFunctionInfo* self)
 		self->blocks.items[result - 1].end_instruction = instructions_len == 0 ? 0 : instructions_len - 1;
 	}
 
-	TirBlockInfo new_block = {0};
+	struct TirBlockInfo new_block = {0};
 	new_block.start_instruction = instructions_len;
 	arrpush(self->blocks, new_block);
 
 	return result;
 }
 
-void tir_block_end(TirFunctionInfo* self)
+void tir_block_end(struct TirFunctionInfo* self)
 {
 	size_t instructions_len = arrlen(self->instructions);
 	self->blocks.items[arrlen(self->blocks) - 1].end_instruction = instructions_len == 0 ? 0 : instructions_len - 1;
 }
 
-void print_tir_constant(FILE* f, const Tir tir, const TirConstInfo constant)
+void print_tir_constant(FILE* f, const struct Tir tir, const struct TirConstInfo constant)
 {
 	print_type(f, constant.type);
 	fprintf(f, " ");
@@ -111,16 +111,16 @@ void print_tir_constant(FILE* f, const Tir tir, const TirConstInfo constant)
 	}
 }
 
-void print_tir_function(FILE* f, const Tir tir, const TirFunctionInfo function)
+void print_tir_function(FILE* f, const struct Tir tir, const struct TirFunctionInfo function)
 {
 	unused(function);
 	unused(tir);
 	fprintf(f, "Unimplemented.\n");
 }
 
-void print_tir_global(FILE* f, const Tir tir, const TirGlobalInfo global)
+void print_tir_global(FILE* f, const struct Tir tir, const struct TirGlobalInfo global)
 {
-	const TirConstInfo constant = tir.constants.items[global.initializer];
+	const struct TirConstInfo constant = tir.constants.items[global.initializer];
 	fprintf(
 		f,
 		"define %s $\"%s\": ",
@@ -133,19 +133,19 @@ void print_tir_global(FILE* f, const Tir tir, const TirGlobalInfo global)
 	fprintf(f, ";\n");
 }
 
-void print_tir(FILE* f, const Tir tir)
+void print_tir(FILE* f, const struct Tir tir)
 {
 	const size_t globals_len = arrlen(tir.globals);
 	for (size_t i=0; i<globals_len; i += 1)
 	{
-		const TirGlobalInfo global = tir.globals.items[i];
+		const struct TirGlobalInfo global = tir.globals.items[i];
 		print_tir_global(f, tir, global);
 	}
 
 	const size_t functions_len = arrlen(tir.functions);
 	for (size_t i=0; i<functions_len; i += 1)
 	{
-		const TirFunctionInfo function = tir.functions.items[i];
+		const struct TirFunctionInfo function = tir.functions.items[i];
 		print_tir_function(f, tir, function);
 	}
 }

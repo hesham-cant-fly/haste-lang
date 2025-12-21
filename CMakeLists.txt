@@ -38,6 +38,7 @@ if (DEBUG_BUILD)
 endif()
 if (DEBUG_DEV_BUILD)
   add_compile_options(-Werror)
+  add_compile_definitions(DEBUG_DEV_BUILD)
 endif()
 
 file(GLOB_RECURSE SOURCES PUBLIC src/*.c)

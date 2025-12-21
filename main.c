@@ -9,6 +9,7 @@
 #include "scanner.h"
 #include "token.h"
 #include "type.h"
+#include "cwalk.h"
 
 #include <errno.h>
 #include <locale.h>
@@ -66,6 +67,44 @@ static char *read_entire_file(const char *path)
 	return result;
 }
 
+static void save_ast(struct ASTFile ast)
+{
+	char* out_path = strdup(ast.path);
+	cwk_path_change_extension(ast.path, "ast", out_path, strlen(ast.path) + 1);
+
+	FILE* f = fopen(out_path, "w");
+
+	print_ast_fileln(f, ast);
+
+	free(out_path);
+	fclose(f);
+}
+
+static void save_hir(struct Hir hir)
+{
+	char* out_path = strdup(hir.path);
+	cwk_path_change_extension(hir.path, "hir", out_path, strlen(hir.path) + 1);
+
+	FILE* f = fopen(out_path, "w");
+
+	print_hir(f, hir);
+
+	free(out_path);
+	fclose(f);
+}
+
+static void save_tir(struct Tir tir)
+{
+	char* out_path = strdup(tir.path);
+	cwk_path_change_extension(tir.path, "tir", out_path, strlen(tir.path) + 1);
+
+	FILE* f = fopen(out_path, "w");
+	print_tir(f, tir);
+
+	free(out_path);
+	fclose(f);
+}
+
 int main(void)
 {
 	setlocale(LC_ALL, "C.UTF-8");
@@ -92,7 +131,7 @@ int main(void)
 		return 1;
 	}
 
-	ASTFile ast = { 0 };
+	struct ASTFile ast = { 0 };
 	err = parse_tokens(tokens, full_path, &ast);
 	if (err) {
 		arrfree(tokens);
@@ -101,9 +140,11 @@ int main(void)
 		return 1;
 	}
 
-	// print_ast_fileln(stdout, ast);
+#ifdef DEBUG_DEV_BUILD
+	save_ast(ast);
+#endif // DEBUG_DEV_BUILD
 
-	Hir hir = {0};
+	struct Hir hir = {0};
 	err = hoist_ast(ast, &hir);
 	if (err) {
 		arrfree(tokens);
@@ -113,9 +154,11 @@ int main(void)
 		return 1;
 	}
 
-	// print_hir(stdout, hir);
+#ifdef DEBUG_DEV_BUILD
+	save_hir(hir);
+#endif // DEBUG_DEV_BUILD
 
-	Tir tir = {0};
+	struct Tir tir = {0};
 	err = analyze_hir(hir, &tir);
 	if (err) {
 		arrfree(tokens);
@@ -127,7 +170,9 @@ int main(void)
 		return 1;
 	}
 
-	print_tir(stdout, tir);
+#ifdef DEBUG_DEV_BUILD
+	save_tir(tir);
+#endif // DEBUG_DEV_BUILD
 
 	arrfree(tokens);
 	free(src);

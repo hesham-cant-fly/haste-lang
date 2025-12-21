@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
-TypesPool g_types_pool = {0};
+struct TypesPool g_types_pool = {0};
 
 #define get_type(id__) g_types_pool.types.items[(id__)]
 #define ASSERT_TYPE_ID(id__) \
@@ -21,7 +21,7 @@ void init_types_pool(void)
 
 #define X(_, __name)							\
 	{											\
-		Type tp = {0};							\
+		struct Type tp = {0};							\
 		tp.name = (__name);						\
 		create_type(tp);						\
 	}
@@ -32,10 +32,10 @@ void init_types_pool(void)
 void deinit_types_pool(void)
 {
 	arrfree(g_types_pool.types);
-	g_types_pool = (TypesPool) {0};
+	g_types_pool = (struct TypesPool) {0};
 }
 
-TypeID create_type(Type tp)
+TypeID create_type(struct Type tp)
 {
 	tp.id = g_types_pool.types.len;
 	arrpush(g_types_pool.types, tp);
@@ -45,13 +45,13 @@ TypeID create_type(Type tp)
 
 void print_type(FILE *f, const TypeID id)
 {
-	const Type tp = get_type(id);
+	const struct Type tp = get_type(id);
 	assert(id == tp.id);
 
 	fprintf(f, "%s", tp.name);
 }
 
-TypeMatchResult type_matches(const TypeID id1, const TypeID id2)
+enum TypeMatchResult type_matches(const TypeID id1, const TypeID id2)
 {
 	ASSERT_TYPE_ID(id1);
 	ASSERT_TYPE_ID(id2);

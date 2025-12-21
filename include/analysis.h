@@ -5,6 +5,6 @@
 #include "hir.h"
 #include "tir.h"
 
-error analyze_hir(Hir hir, Tir* out);
+error analyze_hir(struct Hir hir, struct Tir* out);
 
 #endif // !__ANALYSIS_H

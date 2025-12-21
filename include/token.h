@@ -4,7 +4,7 @@
 #include "core/my_printer.h"
 #include <stdint.h>
 
-typedef enum TokenKind {
+enum TokenKind {
 #define TOKEN_KIND_ENUM_DEF(X)                                                 \
 	X(TOKEN_KIND_TYPEID)                                                       \
     X(TOKEN_KIND_INT)                                                          \
@@ -27,32 +27,32 @@ typedef enum TokenKind {
     X(TOKEN_KIND_DOUBLE_STAR)
 
     TOKEN_KIND_ENUM_DEF(X_ENUM)
-} TokenKind;
+};
 
-typedef struct Span {
+struct Span {
 #define SPAN_STRUCT_DEF(X)                                                     \
     X(char *, start, PRINT_PTR)                                                \
     X(char *, end, PRINT_PTR)
 
     SPAN_STRUCT_DEF(X_STRUCT)
-} Span;
+};
 
-typedef struct Location {
+struct Location {
 #define LOCATION_STRUCT_DEF(X)                                                 \
     X(uint32_t, line, PRINT_UINT32_T)                                          \
     X(uint32_t, column, PRINT_UINT32_T)
 
     LOCATION_STRUCT_DEF(X_STRUCT)
-} Location;
+};
 
-typedef struct Token {
+struct Token {
 #define TOKEN_STRUCT_DEF(M)                                                    \
-    M(Span, span, my_print_span)                                               \
-    M(Location, location, print_location)                                      \
-    M(TokenKind, kind, print_token_kind)
+    M(struct Span, span, my_print_span)                                               \
+    M(struct Location, location, print_location)                                      \
+    M(enum TokenKind, kind, print_token_kind)
 
     TOKEN_STRUCT_DEF(X_STRUCT)
-} Token;
+};
 
 struct TokenList {
 	struct Token* items;
@@ -61,13 +61,13 @@ struct TokenList {
 };
 
 #define SPAN_ARG(__span) (int)span_len(__span), (__span).start
-size_t span_len(Span self);
-Span span_conjoin(Span a, Span b);
+size_t span_len(struct Span self);
+struct Span span_conjoin(struct Span a, struct Span b);
 
-GEN_PRINTER_DEF(TokenKind, print_token_kind);
-GEN_PRINTER_DEF(Span, print_span);
-GEN_PRINTER_DEF(Span, my_print_span);
-GEN_PRINTER_DEF(Token, print_token);
-GEN_PRINTER_DEF(Location, print_location);
+GEN_PRINTER_DEF(enum TokenKind, print_token_kind);
+GEN_PRINTER_DEF(struct Span, print_span);
+GEN_PRINTER_DEF(struct Span, my_print_span);
+GEN_PRINTER_DEF(struct Token, print_token);
+GEN_PRINTER_DEF(struct Location, print_location);
 
 #endif /* !__TOKEN_H */

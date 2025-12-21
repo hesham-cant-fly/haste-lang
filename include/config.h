@@ -6,13 +6,13 @@
 
 #define MAX_FUNCTION_ARGS 256
 
-typedef error (*TargetFN)(const Tir tir);
+typedef error (*TargetFN)(const struct Tir tir);
 
-typedef struct Backend {
+struct Backend {
 	const char* name;
 	TargetFN fn;
-} Backend;
+};
 
-extern const Backend backends[];
+extern const struct Backend backends[];
 
 #endif // !__CONFIG_H

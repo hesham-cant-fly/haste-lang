@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 
-void print_hir_instruction(FILE *f, HirInstruction instruction)
+void print_hir_instruction(FILE *f, struct HirInstruction instruction)
 {
 	switch (instruction.tag)
 	{
@@ -82,7 +82,7 @@ void print_hir_instruction(FILE *f, HirInstruction instruction)
 	}
 }
 
-void print_hir_global(FILE* f, HirGlobal global)
+void print_hir_global(FILE* f, struct HirGlobal global)
 {
 	fprintf(f, "[");
 	switch (global.visibility)
@@ -120,34 +120,34 @@ void print_hir_global(FILE* f, HirGlobal global)
 	fprintf(f, "}\n");
 }
 
-void print_hir(FILE *f, Hir hir)
+void print_hir(FILE *f, struct Hir hir)
 {
 	for (size_t i=0; i < hir.globals.len; i += 1)
 	{
-		HirGlobal global = hir.globals.items[i];
+		struct HirGlobal global = hir.globals.items[i];
 		print_hir_global(f, global);
 	}
 }
 
-static HirInstruction hir_get(Hir* hir, const size_t at);
-static size_t hir_len(Hir *hir);
+static struct HirInstruction hir_get(struct Hir* hir, const size_t at);
+static size_t hir_len(struct Hir *hir);
 
-static size_t push_instruction(HirGlobal* global, HirInstruction instruction);
-static void append_global(Hir* hir, const HirGlobal global);
+static size_t push_instruction(struct HirGlobal* global, struct HirInstruction instruction);
+static void append_global(struct Hir* hir, const struct HirGlobal global);
 
-static const char* hoist_span(Hir* hir, const Span span);
-static error hoist_global_declaration(Hir* self, const AstDecl declaration);
-static error hoist_expr(struct HirInstructionList* self, Hir* hir, const AstExpr *expr);
+static const char* hoist_span(struct Hir* hir, const struct Span span);
+static error hoist_global_declaration(struct Hir* self, const struct AstDecl declaration);
+static error hoist_expr(struct HirInstructionList* self, struct Hir* hir, const struct AstExpr *expr);
 
-error hoist_ast(ASTFile file, Hir *out)
+error hoist_ast(struct ASTFile file, struct Hir *out)
 {
-	Hir hir = {0};
+	struct Hir hir = {0};
 	hir.path = file.path;
 
-	const AstDeclarationListNode* current = file.declarations.head;
+	const struct AstDeclarationListNode* current = file.declarations.head;
 	while (current != NULL)
 	{
-		const AstDeclarationListNode* next = current->next;
+		const struct AstDeclarationListNode* next = current->next;
 
 		error err = hoist_global_declaration(&hir, current->node);
 		if (err) return err;
@@ -159,7 +159,7 @@ error hoist_ast(ASTFile file, Hir *out)
 	return OK;
 }
 
-static const char* hoist_span(Hir* hir, const Span span)
+static const char* hoist_span(struct Hir* hir, const struct Span span)
 {
 	const size_t len = span_len(span);
 	char* result = arena_alloc(&hir->string_pool, len + 1);
@@ -170,11 +170,11 @@ static const char* hoist_span(Hir* hir, const Span span)
 	return result;
 }
 
-static error hoist_global_declaration(Hir* self, const AstDecl declaration)
+static error hoist_global_declaration(struct Hir* self, const struct AstDecl declaration)
 {
-	const AstDeclNode node = declaration.node;
+	const struct AstDeclNode node = declaration.node;
 
-	HirGlobal global = {0};
+	struct HirGlobal global = {0};
 	global.kind = HIR_DECL_CONST;
 	global.visibility = HIR_PUBLIC;
 
@@ -217,11 +217,11 @@ static error hoist_global_declaration(Hir* self, const AstDecl declaration)
 	return OK;
 }
 
-static error hoist_expr(struct HirInstructionList* self, Hir* hir, const AstExpr *expr)
+static error hoist_expr(struct HirInstructionList* self, struct Hir* hir, const struct AstExpr *expr)
 {
 	error err = OK;
-	AstExprNode node = expr->node;
-	HirInstruction instruction = {0};
+	struct AstExprNode node = expr->node;
+	struct HirInstruction instruction = {0};
 	instruction.span = expr->span;
 	instruction.location = expr->location;
 
@@ -304,7 +304,7 @@ _defer:
 	return err;
 }
 
-void deinit_hir(Hir hir)
+void deinit_hir(struct Hir hir)
 {
 	arena_free(&hir.string_pool);
 	arreach(hir.globals, i) {
@@ -313,7 +313,7 @@ void deinit_hir(Hir hir)
 	arrfree(hir.globals);
 }
 
-static size_t hir_push_instruction(HirGlobal* global, HirInstruction instruction)
+static size_t hir_push_instruction(struct HirGlobal* global, struct HirInstruction instruction)
 {
 	arrpush(global->instructions, instruction);
 	return global->instructions.len - 1;
@@ -328,7 +328,7 @@ struct HirGlobal* hir_find_global(struct HirGlobalList globals, const char* name
 
 	while (left <= right) {
 		ssize_t mid = left + (right - left) / 2;
-		HirGlobal* e = &globals.items[mid];
+		struct HirGlobal* e = &globals.items[mid];
 
 		const int cmp = strcmp(e->name, name);
 
@@ -343,13 +343,13 @@ struct HirGlobal* hir_find_global(struct HirGlobalList globals, const char* name
 	return NULL;
 }
 
-static void append_global(Hir* self, const HirGlobal global)
+static void append_global(struct Hir* self, const struct HirGlobal global)
 {
 	arrreserve(self->globals, self->globals.len + 1);
 
 	ssize_t i = self->globals.len - 1;
 	for (; i >= 0; i -= 1) {
-		HirGlobal e = self->globals.items[i];
+		struct HirGlobal e = self->globals.items[i];
 		const int cmp = strcmp(e.name, global.name);
 		if (cmp > 0) break;
 

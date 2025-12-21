@@ -1,5 +1,5 @@
 #include "config.h"
 
-const Backend backends[] = {
+const struct Backend backends[] = {
 	{0},
 };

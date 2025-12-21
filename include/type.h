@@ -20,42 +20,42 @@ enum {
 #undef X
 };
 
-typedef enum PrimitiveType {
+enum PrimitiveType {
 	PRIMITIVE_INT,
 	PRIMITIVE_FLOAT,
 	PRIMITIVE_UNTYPED_FLOAT,
 	PRIMITIVE_UNTYPED_INT,
 	PRIMITIVE_AUTO,
-} PrimitiveType;
+};
 
-typedef struct Type {
+struct Type {
 	TypeID id;
 	const char *name;
-} Type;
+};
 
-typedef struct TypesPool {
+struct TypesPool {
 	struct TypeList {
-		Type *items;
+		struct Type *items;
 		size_t len;
 		size_t cap;
 	} types;
-} TypesPool;
+};
 
-extern TypesPool g_types_pool;
+extern struct TypesPool g_types_pool;
 
-typedef enum TypeMatchResult {
+enum TypeMatchResult {
 	TYPE_MATCH_NONE = 1, /* ERROR */
 	TYPE_MATCH_EXACT,
 	TYPE_MATCH_NEED_CAST, /* ERROR as Well :P */
-} TypeMatchResult;
+};
 
 void init_types_pool(void);
 void deinit_types_pool(void);
-TypeID create_type(Type tp);
+TypeID create_type(struct Type tp);
 
 void print_type(FILE* f, const TypeID id);
 
-TypeMatchResult type_matches(const TypeID id1, const TypeID id2);
+enum TypeMatchResult type_matches(const TypeID id1, const TypeID id2);
 bool type_is_numiric(const TypeID id);
 bool type_is_any_int(const TypeID id);
 bool type_is_any_float(const TypeID id);

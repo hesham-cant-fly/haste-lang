@@ -106,8 +106,8 @@ struct CheckPointInfo {
 };
 
 struct Analyzer {
-	Tir tir;
-	Hir hir;
+	struct Tir tir;
+	struct Hir hir;
 	const char* path;
 	size_t ip;
 	struct AnalysisStack stack;
@@ -121,7 +121,7 @@ struct Analyzer {
 	bool had_error;
 };
 
-static struct Analyzer init_analyzer(Hir hir);
+static struct Analyzer init_analyzer(struct Hir hir);
 static void deinit_analyzer(struct Analyzer* self);
 static void analyze_range(struct Analyzer* self, const size_t start, const size_t end);
 
@@ -160,7 +160,7 @@ static error define_global(
 static bool is_defined(struct Analyzer* self, const char* name);
 static bool is_declared(struct Analyzer* self, const char* name);
 
-static NORETURN void report_error(struct Analyzer* self, Location location, const char* fmt, ...);
+static NORETURN void report_error(struct Analyzer* self, struct Location location, const char* fmt, ...);
 
 static struct AnalysisStack init_stack(void)
 {
@@ -266,7 +266,7 @@ static error define_symbol(struct SymbolTable self, const char* name, const stru
 	return OK;
 }
 
-static struct Analyzer init_analyzer(Hir hir)
+static struct Analyzer init_analyzer(struct Hir hir)
 {
 	struct Analyzer result = {0};
 	result.path = hir.path;
@@ -370,7 +370,7 @@ static TirConst tirrify_the_value(struct Analyzer* self, struct HasteValue value
 static void tirrify_the_symbol(struct Analyzer* self, struct Symbol* symbol)
 {
 	const struct HasteValue value = symbol->value;
-	TirConstInfo constant_info = {0};
+	struct TirConstInfo constant_info = {0};
 	constant_info.type = type_of_symbol(*symbol);
 	switch (value.tag) {
 	case VALUE_KIND_INT:
@@ -392,7 +392,7 @@ static void tirrify_the_symbol(struct Analyzer* self, struct Symbol* symbol)
 	}
 
 	const TirConst constant = tir_push_constant(&self->tir, constant_info);
-	const TirGlobalInfo global = {
+	const struct TirGlobalInfo global = {
 		.name = symbol->name,
 		.initializer = constant,
 		.is_constant = symbol->kind == SYMBOL_CONSTANT,
@@ -507,7 +507,7 @@ static bool is_declared(struct Analyzer* self, const char* name)
 
 static NORETURN void report_error(
 	struct Analyzer* self,
-	Location location,
+	struct Location location,
 	const char* fmt, ...
 ) {
 	va_list args;
@@ -519,7 +519,7 @@ static NORETURN void report_error(
 	panic("");
 }
 
-static void analyze_instruction(struct Analyzer* self, const HirInstruction instruction);
+static void analyze_instruction(struct Analyzer* self, const struct HirInstruction instruction);
 
 static void analyze_global(struct Analyzer* self, const struct HirGlobal global)
 {
@@ -592,7 +592,7 @@ static void analyze_global(struct Analyzer* self, const struct HirGlobal global)
 	}
 }
 
-static void analyze_identifier(struct Analyzer* self, const HirInstruction instruction)
+static void analyze_identifier(struct Analyzer* self, const struct HirInstruction instruction)
 {
 	const char* identifier = instruction.as.identifier;
 	const struct Symbol* symbol = find_local_first(self, identifier);
@@ -625,7 +625,7 @@ static void analyze_identifier(struct Analyzer* self, const HirInstruction instr
 }
 
 
-static void analyze_integer(struct Analyzer* self, const HirInstruction instruction)
+static void analyze_integer(struct Analyzer* self, const struct HirInstruction instruction)
 {
 	const int64_t integer = instruction.as.integer;
 	const struct HasteValue value = {
@@ -639,7 +639,7 @@ static void analyze_integer(struct Analyzer* self, const HirInstruction instruct
 	push(self, value);
 }
 
-static void analyze_float(struct Analyzer* self, const HirInstruction instruction)
+static void analyze_float(struct Analyzer* self, const struct HirInstruction instruction)
 {
 	const double floating = instruction.as.floating_point;
 	const struct HasteValue value = {
@@ -653,7 +653,7 @@ static void analyze_float(struct Analyzer* self, const HirInstruction instructio
 	push(self, value);
 }
 
-static void analyze_type(struct Analyzer* self, const HirInstruction instruction)
+static void analyze_type(struct Analyzer* self, const struct HirInstruction instruction)
 {
 	const TypeID type = instruction.as.type;
 	const struct HasteValue value = {
@@ -667,7 +667,7 @@ static void analyze_type(struct Analyzer* self, const HirInstruction instruction
 	push(self, value);
 }
 
-static void analyze_unary_plus(struct Analyzer* self, const HirInstruction instruction)
+static void analyze_unary_plus(struct Analyzer* self, const struct HirInstruction instruction)
 {
 	unused(instruction);
 	const struct HasteValue value = pop(self);
@@ -688,7 +688,7 @@ static void analyze_unary_plus(struct Analyzer* self, const HirInstruction instr
 	push(self, value);
 }
 
-static void analyze_unary_minus(struct Analyzer* self, const HirInstruction instruction)
+static void analyze_unary_minus(struct Analyzer* self, const struct HirInstruction instruction)
 {
 	unused(instruction);
 	const struct HasteValue value = pop(self);
@@ -725,7 +725,7 @@ static error check_binary_op(struct Analyzer* self, struct HasteValue a, struct 
 		return ERROR;
 	}
 
-	const TypeMatchResult match = type_matches(a_type, b_type);
+	const enum TypeMatchResult match = type_matches(a_type, b_type);
 	if (match != TYPE_MATCH_EXACT) {
 		panic("Type mismatch.");
 		return ERROR;
@@ -835,7 +835,7 @@ static struct HasteValue power(struct Analyzer* self, const struct HasteValue a,
 	return result;
 }
 
-static void analyze_binary_add(struct Analyzer* self, const HirInstruction instruction)
+static void analyze_binary_add(struct Analyzer* self, const struct HirInstruction instruction)
 {
 	unused(instruction);
 	const struct HasteValue b = pop(self);
@@ -850,7 +850,7 @@ static void analyze_binary_add(struct Analyzer* self, const HirInstruction instr
 	push(self, result);
 }
 
-static void analyze_binary_sub(struct Analyzer* self, const HirInstruction instruction)
+static void analyze_binary_sub(struct Analyzer* self, const struct HirInstruction instruction)
 {
 	unused(instruction);
 	const struct HasteValue b = pop(self);
@@ -865,7 +865,7 @@ static void analyze_binary_sub(struct Analyzer* self, const HirInstruction instr
 	push(self, result);
 }
 
-static void analyze_binary_mul(struct Analyzer* self, const HirInstruction instruction)
+static void analyze_binary_mul(struct Analyzer* self, const struct HirInstruction instruction)
 {
 	unused(instruction);
 	const struct HasteValue b = pop(self);
@@ -880,7 +880,7 @@ static void analyze_binary_mul(struct Analyzer* self, const HirInstruction instr
 	push(self, result);
 }
 
-static void analyze_binary_div(struct Analyzer* self, const HirInstruction instruction)
+static void analyze_binary_div(struct Analyzer* self, const struct HirInstruction instruction)
 {
 	unused(instruction);
 	const struct HasteValue b = pop(self);
@@ -895,7 +895,7 @@ static void analyze_binary_div(struct Analyzer* self, const HirInstruction instr
 	push(self, result);
 }
 
-static void analyze_binary_pow(struct Analyzer* self, const HirInstruction instruction)
+static void analyze_binary_pow(struct Analyzer* self, const struct HirInstruction instruction)
 {
 	unused(instruction);
 	const struct HasteValue b = pop(self);
@@ -910,9 +910,9 @@ static void analyze_binary_pow(struct Analyzer* self, const HirInstruction instr
 	push(self, result);
 }
 
-static void analyze_constant_declaration(struct Analyzer* self, const HirInstruction instruction)
+static void analyze_constant_declaration(struct Analyzer* self, const struct HirInstruction instruction)
 {
-	const HirConstantDecl constant = instruction.as.constant;
+	const struct HirConstantDecl constant = instruction.as.constant;
 
 	if (!(constant.explicit_typing || constant.initialized)) {
 		panic("no value, no initializatio. how tf I'm gonna tell the type?!");
@@ -932,7 +932,7 @@ static void analyze_constant_declaration(struct Analyzer* self, const HirInstruc
 	if (constant.initialized) {
 		const struct HasteValue value = pop(self);
 		const TypeID value_type = type_of_value(value);
-		const TypeMatchResult match_result = type_matches(type, value_type);
+		const enum TypeMatchResult match_result = type_matches(type, value_type);
 		if (match_result != TYPE_MATCH_EXACT) {
 			panic("Type mismatch.");
 		}
@@ -943,9 +943,9 @@ static void analyze_constant_declaration(struct Analyzer* self, const HirInstruc
 	}
 }
 
-static void analyze_variable_declaration(struct Analyzer* self, const HirInstruction instruction)
+static void analyze_variable_declaration(struct Analyzer* self, const struct HirInstruction instruction)
 {
-	const HirVariableDecl variable = instruction.as.variable;
+	const struct HirVariableDecl variable = instruction.as.variable;
 
 	if (!variable.explicit_typing && !variable.initialized) {
 		panic("no value, no initializatio. how tf I'm gonna tell the tell?!");
@@ -964,7 +964,7 @@ static void analyze_variable_declaration(struct Analyzer* self, const HirInstruc
 	if (variable.initialized) {
 		const struct HasteValue value = pop(self);
 		const TypeID value_type = type_of_value(value);
-		const TypeMatchResult match_result = type_matches(type, value_type);
+		const enum TypeMatchResult match_result = type_matches(type, value_type);
 		if (match_result != TYPE_MATCH_EXACT) {
 			panic("Type mismatch.");
 		}
@@ -975,7 +975,7 @@ static void analyze_variable_declaration(struct Analyzer* self, const HirInstruc
 	}
 }
 
-static void analyze_instruction(struct Analyzer* self, const HirInstruction instruction)
+static void analyze_instruction(struct Analyzer* self, const struct HirInstruction instruction)
 {
 	switch (instruction.tag) {
 	case HIR_NODE_END:
@@ -1026,7 +1026,7 @@ static void start_analyzing(struct Analyzer* self)
 {
 	const size_t len = self->hir.globals.len;
 	for (size_t i=0; i < len; i += 1) {
-		HirGlobal* global = &self->hir.globals.items[i];
+		struct HirGlobal* global = &self->hir.globals.items[i];
 		if (global->visited) continue;
 		analyze_global(self, *global);
 		global->visited = true;
@@ -1034,7 +1034,7 @@ static void start_analyzing(struct Analyzer* self)
 	return;
 }
 
-error analyze_hir(Hir hir, Tir* out)
+error analyze_hir(struct Hir hir, struct Tir* out)
 {
 	struct Analyzer analyzer = init_analyzer(hir);
 	analyzer.current_scope = &analyzer.global_scope;

@@ -14,7 +14,7 @@ error get_full_path(const char* path, char** out)
 void report(
 	FILE* f,
 	const char* path,
-	const Location location,
+	const struct Location location,
 	const char* kind,
 	const char* fmt, ...
 ) {
@@ -27,7 +27,7 @@ void report(
 void vreport(
 	FILE* f,
 	const char* path,
-	const Location location,
+	const struct Location location,
 	const char* kind,
 	const char* fmt,
 	va_list args
