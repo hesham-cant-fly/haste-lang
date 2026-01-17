@@ -1,2 +1,10 @@
 const main() = {
+	const x = 67;
+	if x == 67 {
+		@println("⁶🤷⁷");
+	} else if x == 89 {
+		@println("⁸🤷⁹");
+	} else {
+		@println("???");
+	}
 };
