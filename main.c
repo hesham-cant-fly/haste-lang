@@ -1,7 +1,6 @@
+#include "analyzer.h"
 #include "common.h"
-#include "hir.h"
 #include "tir.h"
-#include "analysis.h"
 #include "ast.h"
 #include "core/my_array.h"
 #include "error.h"
@@ -47,14 +46,15 @@ static char *read_entire_file(const char *path)
 
 	rewind(f);
 
-	char *result = malloc(len + 1);
+	char *result = malloc(len + 2);
 	if (result == NULL) {
 		print_errno();
 		fclose(f);
 		return NULL;
 	}
+	result[0] = 0x0;
 
-	size_t bytes_read = fread(result, 1, len, f);
+	size_t bytes_read = fread(result + 1, 1, len, f);
 	if (bytes_read != (size_t)len) {
 		print_errno();
 		free(result);
@@ -67,30 +67,18 @@ static char *read_entire_file(const char *path)
 	return result;
 }
 
-static void save_ast(struct ASTFile ast)
+static void save_ast(struct AstFile ast)
 {
-	char* out_path = strdup(ast.path);
-	cwk_path_change_extension(ast.path, "ast", out_path, strlen(ast.path) + 1);
+	ast_file_print(ast, stdout);
+	/* char* out_path = strdup(ast.path); */
+	/* cwk_path_change_extension(ast.path, "ast", out_path, strlen(ast.path) + 1); */
 
-	FILE* f = fopen(out_path, "w");
+	/* FILE* f = fopen(out_path, "w"); */
 
-	print_ast_fileln(f, ast);
+	/* print_ast_fileln(f, ast); */
 
-	free(out_path);
-	fclose(f);
-}
-
-static void save_hir(struct Hir hir)
-{
-	char* out_path = strdup(hir.path);
-	cwk_path_change_extension(hir.path, "hir", out_path, strlen(hir.path) + 1);
-
-	FILE* f = fopen(out_path, "w");
-
-	print_hir(f, hir);
-
-	free(out_path);
-	fclose(f);
+	/* free(out_path); */
+	/* fclose(f); */
 }
 
 static void save_tir(struct Tir tir)
@@ -131,55 +119,45 @@ int main(void)
 		return 1;
 	}
 
-	struct ASTFile ast = { 0 };
-	err = parse_tokens(tokens, full_path, &ast);
+	Arena arena = {0};
+	struct AstFile ast = { 0 };
+	err = parse_tokens(tokens, full_path, &ast, &arena);
 	if (err) {
 		arrfree(tokens);
 		free(src);
 		free(full_path);
+		fprintf(stderr, "Parsing Error.");
 		return 1;
 	}
 
 #ifdef DEBUG_DEV_BUILD
 	save_ast(ast);
-#endif // DEBUG_DEV_BUILD
+#endif /* DEBUG_DEV_BUILD */
 
-	struct Hir hir = {0};
-	err = hoist_ast(ast, &hir);
+	struct Environment env = {0};
+	init_environment(&env, full_path, &arena);
+
+	err = analyze_ast_file(ast, &env);
 	if (err) {
+		deinit_environment(&env);
 		arrfree(tokens);
 		free(src);
 		free(full_path);
-		arena_free(&ast.arena);
-		return 1;
-	}
-
-#ifdef DEBUG_DEV_BUILD
-	save_hir(hir);
-#endif // DEBUG_DEV_BUILD
-
-	struct Tir tir = {0};
-	err = analyze_hir(hir, &tir);
-	if (err) {
-		arrfree(tokens);
-		free(src);
-		free(full_path);
-		arena_free(&ast.arena);
-		deinit_hir(hir);
+		arena_free(&arena);
 		deinit_types_pool();
+		fprintf(stderr, "Analysis Error.");
 		return 1;
 	}
 
 #ifdef DEBUG_DEV_BUILD
-	save_tir(tir);
-#endif // DEBUG_DEV_BUILD
+	save_ast(ast);
+#endif /* DEBUG_DEV_BUILD */
 
+	deinit_environment(&env);
 	arrfree(tokens);
 	free(src);
 	free(full_path);
-	arena_free(&ast.arena);
-	deinit_hir(hir);
-	deinit_tir(&tir);
+	arena_free(&arena);
 	deinit_types_pool();
 	return 0;
 }

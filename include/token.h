@@ -5,25 +5,30 @@
 #include <stdint.h>
 
 enum TokenKind {
-#define TOKEN_KIND_ENUM_DEF(X)                                                 \
-	X(TOKEN_KIND_TYPEID)                                                       \
-    X(TOKEN_KIND_INT)                                                          \
-    X(TOKEN_KIND_FLOAT)                                                        \
-    X(TOKEN_KIND_AUTO)                                                         \
-    X(TOKEN_KIND_CONST)                                                        \
-    X(TOKEN_KIND_VAR)                                                          \
-    X(TOKEN_KIND_IDENTIFIER)                                                   \
-    X(TOKEN_KIND_INT_LIT)                                                      \
-    X(TOKEN_KIND_FLOAT_LIT)                                                    \
-    X(TOKEN_KIND_COLON)                                                        \
-    X(TOKEN_KIND_SEMICOLON)                                                    \
-    X(TOKEN_KIND_EQUAL)                                                        \
-    X(TOKEN_KIND_OPEN_PAREN)                                                   \
-    X(TOKEN_KIND_CLOSE_PAREN)                                                  \
-    X(TOKEN_KIND_PLUS)                                                         \
-    X(TOKEN_KIND_MINUS)                                                        \
-    X(TOKEN_KIND_STAR)                                                         \
-    X(TOKEN_KIND_FSLASH)                                                       \
+#define TOKEN_KIND_ENUM_DEF(X) \
+	X(TOKEN_KIND_TYPEID) \
+    X(TOKEN_KIND_INT) \
+    X(TOKEN_KIND_FLOAT) \
+    X(TOKEN_KIND_AUTO) \
+    X(TOKEN_KIND_CONST) \
+	X(TOKEN_KIND_FUNC) \
+    X(TOKEN_KIND_VAR) \
+    X(TOKEN_KIND_IDENTIFIER) \
+    X(TOKEN_KIND_INT_LIT) \
+    X(TOKEN_KIND_FLOAT_LIT) \
+    X(TOKEN_KIND_COLON) \
+    X(TOKEN_KIND_SEMICOLON) \
+    X(TOKEN_KIND_EQUAL) \
+    X(TOKEN_KIND_OPEN_PAREN) \
+    X(TOKEN_KIND_CLOSE_PAREN) \
+	X(TOKEN_KIND_OPEN_BRACKET) \
+	X(TOKEN_KIND_CLOSE_BRACKET) \
+    X(TOKEN_KIND_OPEN_BRACE) \
+    X(TOKEN_KIND_CLOSE_BRACE) \
+    X(TOKEN_KIND_PLUS) \
+    X(TOKEN_KIND_MINUS) \
+    X(TOKEN_KIND_STAR) \
+    X(TOKEN_KIND_FSLASH) \
     X(TOKEN_KIND_DOUBLE_STAR)
 
     TOKEN_KIND_ENUM_DEF(X_ENUM)
@@ -34,7 +39,8 @@ struct Span {
     X(char *, start, PRINT_PTR)                                                \
     X(char *, end, PRINT_PTR)
 
-    SPAN_STRUCT_DEF(X_STRUCT)
+	char *start;
+	char *end;
 };
 
 struct Location {
@@ -61,6 +67,7 @@ struct TokenList {
 };
 
 #define SPAN_ARG(__span) (int)span_len(__span), (__span).start
+#define LOCATION_ARG(location__) (location__).line, (location__).column
 size_t span_len(struct Span self);
 struct Span span_conjoin(struct Span a, struct Span b);
 

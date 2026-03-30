@@ -21,11 +21,16 @@
 #define arrpush(array__, item__) \
 	do { \
 		if ((array__).len >= (array__).cap) { \
-			const size_t new_cap__ = (array__).cap == 0 ? (INITIAL_CAP) : (array__).cap * (GROW_FACTOR); \
-			(array__).cap = new_cap__; \
-			(array__).items = realloc((array__).items, (array__).cap * sizeof(*(array__).items)); \
+			arrgrow((array__)); \
 		} \
 		(array__).items[(array__).len++] = (item__);	\
+	} while (0)
+
+#define arrgrow(array__) \
+	do { \
+		const size_t new_cap__ = (array__).cap == 0 ? (INITIAL_CAP) : (array__).cap * (GROW_FACTOR); \
+		(array__).cap = new_cap__; \
+		(array__).items = realloc((array__).items, (array__).cap * sizeof(*(array__).items)); \
 	} while (0)
 
 #define arrinsert(array__, item__, pos__) \

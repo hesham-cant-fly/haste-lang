@@ -1,2 +1,8 @@
-const a: Automatic = 1;
-const Automatic = auto;
+const a: int = 20;
+const b: int = 30;
+const c = a + b;
+
+func main()
+	@pool() do
+	end
+end

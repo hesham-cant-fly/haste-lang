@@ -30,12 +30,13 @@ struct KeywordEntry {
 
 static const struct KeywordEntry keywords[] = {
 	{"typeid", TOKEN_KIND_TYPEID },
-	{"int",	   TOKEN_KIND_INT   },
-	{"float",  TOKEN_KIND_FLOAT },
-	{"auto",   TOKEN_KIND_AUTO  },
-	{"const",  TOKEN_KIND_CONST },
-	{"var",	   TOKEN_KIND_VAR   },
-	{0,        0                },
+	{"int",	   TOKEN_KIND_INT    },
+	{"float",  TOKEN_KIND_FLOAT  },
+	{"auto",   TOKEN_KIND_AUTO   },
+	{"const",  TOKEN_KIND_CONST  },
+	{"func",   TOKEN_KIND_FUNC   },
+	{"var",	   TOKEN_KIND_VAR    },
+	{0,        0                 },
 };
 
 static uint32_t peek(const struct Scanner *self);
@@ -55,24 +56,23 @@ error scan_entire_cstr(const char *content, const char* path, struct TokenList *
 {
 	struct Scanner scanner = {0};
 	scanner.path = path;
-	utf8_init(&scanner.iter, content);
+	utf8_init(&scanner.iter, content + 1);
 	advance(&scanner); // initial advance
 	scanner.current_location = (struct Location){
 		.column = 1,
 		.line	= 1,
 	};
 
-	while (!ended(&scanner))
-	{
+	while (!ended(&scanner)) {
 		skip_whitespaces(&scanner);
-		if (ended(&scanner))
+		if (ended(&scanner)) {
 			break;
+		}
 		scanner.start = scanner.iter.position;
 		scan_lexem(&scanner);
 	}
 
-	if (scanner.had_error)
-	{
+	if (scanner.had_error) {
 		arrfree(scanner.tokens);
 		return ERROR;
 	}
@@ -88,10 +88,13 @@ static void skip_whitespaces(struct Scanner *self)
 		switch (ch)
 		{
 		case '/':
-			if (peek_next(self) == '/')
-				while (peek(self) != '\n') ch = advance(self);
-			else 
-				ch = advance(self);
+			if (peek_next(self) == '/') {
+				while ((!ended(self)) && peek(self) != '\n') {
+					ch = advance(self);
+				}
+			} else {
+				return;
+			}
 			break;
 		case '\n':
 			self->current_location.line += 1;
@@ -127,40 +130,35 @@ static void scan_identifier(struct Scanner *self, const struct Location location
 static void scan_lexem(struct Scanner *self)
 {
 	const struct Location location = self->current_location;
-	const uint32_t ch		= advance(self);
-	switch (ch)
-	{
-	case '+': add_token(self, TOKEN_KIND_PLUS, location); break;
-	case '-': add_token(self, TOKEN_KIND_MINUS, location); break;
+	const uint32_t ch = advance(self);
+	switch (ch) {
 	case '*':
-		if (match(self, '*'))
-		{
+		if (match(self, '*')) {
 			add_token(self, TOKEN_KIND_DOUBLE_STAR, location);
-		}
-		else
-		{
+		} else {
 			add_token(self, TOKEN_KIND_STAR, location);
 		}
 		break;
-	case '/': add_token(self, TOKEN_KIND_FSLASH, location); break;
-	case '(': add_token(self, TOKEN_KIND_OPEN_PAREN, location); break;
-	case ')': add_token(self, TOKEN_KIND_CLOSE_PAREN, location); break;
-	case ':': add_token(self, TOKEN_KIND_COLON, location); break;
-	case ';': add_token(self, TOKEN_KIND_SEMICOLON, location); break;
-	case '=': add_token(self, TOKEN_KIND_EQUAL, location); break;
+	case '+': add_token(self, TOKEN_KIND_PLUS,          location); break;
+	case '-': add_token(self, TOKEN_KIND_MINUS,         location); break;
+	case '/': add_token(self, TOKEN_KIND_FSLASH,        location); break;
+	case '(': add_token(self, TOKEN_KIND_OPEN_PAREN,    location); break;
+	case ')': add_token(self, TOKEN_KIND_CLOSE_PAREN,   location); break;
+	case '[': add_token(self, TOKEN_KIND_OPEN_BRACKET,  location); break;
+	case ']': add_token(self, TOKEN_KIND_CLOSE_BRACKET, location); break;
+	case '{': add_token(self, TOKEN_KIND_OPEN_BRACE,    location); break;
+	case '}': add_token(self, TOKEN_KIND_CLOSE_BRACE,   location); break;
+	case ':': add_token(self, TOKEN_KIND_COLON,         location); break;
+	case ';': add_token(self, TOKEN_KIND_SEMICOLON,     location); break;
+	case '=': add_token(self, TOKEN_KIND_EQUAL,         location); break;
 	default:
-		if (isdigit(ch))
-		{
+		if (isdigit(ch)) {
 			scan_number(self, location);
-		}
-		else if (is_identifier_starter(ch))
-		{
+		} else if (is_identifier_starter(ch)) {
 			scan_identifier(self, location);
-		}
-		else
-		{
+		} else {
 			self->had_error = true;
-			report(stderr, self->path, location, "Error", "Invalid character '%lc'.", ch);
+			report(stderr, self->path, get_span(self), location, "Error", "Invalid character '%lc'.", ch);
 		}
 		break;
 	}
@@ -168,37 +166,29 @@ static void scan_lexem(struct Scanner *self)
 
 static void scan_number(struct Scanner *self, const struct Location location)
 {
-	while (!ended(self))
-	{
+	while (!ended(self)) {
 		const uint32_t ch = peek(self);
-		if (!isdigit(ch))
-		{
+		if (!isdigit(ch)) {
 			break;
 		}
 		advance(self);
 	}
 
 	bool is_float = false;
-	if (match(self, '.'))
-	{
+	if (match(self, '.')) {
 		is_float = true;
-		while (!ended(self))
-		{
+		while (!ended(self)) {
 			uint32_t ch = peek(self);
-			if (!isdigit(ch))
-			{
+			if (!isdigit(ch)) {
 				break;
 			}
 			advance(self);
 		}
 	}
 
-	if (is_float)
-	{
+	if (is_float) {
 		add_token(self, TOKEN_KIND_FLOAT_LIT, location);
-	}
-	else
-	{
+	} else {
 		add_token(self, TOKEN_KIND_INT_LIT, location);
 	}
 }
@@ -236,8 +226,7 @@ static void scan_identifier(struct Scanner *self, const struct Location location
 
 static void add_token(struct Scanner *self, enum TokenKind kind, struct Location start_location)
 {
-	if (self->had_error)
-		return; // No need for new allocations
+	if (self->had_error) return; // No need for new allocations
 	struct Span span	= get_span(self);
 	struct Token token = {
 		.kind	  = kind,
@@ -268,8 +257,7 @@ static uint32_t peek_next(const struct Scanner *self)
 static uint32_t advance(struct Scanner *self)
 {
 	uint32_t prev = self->iter.codepoint;
-	if (!ended(self))
-	{
+	if (!ended(self)) {
 		self->ended = !utf8_next(&self->iter);
 		self->current_location.column += 1;
 	}
@@ -278,8 +266,7 @@ static uint32_t advance(struct Scanner *self)
 
 static bool check(const struct Scanner *self, uint32_t ch)
 {
-	if (ended(self))
-	{
+	if (ended(self)) {
 		return false;
 	}
 	return peek(self) == ch;
@@ -287,8 +274,7 @@ static bool check(const struct Scanner *self, uint32_t ch)
 
 static bool match(struct Scanner *self, uint32_t ch)
 {
-	if (check(self, ch))
-	{
+	if (check(self, ch)) {
 		advance(self);
 		return true;
 	}
@@ -299,3 +285,4 @@ static bool ended(const struct Scanner *self)
 {
 	return self->ended;
 }
+

@@ -1,4 +1,4 @@
-const main() = {
+func main() = {
 	const x = 67;
 	if x == 67 {
 		@println("⁶🤷⁷");

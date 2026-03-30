@@ -1,73 +1,224 @@
 #include "ast.h"
-#include "core/my_printer.h"
+#include "analyzer.h"
+#include "core/my_array.h"
+#include "core/my_commons.h"
+#include "token.h"
+#include "type.h"
 #include <stdio.h>
 
-void ast_declaration_list_append(struct AstDeclarationList *list, const struct AstDeclarationListNode *node)
+static void print_custom(const char *msg, FILE *f, struct BoolList *is_last);
+static void print_none(FILE *f, struct BoolList *is_last);
+static void write_tree_prefix(FILE *f, struct BoolList *is_last);
+
+static void ast_binary_expr_print(struct AstNodeBase *expr, FILE *f, struct BoolList *is_last, int formatted);
+static void ast_unary_expr_print(struct AstNodeBase *expr, FILE *f, struct BoolList *is_last, int formatted);
+static void ast_grouping_expr_print(struct AstNodeBase *expr, FILE *f, struct BoolList *is_last, int formatted);
+static void ast_identifier_expr_print(struct AstNodeBase *expr, FILE *f, struct BoolList *is_last, int formatted);
+static void ast_literal_expr_print(struct AstNodeBase *expr, FILE *f, struct BoolList *is_last, int formatted);
+static void ast_value_expr_print(struct AstNodeBase *expr, FILE *f, struct BoolList *is_last, int formatted);
+
+static void ast_const_declaration_print(struct AstNodeBase *decl, FILE *f, struct BoolList *is_last, int formatted);
+static void ast_var_declaration_print(struct AstNodeBase *decl, FILE *f, struct BoolList *is_last, int formatted);
+
+struct AstNodeInterface AstBinaryExpr       = {ast_binary_expr_print,
+											   analyze_binary_expr};
+struct AstNodeInterface AstUnaryExpr        = {ast_unary_expr_print,
+											   analyze_unary_expr};
+struct AstNodeInterface AstGroupingExpr     = {ast_grouping_expr_print,
+											   analyze_grouping_expr};
+struct AstNodeInterface AstIdentifierExpr   = {ast_identifier_expr_print,
+											   analyze_identifier_expr};
+struct AstNodeInterface AstLiteralExpr      = {ast_literal_expr_print,
+											   analyze_literal_expr};
+struct AstNodeInterface AstValueExpr        = {ast_value_expr_print,
+										       NULL};
+
+struct AstNodeInterface AstConstDeclaration = {ast_const_declaration_print,
+											   analyze_const_decl};
+struct AstNodeInterface AstVarDeclaration   = {ast_var_declaration_print,
+											   analyze_var_decl};
+
+void expr_print(struct AstExpr expr, FILE *f)
 {
-	if (list->head == NULL && list->end == NULL)
-	{
-		list->head = node;
-		list->end = (struct AstDeclarationListNode*)node;
-		return;
-	}
-	list->end->next = (struct AstDeclarationListNode*)node;
-	list->end = (struct AstDeclarationListNode*)node;
+	struct BoolList is_last = {0};
+	expr.v_table->print(expr.data, f, &is_last, 0);
+	fprintf(f, "\n");
+	arrfree(is_last);
 }
 
-
-struct Span get_declaration_name(const struct AstDecl declaration)
+void declaration_print(struct AstDeclaration decl, FILE* f)
 {
-#define X(__tag, _, __name, ...)				\
-	case __tag:									\
-		return node.as.__name.name;	   
-
-	struct AstDeclNode node = declaration.node;
-	switch (node.tag)
-	{
-		AST_DECL_NODE_TAGGED_UNION_DEF(X)
-	}
-#undef X
+	struct BoolList is_last = {0};
+	decl.v_table->print(decl.data, f, &is_last, 0);
+	fprintf(f, "\n");
+	arrfree(is_last);
 }
 
-GEN_COSTOM_PRINTER_IMPL_START(struct AstDeclarationList, print_declaration_list)
+void ast_file_print(struct AstFile file, FILE *f)
 {
-	if (v.head == NULL)
-	{
-		fprintf(f, "[vide]");
-		return;
-	}
-	fprintf(f, "[\n");
-	size_t j = 0;
-	const struct AstDeclarationListNode *current = v.head;
-
-	while (current != NULL)
-	{
-		struct AstDeclarationListNode *next = current->next;
-		__print_indent(f, i);
-		fprintf(f, "[%zu] => ", j);
-		print_ast_decl_indent(f, current->node, i + IDENTATION);
-		fprintf(f, ",\n");
+	struct AstDeclaration *current = &file.declarations;
+	while (current != NULL) {
+		if (ast_is_none(*current)) break;
+		struct AstDeclaration *next = current->next;
+		declaration_print(*current, f);
 		current = next;
-		j += 1;
 	}
-	__print_indent(f, i > 0 ? i - IDENTATION : i);
-	fprintf(f, "]");
 }
-GEN_COSTOM_PRINTER_IMPL_END(struct AstDeclarationList, print_declaration_list)
 
-GEN_STRUCT_PRINT_IMPL(struct ASTFile, print_ast_file, AST_FILE_STRUCT_DEF)
+struct Value analyze_ast_expr(struct AstExpr expr,
+							  struct Environment *env)
+{
+	return expr.v_table->analyze(expr.data, env);
+}
 
-GEN_ENUM_PRINT_IMPL(enum AstOperator, print_ast_operator, AST_OPERATOR_ENUM_DEF)
-GEN_TAGGED_UNION_TAG_PRINT_IMPL(enum AstExprKind, print_ast_expr_kind, EXPR_NODE_TAGGED_UNION_DEF)
-GEN_TAGGED_UNION_PRINT_IMPL(struct AstExprNode, print_ast_expr_node, EXPR_NODE_TAGGED_UNION_DEF)
+struct Value analyze_ast_declaration(struct AstDeclaration decl,
+							 struct Environment *env)
+{
+	return decl.v_table->analyze(decl.data, env);
+}
 
-GEN_STRUCT_PRINT_IMPL(struct AstExpr, print_ast_expr, EXPR_STRUCT_DEF)
-GEN_STRUCT_PRINT_IMPL(struct AstUnaryExpr, print_ast_unary_expr, UNARY_EXPR_STRUCT_DEF)
-GEN_STRUCT_PRINT_IMPL(struct AstBinaryExpr, print_ast_binary_expr, BINARY_EXPR_STRUCT_DEF)
+error analyze_ast_file(struct AstFile file, struct Environment *env)
+{
+	struct AstDeclaration *current = &file.declarations;
+	while (current != NULL && !ast_is_none(*current)) {
+		struct AstDeclaration *next = current->next;
+		struct Value result = analyze_ast_declaration(*current, env);
+		if (is_poisoned(result)) {
+			// At the moment I will just return on the first poisoned global delcaration.
+			// I can make it continue if I want to later.
+			return ERROR;
+		}
+		current = next;
+	}
 
-GEN_TAGGED_UNION_TAG_PRINT_IMPL(enum AstDeclKind, print_ast_decl_kind, AST_DECL_NODE_TAGGED_UNION_DEF)
-GEN_TAGGED_UNION_PRINT_IMPL(struct AstDeclNode, print_ast_decl_node, AST_DECL_NODE_TAGGED_UNION_DEF)
+	return OK;
+}
 
-GEN_STRUCT_PRINT_IMPL(struct AstDecl, print_ast_decl, AST_DECL_STRUCT_DEF)
-GEN_STRUCT_PRINT_IMPL(struct AstVariableDecl, print_ast_variable_decl, AST_VARIABLE_DECL_STRUCT_DEF)
-GEN_STRUCT_PRINT_IMPL(struct AstConstantDecl, print_ast_constant_decl, AST_CONSTANT_DECL_STRUCT_DEF)
+#define fmt(expr__) fmt_or(expr__, "None()")
+#define fmt_or(expr__, msg__) \
+	do { \
+		formatted += 1; \
+		arrpush(*is_last, false); \
+		if (!ast_is_none((expr__))) (expr__).v_table->print((expr__).data, f, is_last, 0); \
+		else print_custom((msg__), f, is_last); \
+		fprintf(f, "\n"); \
+	} while (0)
+#define fmt_last(expr__) fmt_last_or(expr__, "None()")
+#define fmt_last_or(expr__, msg__) \
+	do { \
+		if (formatted > 0) is_last->items[is_last->len - 1] = true; \
+		else arrpush(*is_last, true); \
+		if (!ast_is_none((expr__))) (expr__).v_table->print((expr__).data, f, is_last, 0); \
+		else print_custom((msg__), f, is_last); \
+		if (is_last->len != 0) arrpop(*is_last); \
+	} while (0)
+
+static void ast_binary_expr_print(struct AstNodeBase *expr, FILE *f, struct BoolList *is_last, int formatted)
+{
+	struct AstBinaryExpr *self = (struct AstBinaryExpr *)expr;
+
+	write_tree_prefix(f, is_last);
+	fprintf(f, "BinaryExpr(%.*s) %u:%u ", SPAN_ARG(self->op.span), LOCATION_ARG(self->base.location));
+	print_typeln(f, expr->type);
+	fmt(self->lhs);
+	fmt_last(self->rhs);
+}
+
+static void ast_unary_expr_print(struct AstNodeBase *expr, FILE *f, struct BoolList *is_last, int formatted)
+{
+	struct AstUnaryExpr *self = (struct AstUnaryExpr *)expr;
+	write_tree_prefix(f, is_last);
+	fprintf(f, "UnaryExpr(%.*s) %u:%u ", SPAN_ARG(self->op.span), LOCATION_ARG(self->base.location));
+	print_typeln(f, expr->type);
+	fmt_last(self->rhs);
+}
+
+static void ast_grouping_expr_print(struct AstNodeBase *expr, FILE *f, struct BoolList *is_last, int formatted)
+{
+	struct AstGroupingExpr *self = (struct AstGroupingExpr *)expr;
+	write_tree_prefix(f, is_last);
+	fprintf(f, "GroupingExpr() %u:%u ", LOCATION_ARG(self->base.location));
+	print_typeln(f, expr->type);
+	fmt_last(self->child);
+}
+
+static void ast_identifier_expr_print(struct AstNodeBase *expr, FILE *f, struct BoolList *is_last, int formatted)
+{
+	struct AstIdentifierExpr *self = (struct AstIdentifierExpr *)expr;
+	unused(formatted);
+
+	write_tree_prefix(f, is_last);
+	fprintf(f, "IdentifieExpr(`%.*s`) %u:%u ", SPAN_ARG(self->token.span), LOCATION_ARG(self->base.location));
+	print_type(f, expr->type);
+}
+
+static void ast_literal_expr_print(struct AstNodeBase *expr, FILE *f, struct BoolList *is_last, int formatted)
+{
+	struct AstLiteralExpr *self = (struct AstLiteralExpr *)expr;
+	unused(formatted);
+
+	write_tree_prefix(f, is_last);
+	fprintf(f, "LiteralExpr(%.*s) %u:%u ", SPAN_ARG(self->token.span), LOCATION_ARG(self->base.location));
+	print_type(f, expr->type);
+}
+
+static void ast_value_expr_print(struct AstNodeBase *expr, FILE *f, struct BoolList *is_last, int formatted)
+{
+	struct AstValueExpr *self = (struct AstValueExpr*)expr;
+	unused(formatted);
+
+	write_tree_prefix(f, is_last);
+	print_value(f, self->value);
+}
+
+static void ast_const_declaration_print(struct AstNodeBase *decl, FILE *f, struct BoolList *is_last, int formatted)
+{
+	struct AstConstDeclaration *self = (struct AstConstDeclaration *)decl;
+
+	write_tree_prefix(f, is_last);
+	fprintf(f, "ConstDeclaration(`%.*s`) %u:%u ", SPAN_ARG(self->name.span), LOCATION_ARG(self->base.location));
+	print_typeln(f, decl->type);
+	fmt_or(self->type, "Untyped()");
+	fmt_last_or(self->value, "Uninit()");
+}
+
+static void ast_var_declaration_print(struct AstNodeBase *decl, FILE *f, struct BoolList *is_last, int formatted)
+{
+	struct AstVarDeclaration *self = (struct AstVarDeclaration *)decl;
+
+	write_tree_prefix(f, is_last);
+	fprintf(f, "VarDeclaration(`%.*s`) %u:%u ", SPAN_ARG(self->name.span), LOCATION_ARG(self->base.location));
+	print_typeln(f, decl->type);
+	fmt_or(self->type, "Untyped()");
+	fmt_last_or(self->value, "Uninit()");
+}
+
+static void print_custom(const char *msg, FILE *f, struct BoolList *is_last)
+{
+	write_tree_prefix(f, is_last);
+	fprintf(f, "%s", msg);
+}
+
+static void print_none(FILE *f, struct BoolList *is_last)
+{
+	print_custom("None()", f, is_last);
+}
+
+static void write_tree_prefix(
+	FILE *f,
+	struct BoolList *is_last)
+{
+	for (size_t i = 0; i + 1 < is_last->len; i += 1) {
+		fprintf(f, "\t");
+		if (!is_last->items[i]) {
+			fprintf(f, "│");
+		}
+	}
+
+	if (is_last->len != 0) {
+		fprintf(f,
+			"\t%s─",
+			is_last->items[is_last->len - 1] ? "└" : "├"
+		);
+	}
+}
