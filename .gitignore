@@ -1,6 +1,11 @@
 .cache/
 .lsp/
+.build/
 build/
+haste
 Release/
 Debug/
 secret/
+.swp
+.direnv
+compile_flags.txt

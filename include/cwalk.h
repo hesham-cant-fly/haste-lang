@@ -1,3 +1,7 @@
+/**
+  * All credits goto: https://github.com/likle/cwalk
+  */
+
 #ifndef CWK_LIBRARY_H_
 #define CWK_LIBRARY_H_
 

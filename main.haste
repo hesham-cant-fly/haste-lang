@@ -1,2 +1,0 @@
-const a: Automatic = 1;
-const Automatic = auto;
