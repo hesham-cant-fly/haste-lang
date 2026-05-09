@@ -1,0 +1,2 @@
+// this is a single line comment
+const a = 1; /* block comment */ const b = 2;

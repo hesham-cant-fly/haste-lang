@@ -9,3 +9,4 @@ secret/
 .swp
 .direnv
 compile_flags.txt
+*.got

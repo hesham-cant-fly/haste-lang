@@ -1,0 +1,4 @@
+const a = 10 + 20;
+const b = 30 - 5;
+const c = 6 * 7;
+const d = 100 / 4;

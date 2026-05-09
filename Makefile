@@ -14,7 +14,7 @@ SRCS:=$(wildcard $(SRC_DIR)*.c)
 OBJS:=$(addprefix $(BUILD_DIR),$(notdir $(SRCS:.c=.o)))
 INCLUDES:=$(wildcard include/*.h)
 
-.PHONY: all gen_compile_flags run clean debug release
+.PHONY: all gen_compile_flags run clean debug release test test-clean
 
 all: debug
 
@@ -47,5 +47,11 @@ $(BUILD_DIR):
 run: $(all)
 	./$(EXE)
 
-clean:
+test: $(EXE)
+	@cd test && ./run_tests.sh
+
+test-clean:
+	rm -f test/*.got test/lexing/*.got test/integration/*.got
+
+clean: test-clean
 	rm -rdf $(OBJS) $(EXE) $(BUILD_DIR) TAGS

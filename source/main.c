@@ -54,8 +54,16 @@ static int custom_format_ast(stream_t stream, struct modifier_stream mod, va_lis
 	return print_haste_ast(stream, node);
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
+	bool dump_tokens = false;
+	bool dump_ast = false;
+
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "--tokens") == 0) dump_tokens = true;
+		else if (strcmp(argv[i], "--ast") == 0) dump_ast = true;
+	}
+
 	setup_io_stream();
 
 	define_format_specifier("span", custom_format_span);
@@ -67,7 +75,6 @@ int main(void)
 	srand(time(NULL));
 	setlocale(LC_ALL, "C.UTF-8");
 
-	// Setup Allocators
 	struct Allocator c_allocator = get_c_allocator();
 	set_default_allocator(c_allocator);
 
@@ -75,7 +82,6 @@ int main(void)
 
 	struct Arena arena = ArenaDefault();
 	struct Allocator allocator = arena_get_allocator(&arena);
-	discard allocator;
 
 	const source_file_id src = obtain_source_file_id(NULL, "./main.haste");
 	struct token_list tokens = {0};
@@ -85,9 +91,14 @@ int main(void)
 		return 1;
 	}
 
-	// arreach (struct token, token, tokens) {
-	// 	println("{token:#}", token);
-	// }
+	if (dump_tokens) {
+		arreach (struct token, tok, tokens) {
+			println("{token:#}", tok);
+		}
+		arrfree(c_allocator, tokens);
+		arena_free(&arena);
+		return 0;
+	}
 
 	err = parse(allocator, tokens, src);
 	if (err) {
@@ -104,22 +115,17 @@ int main(void)
 		return 1;
 	}
 
-	// print_haste_ast(stdout, get_source_file_ast(src));
-
-	// {
-	// 	struct haste_declarations declarations = get_source_file_declarations(src);
-	// 	arreach (declarations, i) {
-	// 		struct haste_declaration decl = declarations.items[i];
-	// 		fprintf(stderr, "%s -> %p\n", decl.key, (void*)decl.node);
-	// 	}
-	// }
+	if (dump_ast) {
+		println("{ast}", get_source_file_ast(src));
+		arena_free(&arena);
+		return 0;
+	}
 
 	err = analyze(c_allocator, allocator, src);
 	if (err) {
 		arena_free(&arena);
 		return 1;
 	}
-	// println("{ast}", get_source_file_ast(src));
 	err = codegen(c_allocator, src);
 	if (err) {
 		arena_free(&arena);

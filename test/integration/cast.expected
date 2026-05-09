@@ -1,0 +1,6 @@
+; ModuleID = 'main.haste'
+source_filename = "main.haste"
+
+@a = constant float 0x40091EB860000000
+@b = constant i32 3
+@c = constant float 4.200000e+01

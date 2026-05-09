@@ -1,0 +1,3 @@
+const a: float = 3.14;
+const b: int = cast[int]a;
+const c: float = cast[float]42;

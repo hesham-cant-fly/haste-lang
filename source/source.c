@@ -87,7 +87,7 @@ enum source_file_type get_file_type(const char *path)
 		return SRC_UNKNOWN;
 	}
 
-	if (strcmp(extension, ".haste")) {
+	if (strcmp(extension, ".haste") == 0) {
 		return SRC_HASTE;
 	} else {
 		return SRC_UNKNOWN;

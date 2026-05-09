@@ -1,0 +1,3 @@
+const foo = 1;
+const _bar = 2;
+const $baz = 3;
