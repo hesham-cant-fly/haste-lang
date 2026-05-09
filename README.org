@@ -3,7 +3,7 @@
 Haste is a general-purpose programming language designed with a focus on game development and system programming. It’s built to reflect my own programming style and preferences. In many ways, Haste is simply the kind of language I would enjoy using. You might not agree with all of its design decisions, and that’s perfectly fine. After all, it’s shaped by my own philosophies.
 
 #+begin_src haste
-const main() {
+func main() = {
   @println("Hello, World!"); // anything that starts with `@` is consider as macro expantion
 
   const mini_program = "++-++++** / * *";
@@ -20,7 +20,7 @@ const main() {
   }
 
   @println("Result: {}", result);
-}
+};
 #+end_src
 
 * Inspirations

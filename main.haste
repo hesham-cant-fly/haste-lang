@@ -1,0 +1,6 @@
+const Number = int;
+
+const a: int = 67;
+const b: Number = 31;
+const c: float = 6.1;
+const d = cast[Number]c + 1;
