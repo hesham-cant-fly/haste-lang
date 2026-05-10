@@ -48,7 +48,7 @@ run: $(all)
 	./$(EXE)
 
 test: $(EXE)
-	@cd test && ./run_tests.sh
+	@cd test && python3 ./run_tests.py
 
 test-clean:
 	rm -f test/*.got test/lexing/*.got test/integration/*.got

@@ -10,11 +10,10 @@ struct scanner {
 };
 
 static void populate_token_value(struct token *tok) {
-	char buf[64]; 
-	size_t copy_len = tok->len < 63 ? tok->len : 63;
-	memcpy(buf, tok->start, copy_len);
-	buf[copy_len] = '\0';
+	struct Allocator allocator = get_temporary_allocator();
+	char *buf = nclone_string(allocator, tok->start, tok->len); 
 
+	// TODO: check if integers overflows
     switch (tok->kind) {
 	case TK_INT:
 		tok->ival = strtoll(buf, NULL, 10);
@@ -68,7 +67,10 @@ static uint32_t advance_if_eq(struct scanner *self, uint32_t ch)
 
 static bool matches(struct scanner *self, char *str)
 {
+	const size_t remaining = self->current - self->start;
 	const size_t str_len = strlen(str);
+	if (str_len < remaining) return false;
+
 	const bool result = strncmp(self->current, str, str_len) == 0;
 	if (!result) return false;
 
@@ -82,10 +84,8 @@ static bool matches(struct scanner *self, char *str)
 static bool matches_any(struct scanner *self, char *str)
 {
 	const size_t str_len = strlen(str);
-	for (size_t i=0; i < str_len; i += 1)
-	{
-		if (advance_if_eq(self, str[i]))
-		{
+	for (size_t i=0; i < str_len; i += 1) {
+		if (advance_if_eq(self, str[i])) {
 			return true;
 		}
 	}
@@ -147,6 +147,7 @@ static void scan_lexem(struct scanner *self)
 		return;
 	}
 
+	// NOTE: No need for an optimization
 	const struct { const char *str; enum token_kind kind; } keywords[] = {
 		{"int", TK_KW_INT},
 		{"float", TK_KW_FLOAT},
@@ -165,8 +166,8 @@ static void scan_lexem(struct scanner *self)
 	}
 
 	if (matches_any(self, "abcdefghijklmnopqrstuvwxyz"
-	                          "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	                          "$_")) {
+	                      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	                      "$_")) {
 		advance_all(self, "abcdefghijklmnopqrstuvwxyz"
 	                          "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 							  "0123456789"

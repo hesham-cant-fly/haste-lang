@@ -258,8 +258,7 @@ static struct haste_value analyze_node(struct analyzer *self, struct haste_ast_n
 		}
 		node->type = type;
 		node->variable.is_explicitly_comptime = is_explicitly_comptime;
-		node->variable.value->type = typeof(value);
-		node_transform(node->variable.value, ND_VALUE, value = value);
+		node->variable.value = node_into_value(self->arena_allocator, node->variable.value, value);
 
 		run_at_percent (0.67) {
 			if (value_equal(value, VAL_UNTYPED_INT(67))) {

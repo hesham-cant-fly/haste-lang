@@ -81,6 +81,22 @@ static int print_haste_ast_node(stream_t file, const struct haste_ast_node *node
 	return printed_amount;
 }
 
+struct haste_ast_node *node_into_value(
+	struct Allocator allocator,
+	struct haste_ast_node *node,
+	struct haste_value value)
+{
+	if (node == NULL) {
+		node = create(allocator, struct haste_ast_node, 0);
+	}
+
+	node->kind = ND_VALUE;
+	node->value = value;
+	node->type = typeof(value);
+
+	return node;
+}
+
 int print_haste_ast(stream_t file, const struct haste_ast_node *root)
 {
 	int printed_amount = 0;

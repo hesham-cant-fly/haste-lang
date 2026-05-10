@@ -56,6 +56,15 @@ static const char *span_to_tstr(struct span span)
 	return nclone_string(get_temporary_allocator(), span.start, span.len);
 }
 
+LLVMValueRef codegen_expr(struct codegen_context *ctx, const struct haste_ast_node *node)
+{
+	switch (node->kind) {
+	case ND_VALUE:
+		return value_to_llvm_value(ctx, node->value);
+	default: unimplemented();
+	}
+}
+
 Error codegen_global_node(struct codegen_context *ctx, const struct haste_ast_node *node)
 {
 	switch (node->kind) {
@@ -64,7 +73,12 @@ Error codegen_global_node(struct codegen_context *ctx, const struct haste_ast_no
 		LLVMTypeRef type = value_to_llvm_type(ctx, node->type);
 		const char *name = tsprint("{token}", node->variable.name);
 		LLVMValueRef global = LLVMAddGlobal(ctx->module, type, name);
-		LLVMValueRef value = value_to_llvm_value(ctx, node->variable.value->value); // TODO: this is bad
+		LLVMValueRef value = {0};
+		if (node->variable.value != NULL) {
+			value = codegen_expr(ctx, node->variable.value);
+		} else {
+			value = LLVMConstNull(type);
+		}
 		LLVMSetInitializer(global, value);
 		LLVMSetGlobalConstant(global, node->variable.is_constant);
 	} break;

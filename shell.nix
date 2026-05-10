@@ -2,6 +2,7 @@
 
 pkgs.mkShell.override { stdenv = pkgs.clangStdenv; } {
   nativeBuildInputs = with pkgs; [
+    python3
     findutils
 
     clang-tools

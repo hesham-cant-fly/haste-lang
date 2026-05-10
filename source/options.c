@@ -32,7 +32,7 @@ Error parse_arguments(const int argc, const char *argv[argc], struct options *ou
 			out->dump_llvm = true;
 		} else if (strcmp(argv[i], "--help") == 0) {
 			print_usage(sout, argv[0]);
-			return ERROR;
+			return OK;
 		} else if (argv[i][0] == '-') {
 			eprintln("error: unknown option '{s}'\n", argv[i]);
 			print_usage(serr, argv[0]);

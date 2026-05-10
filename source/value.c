@@ -1,4 +1,5 @@
 #include "haste.h"
+#include <signal.h>
 
 #define ASSERT_IS_TYPE(...) \
 	do { \
@@ -31,58 +32,6 @@ struct haste_value ty_auto = VAL_OBJ(&OBJ_TYPE(
 	.kind = HASTE_TY_AUTO));
 struct haste_value ty_void = VAL_OBJ(&OBJ_TYPE(
 	.kind = HASTE_TY_VOID));
-
-// static bool basic_type_can_do_arithmatic(const struct haste_value t1,
-//                                          const struct haste_value t2)
-// {
-// 	ASSERT_IS_TYPE(t1);
-// 	ASSERT_IS_TYPE(t2);
-
-// 	if (not type_is_number(t1)) return false;
-// 	if (not type_is_number(t2)) return false;
-// 	if (type_equal(t1, t2))     return true;
-
-// 	// untyped_float + anyfloat
-// 	// untyped_float + untyped_int
-// 	if (type_equal(t1, ty_untyped_float)) {
-// 		return type_is_float(t2) or type_equal(t2, ty_untyped_int);
-// 	}
-
-// 	// untyped_int + anynumber
-// 	if (type_equal(t1, ty_untyped_int)) {
-// 		return type_is_number(t2);
-// 	}
-
-// 	return false;
-// }
-
-// bool type_can_add(const struct haste_value lhs, const struct haste_value rhs)
-// {
-// 	ASSERT_IS_TYPE(lhs);
-// 	ASSERT_IS_TYPE(rhs);
-// 	return basic_type_can_do_arithmatic(lhs, rhs);
-// }
-
-// bool type_can_sub(const struct haste_value lhs, const struct haste_value rhs)
-// {
-// 	ASSERT_IS_TYPE(lhs);
-// 	ASSERT_IS_TYPE(rhs);
-// 	return basic_type_can_do_arithmatic(lhs, rhs);
-// }
-
-// bool type_can_mul(const struct haste_value lhs, const struct haste_value rhs)
-// {
-// 	ASSERT_IS_TYPE(lhs);
-// 	ASSERT_IS_TYPE(rhs);
-// 	return basic_type_can_do_arithmatic(lhs, rhs);
-// }
-
-// bool type_can_div(const struct haste_value lhs, const struct haste_value rhs)
-// {
-// 	ASSERT_IS_TYPE(lhs);
-// 	ASSERT_IS_TYPE(rhs);
-// 	return basic_type_can_do_arithmatic(lhs, rhs);
-// }
 
 enum arith_op {
 	ARITH_ADD,
@@ -188,6 +137,17 @@ struct haste_value value_cast(const struct haste_value to, const struct haste_va
 	if (type_equal(to, value_type)) return value;
 	if (IS_RUNTIME(value)) unimplemented();
 
+	/* uninit -> any */
+	if (value_equal(value, VAL_UNINIT)) {
+		if (type_equal(to, ty_int)) {
+			return VAL_INT(0);
+		}
+		if (type_equal(to, ty_float)) {
+			return VAL_FLOAT(0.0f);
+		}
+		unreachable();
+	}
+
 	/* untyped_int -> int, float */
 	if (type_equal(value_type, ty_untyped_int)) {
 		if (type_equal(to, ty_int)) {
@@ -241,7 +201,9 @@ struct haste_value typeof_object(const struct haste_object *obj)
 struct haste_value typeof(const struct haste_value value)
 {
 	switch (value.kind) {
-	case HASTE_VL_NONE:          unreachable();
+	case HASTE_VL_NONE:
+		raise(SIGSEGV); // ragebait ASAN
+		unreachable();
 	case HASTE_VL_UNINIT:        return ty_unknown;
 	case HASTE_VL_INT:           return ty_int;
 	case HASTE_VL_UNTYPED_INT:   return ty_untyped_int;
@@ -267,7 +229,7 @@ bool value_equal(struct haste_value a, struct haste_value b)
 {
 	switch (a.kind) {
 	case HASTE_VL_NONE:          return false;
-	case HASTE_VL_UNINIT:        return false; // TODO: Look more into this
+	case HASTE_VL_UNINIT:        return b.kind == HASTE_VL_UNINIT;
 	case HASTE_VL_INT:
 	case HASTE_VL_UNTYPED_INT:
 		if (b.kind != HASTE_VL_INT and b.kind != HASTE_VL_UNTYPED_INT) return false;
@@ -308,10 +270,10 @@ bool type_can_assign(const struct haste_value assignable,
 	ASSERT_IS_TYPE(value);
 	assert(not type_is_untyped(assignable) and "the assignable shouldn't be untyped.");
 
-	if (type_equal(assignable, ty_auto))  return true;
 	if (type_equal(assignable, value))    return true;
-	if (type_equal(assignable, ty_int))   return type_is_integer(value);
-	if (type_equal(assignable, ty_float)) return type_is_untyped_number(value);
+	if (type_equal(assignable, ty_auto))  return not type_equal(value, ty_unknown);
+	if (type_equal(assignable, ty_int))   return type_equal(value, ty_unknown) or type_is_integer(value);
+	if (type_equal(assignable, ty_float)) return type_equal(value, ty_unknown) or type_is_untyped_number(value);
 
 	return false;
 }
@@ -322,9 +284,10 @@ bool type_can_cast(const struct haste_value to,
 	ASSERT_IS_TYPE(to);
 	ASSERT_IS_TYPE(from);
 
-	if (type_equal(to, ty_auto)) return true;
-	if (type_equal(to, from))    return true;
-	if (type_is_number(to))      return type_is_number(from);
+	if (type_equal(from, ty_unknown)) return true;
+	if (type_equal(to, ty_auto))      return true;
+	if (type_equal(to, from))         return true;
+	if (type_is_number(to))           return type_is_number(from);
 
 	return false;
 }

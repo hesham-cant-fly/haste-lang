@@ -1,5 +1,5 @@
-#ifndef DREAMC_H_
-#define DREAMC_H_
+#ifndef HASTE_H_
+#define HASTE_H_
 
 #include "cwalk.h"
 #include "my_allocator.h"
@@ -412,6 +412,10 @@ struct haste_ast_node {
 		(node_) ->__VA_ARGS__; \
 	} while (0)
 
+struct haste_ast_node * node_into_value(
+	struct Allocator allocator,
+	struct haste_ast_node *node,
+	struct haste_value value);
 int print_haste_ast(stream_t file, const struct haste_ast_node *root);
 bool node_is_declaration(const struct haste_ast_node *node);
 
@@ -459,4 +463,4 @@ Error analyze(struct Allocator allocator, struct Allocator arena_allocator, cons
 //
 Error codegen(struct Allocator allocator, const source_file_id src);
 
-#endif // !DREAMC_H_
+#endif // !HASTE_H_

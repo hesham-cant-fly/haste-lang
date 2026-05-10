@@ -1,0 +1,49 @@
+* TODO Haste Compiler Improvements
+
+** Bugs / Correctness
+
+*** DONE Fix include guard in haste.h
+    haste.h:1 has =DREAMC_H_= as the include guard — leftover from an old
+    project name. Should be =HASTE_H_=.
+
+*** DONE Fix token-boundary bug in keyword matching
+    scanner.c:160-165 uses =matches()= which calls =strncmp= with no
+    token-boundary check. Input like =intx= incorrectly matches the keyword
+    =int=, advances 3 chars, and leaves =x= dangling.
+
+*** DONE Remove 64-byte limit in =populate_token_value=
+    scanner.c:12-16 uses a stack buffer of 64 bytes and silently truncates
+    integer/float literals longer than 63 characters, which can give wrong
+    parse results. Use dynamic allocation or reject overlong literals.
+
+*** DONE Fix unsafe dereference in codegen
+    codegen.c:67 accesses =node->variable.value->value= without checking
+    the node is =ND_VALUE= (the TODO comment even says "this is bad").
+    Will crash if the value wasn't constant-folded.
+
+*** DONE Fix --help exit code
+    options.c:35 returns =ERROR= (exit 1) after printing help. Should
+    return =OK= (exit 0).
+
+** Architecture / Design
+*** TODO Implement statement parsing
+    parse.c only handles =const/var= declarations. The example files
+    show =func=, =if=, =match=, =for=, block statements — none of these
+    are parseable yet.
+
+*** TODO Complete LLVM codegen
+    codegen.c only handles global =const/var=. Missing:
+    - Function codegen with parameters and return values
+    - Control flow (if/else, loops)
+    - String constants
+      
+*** TODO Implement string literal scanning
+    scanner.c declares =TK_STR= but never produces string tokens. The
+    scanner needs to handle ="..."= literals with escape sequences.
+
+** Code Quality / Maintainability
+
+*** DONE Remove dead commented-out code in value.c
+    ~60 lines of commented-out code (=type_can_add=, =type_can_sub=,
+    =type_can_mul=, =type_can_div=, =basic_type_can_do_arithmatic=).
+    Clean up.
