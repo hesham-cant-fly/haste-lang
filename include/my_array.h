@@ -88,25 +88,4 @@
 #define marrcap(array__) ((array__).len)
 #define marrget(array__, index__) ((array__).items[index__])
 
-#ifndef iarreach
-#  define iarreach(index__, array__) \
-	for (size_t index__ = 0; (index__) < (array__).len; (index__) += 1)
-#endif // !iarreach
-#ifndef arreach
-#  define arreach(type_, var_, arr_) \
-	for (type_ *var_##_ptr_ = (arr_).items, \
-	           *var_##_tmp_ = (void*)1, \
-               *var_##_end_ = (arr_).items + (arr_).len; \
-         var_##_ptr_ < var_##_end_; \
-         var_##_ptr_ += 1, var_##_tmp_ = (void*)1) \
-        for (type_ var_ = *var_##_ptr_; var_##_tmp_; var_##_tmp_ = NULL)
-#endif // !arreach
-
-// #define arrprint(array__, fmt__) \
-// 	do { \
-// 		arreach((array__), i__) {	\
-// 			printf((fmt__), (array__).items[i__]);	\
-// 		} \
-// 	} while (0)
-
 #endif // !MY_ARRAY_H_

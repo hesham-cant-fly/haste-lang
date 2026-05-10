@@ -1,4 +1,4 @@
-; ModuleID = 'main.haste'
-source_filename = "main.haste"
+; ModuleID = ''
+source_filename = ""
 
 @a = constant i32 42

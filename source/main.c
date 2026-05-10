@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <locale.h>
+#define MY_COMMONS_IMPLEMENTATION
 #define MY_ALLOCATOR_IMPL
 #define MY_ARENA_ALLOCATOR_IMPL
 #define MY_C_ALLOCATOR_IMPL
@@ -54,17 +55,13 @@ static int custom_format_ast(stream_t stream, struct modifier_stream mod, va_lis
 	return print_haste_ast(stream, node);
 }
 
-int main(int argc, char **argv)
+int main(int argc, char *argv[argc])
 {
-	bool dump_tokens = false;
-	bool dump_ast = false;
-
-	for (int i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "--tokens") == 0) dump_tokens = true;
-		else if (strcmp(argv[i], "--ast") == 0) dump_ast = true;
-	}
-
 	setup_io_stream();
+
+	struct options options = {0};
+	Error err = parse_arguments(argc, (const char **)argv, &options);
+	if (err) return 1;
 
 	define_format_specifier("span", custom_format_span);
 	define_format_specifier("token", custom_format_token);
@@ -83,15 +80,15 @@ int main(int argc, char **argv)
 	struct Arena arena = ArenaDefault();
 	struct Allocator allocator = arena_get_allocator(&arena);
 
-	const source_file_id src = obtain_source_file_id(NULL, "./main.haste");
+	const source_file_id src = obtain_source_file_id(NULL, options.source_path);
 	struct token_list tokens = {0};
-	Error err = scan_entire_file(c_allocator, src, &tokens);
+	err = scan_entire_file(c_allocator, src, &tokens);
 	if (err) {
 		arena_free(&arena);
 		return 1;
 	}
 
-	if (dump_tokens) {
+	if (options.dump_tokens) {
 		arreach (struct token, tok, tokens) {
 			println("{token:#}", tok);
 		}
@@ -115,7 +112,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	if (dump_ast) {
+	if (options.dump_ast) {
 		println("{ast}", get_source_file_ast(src));
 		arena_free(&arena);
 		return 0;
@@ -126,6 +123,12 @@ int main(int argc, char **argv)
 		arena_free(&arena);
 		return 1;
 	}
+	if (options.dump_sema) {
+		println("{ast}", get_source_file_ast(src));
+		arena_free(&arena);
+		return 0;
+	}
+
 	err = codegen(c_allocator, src);
 	if (err) {
 		arena_free(&arena);

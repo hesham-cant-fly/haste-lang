@@ -3,6 +3,7 @@
 
 #include "cwalk.h"
 #include "my_allocator.h"
+#include "my_common.h"
 #include "my_c_allocator.h"
 #include "my_arena_allocator.h"
 #include "my_temporary_allocator.h"
@@ -18,7 +19,6 @@
 #else
 #  define Break() do {} while (0)
 #endif
-#define discard (void)
 #define Exit(...) \
 	do { \
 		Break(); \
@@ -31,36 +31,24 @@
 		Break(); \
 		exit(1); \
 	} while (0)
-#define unreachable() \
-	do { \
-		fprintf(stderr, "%s:%d: Error: reached unreachable code.\n", __FILE__, __LINE__);\
-		Break(); \
-		exit(1); \
-	} while (0)
-#define unimplemented() \
-	do { \
-		fprintf(stderr, "%s:%d: Error: this is not implemented yet.\n", __FILE__, __LINE__);\
-		Break(); \
-		exit(1); \
-	} while (0)
-
-#define leach(T_, name_, ...) \
-	for (T_ *name_ = (__VA_ARGS__); (name_) != NULL; (name_) = (name_)->next)
-
-#define then ?
-#define otherwise :
-
-#define or ||
-#define and &&
-#define not !
-
-#define frand() ((float)rand() / (float)RAND_MAX)
-#define run_at_percent(...) if ((frand() * 100.0) <= ((__VA_ARGS__)))
 
 typedef enum Error {
 	OK = 0,
 	ERROR = 1,
 } Error;
+
+//
+// options.c
+//
+struct options {
+	bool dump_tokens : 1;
+	bool dump_ast    : 1;
+	bool dump_sema   : 1;
+	bool dump_llvm   : 1;
+	const char *source_path;
+};
+
+Error parse_arguments(const int argc, const char *argv[argc], struct options *out);
 
 //
 // span.c

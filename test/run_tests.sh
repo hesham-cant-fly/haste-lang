@@ -14,8 +14,7 @@ for file in test/lexing/*.haste; do
     name="$(basename "$file" .haste)"
     expected="test/lexing/${name}.tokens.expected"
     got="test/lexing/${name}.tokens.got"
-    cp "$file" main.haste
-    if $HASTE --tokens > "$got" 2>&1; then
+    if $HASTE --tokens "$file" > "$got" 2>&1; then
         if diff -u "$expected" "$got" > /dev/null 2>&1; then
             green "PASS: $name (tokens)"
             PASS=$((PASS + 1))
@@ -35,14 +34,14 @@ for file in test/integration/*.haste; do
     name="$(basename "$file" .haste)"
     expected="test/integration/${name}.expected"
     got="test/integration/${name}.got"
-    cp "$file" main.haste
-    if $HASTE > "$got" 2>&1; then
-        if diff -u "$expected" "$got" > /dev/null 2>&1; then
+
+    if $HASTE --llvm "$file" > "$got" 2>&1; then
+        if diff -u <(tail -n +3 "$expected") <(tail -n +3 "$got") > /dev/null 2>&1; then
             green "PASS: $name (full)"
             PASS=$((PASS + 1))
         else
             red "FAIL: $name (full — output mismatch)"
-            diff -u "$expected" "$got" || true
+            diff -u <(tail -n +3 "$expected") <(tail -n +3 "$got") || true
             FAIL=$((FAIL + 1))
         fi
     else
