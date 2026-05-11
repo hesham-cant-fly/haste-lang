@@ -1,0 +1,208 @@
+#+TITLE: Haste Language — Implemented Features
+#+DATE: 2026-05-11
+
+* Declarations
+
+** =const= — Immutable binding
+
+#+BEGIN_SRC haste
+const name = value;
+const name: type = value;
+const name: type;
+#+END_SRC
+
+- Without a value, the type must be specified; the default for that type is used
+- =const= with a =type= value creates a type alias: =const MyInt = int=
+
+** =var= — Mutable binding
+
+#+BEGIN_SRC haste
+var name = value;
+var name: type = value;
+var name: type;
+#+END_SRC
+
+- Same syntax as =const= (mutable, though only =const= is fully tested at global scope)
+
+* Types
+
+** Primitive types
+
+| Type | Description | Default |
+|------+-------------+---------|
+| =int= | Signed 32-bit integer | =0= |
+| =float= | 32-bit float | =0.0= |
+| =string= | String slice =(data_ptr, length)= | empty string |
+| =cstr= | Null-terminated C string pointer | empty string |
+| =void= | No value | — |
+| =type= | The type of types | — |
+
+** Untyped literal types (no keyword — arise from literals)
+
+| Type | From | Behavior |
+|------+------+----------|
+| =untyped_int= | =42= | Coerces to =int= or =float= on assignment |
+| =untyped_float= | =3.14= | Coerces to =float= on assignment |
+| =untyped_string= | ="hello"= | Coerces to =string= or =cstr= on assignment |
+
+- =auto= in type position means "infer from the initializer"
+
+* Expressions
+
+** Literals
+
+#+BEGIN_SRC haste
+42        // untyped_int
+3.14      // untyped_float
+"hello"   // untyped_string
+name      // resolved from scope
+#+END_SRC
+
+** String escape sequences
+
+| Sequence | Result |
+|----------+--------|
+| =\n= | newline |
+| =\t= | tab |
+| =\r= | carriage return |
+| =\0= | null byte |
+| =\\= | backslash |
+| =\"= | double quote |
+
+** Grouping
+
+#+BEGIN_SRC haste
+(expression)
+#+END_SRC
+
+** Unary operators
+
+#+BEGIN_SRC haste
++expression
+-expression
+#+END_SRC
+
+** Binary operators
+
+#+BEGIN_SRC haste
+left + right
+left - right
+left * right
+left / right
+#+END_SRC
+
+** Type cast
+
+#+BEGIN_SRC haste
+cast[target_type] expression
+#+END_SRC
+
+* Type rules
+
+** Arithmetic
+
+- Typed + typed of different types → error (=int + float= is rejected)
+- Untyped + untyped → untyped result (=untyped_int + untyped_float → untyped_float=)
+- Typed + untyped → typed result (untyped coerces)
+- Division by zero → compile-time error
+
+** Assignment compatibility
+
+| Declared type | Accepts |
+|---------------+---------|
+| =int= | =int=, =untyped_int== |
+| =float= | =float=, =untyped_int=, =untyped_float= |
+| =string= | =string=, =untyped_string= |
+| =cstr= | =cstr=, =untyped_string= |
+| =auto= | anything |
+
+** Allowed casts (=cast[Target]source=)
+
+| Source | Target |
+|--------+--------|
+| =untyped_int= | =int=, =float= |
+| =untyped_float= | =float=, =int= |
+| =int= | =float= |
+| =float= | =int= |
+| =untyped_string= | =string=, =cstr= |
+| =string= | =cstr= |
+| =cstr= | =string= |
+
+* Comments
+
+#+BEGIN_SRC haste
+// Single-line
+
+/* Block */
+#+END_SRC
+
+* Compile-time evaluation
+
+- All =const= declarations with literal or constant-foldable values are evaluated at compile time
+- Arithmetic on literals is constant-folded
+- Forward references across top-level declarations are supported (hoisting)
+- Type aliases resolve at compile time
+
+* Examples
+
+** Constants with explicit types
+
+#+BEGIN_SRC haste
+const a: int = 42;
+const b: float = 3.14;
+const c: string = "hello";
+const d: cstr = "world";
+#+END_SRC
+
+** Compile-time arithmetic
+
+#+BEGIN_SRC haste
+const a = 10 + 20;   // 30
+const b = 50 - 15;   // 35 (untyped)
+const c = 6 * 7;     // 42
+const d = 100 / 4;   // 25
+#+END_SRC
+
+** Mixed untyped/typed arithmetic
+
+#+BEGIN_SRC haste
+const a: float = 10 + 3.5;   // 13.5
+const b: float = 7.5 - 2;    // 5.5
+#+END_SRC
+
+** Type casts
+
+#+BEGIN_SRC haste
+const a: float = 3.14;
+const b: int = cast[int]a;           // 3
+const c: float = cast[float]42;      // 42.0
+const d: string = cast[string]"hello";
+const e: cstr = cast[cstr]"world";
+const f: string = cast[string]e;     // cstr → string
+const g: cstr = cast[cstr]d;         // string → cstr
+#+END_SRC
+
+** Default values
+
+#+BEGIN_SRC haste
+const a: int;       // 0
+const b: float;     // 0.0
+const c: string;    // ""
+const d: cstr;      // ""
+#+END_SRC
+
+** Type alias
+
+#+BEGIN_SRC haste
+const Number = int;
+const a: Number = 42;
+const b = cast[Number]3.14;   // 3
+#+END_SRC
+
+** Forward references
+
+#+BEGIN_SRC haste
+const a = b + 1;     // 5.0
+const b = c * 2;     // 4.0
+const c: float = 2;
+#+END_SRC

@@ -1,2 +1,1 @@
-const a: string = "string";
-const b: cstr = cast[cstr] a;
+const a: int = 1.1;
