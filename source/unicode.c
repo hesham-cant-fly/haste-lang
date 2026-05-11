@@ -85,7 +85,7 @@ static bool in_range(uint32_t *range, uint32_t c) {
 	uint32_t end = UINT32_MAX;
 
 	for (int i = 0; range[i] != end; i += 2) {
-		if (range[i] <= c && c <= range[i + 1]) {
+		if (range[i] <= c and c <= range[i + 1]) {
 			return true;
 		}
 	}
@@ -131,7 +131,7 @@ bool is_ident2(uint32_t c) {
 		0xFE20, 0xFE2F, -1,
 	};
 
-	return is_ident1(c) || in_range(range, c);
+	return is_ident1(c) or in_range(range, c);
 }
 
 // Returns the number of columns needed to display a given

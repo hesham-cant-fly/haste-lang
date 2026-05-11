@@ -35,7 +35,7 @@ static struct token peek(const struct parser *self);
 
 static bool ended(const struct parser *self)
 {
-	return peek(self).kind == TK_EOF || self->current >= self->tokens.len;
+	return peek(self).kind == TK_EOF or self->current >= self->tokens.len;
 }
 
 static struct token get_eof(const struct parser *self)
@@ -149,7 +149,7 @@ static struct token consume(struct parser *self, enum token_kind kind, const cha
 	va_start(args, fmt);
 	vreport_error(self, fmt, args);
 	va_end(args);
-	exit(0);
+	exit(1);
 }
 
 struct haste_ast_node *binary(struct parser *self, struct haste_ast_node *lhs)
@@ -332,7 +332,7 @@ static struct haste_ast_node *decl(struct parser *self, const bool error_on_unex
 		return node;
 	}
 
-	if (!error_on_unexpected) return NULL;
+	if (not error_on_unexpected) return NULL;
 	report_error_at(
 		self,
 		token,
@@ -352,7 +352,7 @@ Error parse(struct Allocator allocator, const struct token_list tokens, const so
 
 	struct haste_ast_node head = {0};
 	struct haste_ast_node *current = &head;
-	while (!ended(&parser)) {
+	while (not ended(&parser)) {
 		struct haste_ast_node *node = decl(&parser, true);
 		current->next = node;
 		current = current->next;

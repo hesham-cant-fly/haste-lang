@@ -95,7 +95,7 @@ static bool matches_any(struct scanner *self, char *str)
 
 static void advance_until(struct scanner *self, uint32_t ch)
 {
-	while (!check(self, ch))
+	while (not check(self, ch))
 	{
 		advance(self);
 	}
@@ -163,7 +163,7 @@ static void scan_lexem(struct scanner *self)
 		advance_all(self, "0123456789");
 		const bool is_float = advance_if_eq(self, '.');
 		if (is_float) advance_all(self, "0123456789");
-		add_token(self, is_float ? TK_FLOAT : TK_INT);
+		add_token(self, is_float then TK_FLOAT otherwise TK_INT);
 		return;
 	}
 
@@ -261,7 +261,7 @@ static void scan_lexem(struct scanner *self)
 
 static void start_scanning(struct scanner *self)
 {
-	while (!ended(self)) {
+	while (not ended(self)) {
 		advance_all(self, " \n\t\r");
 
 		self->line = self->current_line;

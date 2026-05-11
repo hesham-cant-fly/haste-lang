@@ -4,7 +4,7 @@ CC:=clang
 CXX:=clang++
 
 DEBUG_FLAGS:=-g -fsanitize=undefined,address -Og -DDEBUG -Wall -Wextra -Wpedantic -Werror -Wno-unused-function
-RELEASE_FLAGS:=-O2
+RELEASE_FLAGS:=-O3
 
 EXE:=haste
 

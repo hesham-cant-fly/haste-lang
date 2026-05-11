@@ -9,11 +9,11 @@ struct span span_to_trimed(struct span span)
 		return result;
 	}
 
-	while (isspace(result.start[result.len - 1]) && result.len > 0) {
+	while (isspace(result.start[result.len - 1]) and result.len > 0) {
 		result.len -= 1;
 	}
 
-	while (isspace(*result.start) && *result.start != '\0' && result.len != 0) {
+	while (isspace(*result.start) and *result.start != '\0' and result.len != 0) {
 		result.start += 1;
 		result.len -= 1;
 	}

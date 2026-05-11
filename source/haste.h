@@ -246,7 +246,7 @@ int display_width(const char *p, int len, source_file_id src);
 //
 // value.c
 //
-#  define VAL_NONE               ((struct haste_value) { .kind = HASTE_VL_NONE })
+#  define VAL_BAD               ((struct haste_value) { .kind = HASTE_VL_BAD })
 #  define VAL_UNINIT             ((struct haste_value) { .kind = HASTE_VL_UNINIT })
 #  define VAL_INT(...)           ((struct haste_value) { .kind = HASTE_VL_INT, .integer = (__VA_ARGS__) })
 #  define VAL_UNTYPED_INT(...)   ((struct haste_value) { .kind = HASTE_VL_UNTYPED_INT, .integer = (__VA_ARGS__) })
@@ -257,7 +257,7 @@ int display_width(const char *p, int len, source_file_id src);
 
 #  define OBJ_TYPE(...)          ((struct haste_object_type) { .base = { .kind = HASTE_OBJ_TYPE, }, __VA_ARGS__ })
 
-#  define IS_NONE(...)           ((__VA_ARGS__).kind == HASTE_VL_NONE)
+#  define IS_BAD(...)           ((__VA_ARGS__).kind == HASTE_VL_BAD)
 #  define IS_UNINIT(...)         ((__VA_ARGS__).kind == HASTE_VL_UNINIT)
 #  define IS_INT(...)            ((__VA_ARGS__).kind == HASTE_VL_INT)
 #  define IS_FLOAT(...)          ((__VA_ARGS__).kind == HASTE_VL_FLOAT)
@@ -270,7 +270,7 @@ int display_width(const char *p, int len, source_file_id src);
 #  define OAS_TYPE(...)          ((struct haste_object_type *)(__VA_ARGS__))
 struct haste_value {
 	enum haste_value_kind {
-		HASTE_VL_NONE,          // it means something bad.
+		HASTE_VL_BAD,          // it means something bad.
 		HASTE_VL_UNINIT,
 		HASTE_VL_INT,           // integer
 		HASTE_VL_UNTYPED_INT,   // integer
@@ -345,7 +345,7 @@ struct haste_value value_div(const struct haste_value lhs, const struct haste_va
   *           its an untyped type. this function will crash
   *           if its `ty_auto'. this function will crash
   * @param value can be any value
-  * @returns `value' casted to the type `to'. upon failing it will return `VAL_NONE'
+  * @returns `value' casted to the type `to'. upon failing it will return `VAL_BAD'
   */
 struct haste_value value_cast(const struct haste_value to, const struct haste_value value);
 

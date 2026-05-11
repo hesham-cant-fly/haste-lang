@@ -2,7 +2,7 @@
 
 static struct token declaration_name(struct haste_ast_node *node)
 {
-	assert(node_is_declaration(node) && "Has to be a declaration.");
+	assert(node_is_declaration(node) and "Has to be a declaration.");
 
 	switch (node->kind) {
 	case ND_VAR_DECL:
@@ -18,7 +18,7 @@ Error hoist(struct Allocator allocator,
 {
 	struct haste_ast_node *root = get_source_file_ast(src);
 	leach (struct haste_ast_node, current, root) {
-		assert(node_is_declaration(current) && "Has to be a declaration.");
+		assert(node_is_declaration(current) and "Has to be a declaration.");
 
 		struct token name = declaration_name(current);
 		char *id = nclone_string(arena_allocator, name.start, name.len);

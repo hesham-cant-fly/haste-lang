@@ -56,8 +56,12 @@ static struct haste_value value_do_arith(
 	const struct haste_value rhs)
 {
 	/* reject invalid */
-	if (not (value_is_any_int(lhs) or value_is_any_float(lhs))) return VAL_NONE;
-	if (not (value_is_any_int(rhs) or value_is_any_float(rhs))) return VAL_NONE;
+	if (not (value_is_any_int(lhs) or value_is_any_float(lhs))) return VAL_BAD;
+	if (not (value_is_any_int(rhs) or value_is_any_float(rhs))) return VAL_BAD;
+	if (not type_equal(typeof(lhs), typeof(rhs))
+	    and not type_is_untyped(typeof(lhs))
+	    and not type_is_untyped(typeof(rhs)))
+		return VAL_BAD;
 
 	const bool use_float =
 		value_is_any_float(lhs) or value_is_any_float(rhs);
@@ -72,7 +76,7 @@ static struct haste_value value_do_arith(
 		case ARITH_SUB: res = a - b; break;
 		case ARITH_MUL: res = a * b; break;
 		case ARITH_DIV:
-			if (b == 0.0) return VAL_NONE;
+			if (b == 0.0) return VAL_BAD;
 			res = a / b;
 			break;
 		}
@@ -93,7 +97,7 @@ static struct haste_value value_do_arith(
 	case ARITH_SUB: res = a - b; break;
 	case ARITH_MUL: res = a * b; break;
 	case ARITH_DIV:
-		if (b == 0) return VAL_NONE;
+		if (b == 0) return VAL_BAD;
 		res = a / b;
 		break;
 	}
@@ -133,7 +137,7 @@ struct haste_value value_cast(const struct haste_value to, const struct haste_va
 	if (type_equal(to, ty_auto)) crash();
 
 	struct haste_value value_type = typeof(value);
-	if (not type_can_cast(to, value_type)) return VAL_NONE;
+	if (not type_can_cast(to, value_type)) return VAL_BAD;
 	if (type_equal(to, value_type)) return value;
 	if (IS_RUNTIME(value)) unimplemented();
 
@@ -201,9 +205,7 @@ struct haste_value typeof_object(const struct haste_object *obj)
 struct haste_value typeof(const struct haste_value value)
 {
 	switch (value.kind) {
-	case HASTE_VL_NONE:
-		raise(SIGSEGV); // ragebait ASAN
-		unreachable();
+	case HASTE_VL_BAD:           return VAL_BAD;
 	case HASTE_VL_UNINIT:        return ty_unknown;
 	case HASTE_VL_INT:           return ty_int;
 	case HASTE_VL_UNTYPED_INT:   return ty_untyped_int;
@@ -228,7 +230,7 @@ bool object_equal(struct haste_object *a, struct haste_object *b)
 bool value_equal(struct haste_value a, struct haste_value b)
 {
 	switch (a.kind) {
-	case HASTE_VL_NONE:          return false;
+	case HASTE_VL_BAD:          return false;
 	case HASTE_VL_UNINIT:        return b.kind == HASTE_VL_UNINIT;
 	case HASTE_VL_INT:
 	case HASTE_VL_UNTYPED_INT:
@@ -379,7 +381,7 @@ int print_value(stream_t stream, const struct haste_value value)
 	int printed_amount = 0;
 
 	switch (value.kind) {
-	case HASTE_VL_NONE:
+	case HASTE_VL_BAD:
 		printed_amount += sprint(stream, "NONE");
 		break;
 	case HASTE_VL_UNINIT:

@@ -14,11 +14,11 @@ static struct span get_full_line(const char *content, struct span span)
 {
 	struct span result = span;
 
-	while (result.start > content && result.start[-1] != '\n') {
+	while (result.start > content and result.start[-1] != '\n') {
 		result.start -= 1;
 	}
 
-	while (result.start[result.len] != '\0' && result.start[result.len] != '\n') {
+	while (result.start[result.len] != '\0' and result.start[result.len] != '\n') {
 		result.len += 1;
 	}
 
@@ -40,7 +40,7 @@ static int get_line_number(const char *content, const char *pos)
 static int get_column_number(source_file_id src, const char *content, const char *pos)
 {
 	const char *line_start = pos;
-	while (line_start > content && line_start[-1] != '\n') {
+	while (line_start > content and line_start[-1] != '\n') {
 		line_start -= 1;
 	}
 	return display_width(line_start, (int)(pos - line_start), src) + 1;

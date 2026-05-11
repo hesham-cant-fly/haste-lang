@@ -88,7 +88,7 @@ enum source_file_type get_file_type(const char *path)
 {
 	const char *extension = NULL;
 	size_t tmp;
-	if (!cwk_path_get_extension(path, &extension, &tmp)) {
+	if (not cwk_path_get_extension(path, &extension, &tmp)) {
 		return SRC_UNKNOWN;
 	}
 
