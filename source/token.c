@@ -2,6 +2,7 @@
 
 static const char *TOKEN_KIND_LIT[] =
 {
+	[0]               = "unknown",
 	[TK_IDENT]        = "ident",
 	[TK_KW_INT]       = "kw_int",      // "int"
 	[TK_KW_FLOAT]     = "kw_float",    // "float"

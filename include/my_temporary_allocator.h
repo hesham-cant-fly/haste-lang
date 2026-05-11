@@ -44,7 +44,7 @@ char *tsprintf(const char *fmt, ...);
 # include <stdarg.h>
 # include <threads.h>
 
-# define TEMPORARY_ALLOCATOR_DEFAULT_CAP 2048
+# define TEMPORARY_ALLOCATOR_DEFAULT_CAP 8192
 # define is_using_heap() (global_temporary.buffer != global_temporary_buffer)
 
 struct temporary_allocator {

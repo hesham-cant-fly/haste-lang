@@ -23,12 +23,12 @@
   arrfree(numbers);
  */
 
-#ifndef INITIAL_CAP
-# define INITIAL_CAP 10
-#endif // !INITIAL_CAP 
-#ifndef GROW_FACTOR
-# define GROW_FACTOR 2
-#endif // !GROW_FACTOR
+#ifndef MY_ARRAY_INITIAL_CAP
+# define MY_ARRAY_INITIAL_CAP 10
+#endif // !MY_ARRAY_INITIAL_CAP
+#ifndef MY_ARRAY_GROW_FACTOR
+# define MY_ARRAY_GROW_FACTOR 2
+#endif // !MY_ARRAY_GROW_FACTOR
 
 #define arrsize(...) (sizeof(*(__VA_ARGS__).items)) * (__VA_ARGS__).cap
 #define arrfree(allocator_, array__) \
@@ -48,7 +48,7 @@
 
 #define arrgrow(allocator_, array__) \
 	do { \
-		const size_t new_cap__ = (array__).cap == 0 ? (INITIAL_CAP) : (array__).cap * (GROW_FACTOR); \
+		const size_t new_cap__ = (array__).cap == 0 ? (MY_ARRAY_INITIAL_CAP) : (array__).cap * (MY_ARRAY_GROW_FACTOR); \
 		(array__).items = xrecreate((allocator_), arrsize(array__), (new_cap__ * sizeof(*(array__).items)), (array__).items); \
 		(array__).cap = new_cap__; \
 	} while (0)
@@ -76,9 +76,9 @@
 		if ((array__).cap >= (min_cap__)) {	\
 			break; \
 		} \
-		size_t new_cap__ = (array__).cap ? (array__).cap : INITIAL_CAP; \
+		size_t new_cap__ = (array__).cap ? (array__).cap : MY_ARRAY_INITIAL_CAP; \
 		while (new_cap__ < (min_cap__)) { \
-			new_cap__ *= (GROW_FACTOR);			  \
+			new_cap__ *= (MY_ARRAY_GROW_FACTOR);			  \
 		} \
 		(array__).items = xrecreate((allocator_), arrsize(array__), MY_DEFAULT_ALIGNMENT,  new_cap__ * sizeof(*(array__).items), (array__).items); \
 		(array__).cap = new_cap__; \

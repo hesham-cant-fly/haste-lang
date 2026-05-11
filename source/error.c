@@ -58,7 +58,7 @@ static void report_at_with_src(source_file_id src, const char *kind, const char 
 	vsprint(serr, fmt, args);
 	eprint("\n");
 
-	int indent = eprint("{d:0w5} | ", line_no);
+	int indent = eprint("{d:w5} | ", line_no);
 	eprintln("{span}", line);
 	int pos = display_width(line.start, (int)((uintptr_t)start - (uintptr_t)line.start), src) + indent;
 

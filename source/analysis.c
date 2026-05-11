@@ -1,4 +1,5 @@
 #include "haste.h"
+#include "my_termcolor.h"
 
 #define IS_NODE_ANALYZED(...) (__VA_ARGS__)->type.kind != 0
 #define NODE_IS_CAST(...)     (__VA_ARGS__)->kind == ND_CAST
@@ -50,7 +51,7 @@ static void end_scope(struct analyzer *self)
 static void _report_error_node(struct analyzer *self, struct haste_ast_node *node, const char *restrict fmt, ...)
 {
 	va_list args; va_start(args, fmt);
-	f_vreport_at_token(self->src, "Error", node->start, fmt, args);
+	f_vreport_at_token(self->src, ANSI_CODE_RED "Error", node->start, fmt, args);
 	va_end(args);
 	self->had_error = true;
 	exit(1);
@@ -59,7 +60,7 @@ static void _report_error_node(struct analyzer *self, struct haste_ast_node *nod
 static void _report_error_token(struct analyzer *self, struct token token, const char *restrict fmt, ...)
 {
 	va_list args; va_start(args, fmt);
-	f_vreport_at_token(self->src, "Error", token, fmt, args);
+	f_vreport_at_token(self->src, ANSI_CODE_RED "Error", token, fmt, args);
 	va_end(args);
 	self->had_error = true;
 	exit(1);
@@ -72,7 +73,7 @@ static void _report_error_token(struct analyzer *self, struct token token, const
 static void _report_note_node(struct analyzer *self, struct haste_ast_node *node, const char *restrict fmt, ...)
 {
 	va_list args; va_start(args, fmt);
-	f_vreport_at_token(self->src, "Note", node->start, fmt, args);
+	f_vreport_at_token(self->src, ANSI_CODE_GREEN "Note", node->start, fmt, args);
 	va_end(args);
 	self->had_error = true;
 	exit(1);
@@ -81,7 +82,7 @@ static void _report_note_node(struct analyzer *self, struct haste_ast_node *node
 static void _report_note_token(struct analyzer *self, struct token token, const char *restrict fmt, ...)
 {
 	va_list args; va_start(args, fmt);
-	f_vreport_at_token(self->src, "Note", token, fmt, args);
+	f_vreport_at_token(self->src, ANSI_CODE_GREEN "Note", token, fmt, args);
 	va_end(args);
 	self->had_error = true;
 	exit(1);
@@ -94,14 +95,14 @@ static void _report_note_token(struct analyzer *self, struct token token, const 
 static void _report_warning_node(struct analyzer *self, struct haste_ast_node *node, const char *restrict fmt, ...)
 {
 	va_list args; va_start(args, fmt);
-	f_vreport_at_token(self->src, "Warning", node->start, fmt, args);
+	f_vreport_at_token(self->src, ANSI_CODE_YELLOW "Warning", node->start, fmt, args);
 	va_end(args);
 }
 
 static void _report_warning_token(struct analyzer *self, struct token token, const char *restrict fmt, ...)
 {
 	va_list args; va_start(args, fmt);
-	f_vreport_at_token(self->src, "Warning", token, fmt, args);
+	f_vreport_at_token(self->src, ANSI_CODE_YELLOW "Warning", token, fmt, args);
 	va_end(args);
 }
 
@@ -137,6 +138,11 @@ static struct symbol *find_local_first(struct analyzer *self, const char *name)
 	if (decl == NULL) return NULL;
 
 	// TODO: check for recursive declrations
+
+	if (decl->analyzing) {
+		report_error(self, decl->node, "Recursive declrations is not allowed");
+		return NULL;
+	}
 
 	decl->analyzing = true;
 	analyze_node(self, decl->node);

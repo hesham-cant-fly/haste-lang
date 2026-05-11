@@ -68,12 +68,12 @@ static uint32_t advance_if_eq(struct scanner *self, uint32_t ch)
 
 static bool matches(struct scanner *self, char *str)
 {
-	const size_t remaining = self->current - self->start;
+	const size_t remaining = get_source_file_end(self->src) - self->current;
 	const size_t str_len = strlen(str);
-	if (str_len < remaining) return false;
+	if (str_len > remaining) return false;
 
-	const bool result = strncmp(self->current, str, str_len) == 0;
-	if (!result) return false;
+	if (strncmp(self->current, str, str_len) != 0)
+		return false;
 
 	for (size_t i=0; i<str_len; i+=1) {
 		advance(self);
@@ -147,13 +147,14 @@ static void scan_lexem(struct scanner *self)
 	// skip block comment
 	if (matches(self, "/*")) {
 		const char *begining = self->current - 2;
-		char *q = strstr(self->current, "*/");
-		if (!q) {
-			report_error(self, begining, "unclosed block comment");
-			report_note(self, begining, "it opened right here");
-			return;
+		while (not ended(self)) {
+			if (matches(self, "*/")) {
+				return;
+			}
+			advance(self);
 		}
-		self->current = q + 2;
+		report_error(self, self->current - 1, "unclosed block comment");
+		report_note(self, begining, "it opened right here");
 		return;
 	}
 

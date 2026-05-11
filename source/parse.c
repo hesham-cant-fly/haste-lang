@@ -45,6 +45,11 @@ static struct token get_eof(const struct parser *self)
 
 static struct token get_pre_eof(const struct parser *self)
 {
+	// if (self->tokens.len == 0) {
+	// 	return (struct token){0};
+	// } else if (self->tokens.len == 1) {
+	// 	return self->tokens.items[self->tokens.len - 1];
+	// }
 	return self->tokens.items[self->tokens.len - 2];
 }
 
@@ -101,7 +106,7 @@ static bool _check(const struct parser *self, ...)
 	va_start(args, self);
 
 	for (;;) {
-		const enum token_kind kind = va_arg(args, enum token_kind);
+		const enum token_kind kind = va_arg(args, int);
 		if (kind == 0) break;
 		if (peek(self).kind == kind) {
 			va_end(args);

@@ -82,14 +82,10 @@ uint32_t decode_utf8(const char **new_pos, const char *p, source_file_id src)
 }
 
 static bool in_range(uint32_t *range, uint32_t c) {
-	uint32_t end = {0};
-	const int32_t x = -1;
-	memcpy(&end, &x, sizeof(end));
+	uint32_t end = UINT32_MAX;
 
-	for (int i = 0; range[i] != end; i += 2)
-	{
-		if (range[i] <= c && c <= range[i + 1])
-		{
+	for (int i = 0; range[i] != end; i += 2) {
+		if (range[i] <= c && c <= range[i + 1]) {
 			return true;
 		}
 	}

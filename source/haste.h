@@ -76,6 +76,7 @@ enum source_file_type {
 struct source_file {
 	char *path;
 	char *content;
+	size_t len;
 	enum source_file_type type;
 	struct haste_ast_node *root; // NULL by default
 
@@ -100,7 +101,7 @@ extern struct source_file_list sources;
 /**
   * @brief Obtain the current working directory
   */
-char* get_current_working_directory(struct Allocator allocator);
+char* get_current_working_directory(void);
 
 /**
   * @brief returns the absolute path of a relative path.
@@ -138,10 +139,17 @@ struct source_file get_source_file(const source_file_id id);
   */
 const char *get_source_file_path(const source_file_id id);
 
-/**
-  * @brief given an id. it will return its content as a c string.
+/** @brief given an id. it will return its len
+  */
+size_t get_source_file_len(const source_file_id id);
+
+/** @brief given an id. it will return its content as a c string.
   */
 const char *get_source_file_content(const source_file_id id);
+
+/** @brief given an id. it will return its content's end
+  */
+const char *get_source_file_end(const source_file_id id);
 
 /**
   * @brief given an id. it will return which type is that file

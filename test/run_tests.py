@@ -33,7 +33,7 @@ def _run_one_test(group, file_path, index=0, leng=0):
             f.write(result.stderr)
 
     if result.returncode != 0:
-        red(f"FAIL: {name} ({kind} — compiler crash)")
+        red(f"{int((float(index) / float(leng)) * 100.0):3}% FAIL: {kind:>10}: {name} (compiler crash)")
         return {"name": name, "kind": kind, "passed": False}
 
     with open(expected_path) as f:
@@ -42,7 +42,7 @@ def _run_one_test(group, file_path, index=0, leng=0):
         got_lines = f.readlines()[skip:]
 
     if expected_lines == got_lines:
-        green(f"{int((float(index) / float(leng)) * 100.0):3}% PASS {kind:>10}: {name}")
+        green(f"{int((float(index) / float(leng)) * 100.0):3}% PASS: {kind:>10}: {name}")
         return {"name": name, "kind": kind, "passed": True}
     else:
         red(f"{int((float(index) / float(leng)) * 100.0):3}% FAIL {kind:>10}: {name} (output mismatch)")
@@ -106,7 +106,7 @@ def main():
     if failed == 0:
         green("All tests passed! 100%")
     else:
-        red(f"{failed} test(s) failed ({(float(failed) / float(len(all_tests))) * 100.0}%), {passed} passed ({(float(failed) / float(len(all_tests))) * 100.0}%)")
+        red(f"{failed} test(s) failed ({int((float(failed) / float(len(all_tests))) * 100.0)}%), {passed} passed ({int((float(passed) / float(len(all_tests))) * 100.0)}%)")
     sys.exit(failed)
 
 

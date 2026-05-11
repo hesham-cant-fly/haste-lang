@@ -10,8 +10,10 @@
 
 struct source_file_list sources = {0};
 
-char* get_current_working_directory(struct Allocator allocator)
+char* get_current_working_directory(void)
 {
+	struct Allocator allocator = get_default_allocator();
+
 	static char *cwd = NULL;
 	if (cwd != NULL) return cwd;
 #ifdef _WIN32
@@ -61,8 +63,11 @@ char* get_absolute_path(struct Allocator allocator, const char* relative_path)
 
 char *read_entire_file(struct Allocator allocator, const char *path)
 {
-	FILE *f = fopen(path, "r");
-	if (f == NULL) Exit(1);
+	FILE *f = fopen(path, "rb");
+	if (f == NULL) {
+		eprintln("Couldn't open '{s}'.", path);
+		exit(1);
+	}
 
 	fseek(f, 0, SEEK_END);
 	const size_t size = ftell(f);
@@ -70,7 +75,10 @@ char *read_entire_file(struct Allocator allocator, const char *path)
 
 	char *result = alloc(allocator, (size + 1) * sizeof(char));
 	const size_t readed = fread(result, 1, size, f);
-	if (readed != size) Exit(1);
+	if (readed != size) {
+		eprintln("failed reading '{s}'.", path);
+		exit(1);
+	}
 
 	result[size] = '\0';
 	return result;
@@ -108,6 +116,7 @@ source_file_id obtain_source_file_id(const char *base, const char *path)
 	struct source_file source = {
 		.path = full_path,
 		.content = content,
+		.len = strlen(content),
 		.type = get_file_type(full_path),
 	};
 
@@ -126,10 +135,21 @@ const char *get_source_file_path(const source_file_id id)
 	return get_source_file(id).path;
 }
 
+size_t get_source_file_len(const source_file_id id)
+{
+	return get_source_file(id).len;
+}
+
 const char *get_source_file_content(const source_file_id id)
 {
 	return get_source_file(id).content;
 }
+
+const char *get_source_file_end(const source_file_id id)
+{
+	return get_source_file_content(id) + get_source_file_len(id);
+}
+
 
 enum source_file_type get_source_file_type(const source_file_id id)
 {

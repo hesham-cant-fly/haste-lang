@@ -100,7 +100,6 @@ int main(int argc, char *argv[argc])
 	err = parse(allocator, tokens, src);
 	if (err) {
 		arena_free(&arena);
-		arrfree(c_allocator, tokens);
 		return 1;
 	}
 

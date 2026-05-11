@@ -1,3 +1,2 @@
 const a = b + 1;
-const b = 1;
-/* $£~ */
+const b = a - 1;
