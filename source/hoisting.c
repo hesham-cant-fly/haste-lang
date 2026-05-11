@@ -25,7 +25,7 @@ Error hoist(struct Allocator allocator,
 		
 		if (hmget(sources.items[src].declarations, id)) {
 			// TODO: report an error
-			f_error_at_token(src, current->start, "a redifinition of this global.");
+			f_report_at_token(src, "Error", current->start, "a redifinition of this global.");
 			return ERROR;
 		}
 

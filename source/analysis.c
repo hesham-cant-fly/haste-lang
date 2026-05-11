@@ -43,6 +43,68 @@ static void end_scope(struct analyzer *self)
 	destroy(self->allocator, scope);
 }
 
+#define report_error(self_, node_, ...) \
+	_Generic((node_), \
+		struct haste_ast_node *: _report_error_node, \
+		struct token: _report_error_token)(self_, node_, __VA_ARGS__)
+static void _report_error_node(struct analyzer *self, struct haste_ast_node *node, const char *restrict fmt, ...)
+{
+	va_list args; va_start(args, fmt);
+	f_vreport_at_token(self->src, "Error", node->start, fmt, args);
+	va_end(args);
+	self->had_error = true;
+	exit(1);
+}
+
+static void _report_error_token(struct analyzer *self, struct token token, const char *restrict fmt, ...)
+{
+	va_list args; va_start(args, fmt);
+	f_vreport_at_token(self->src, "Error", token, fmt, args);
+	va_end(args);
+	self->had_error = true;
+	exit(1);
+}
+
+#define report_note(self_, node_, ...) \
+	_Generic((node_), \
+		struct haste_ast_node *: _report_note_node, \
+		struct token: _report_note_token)(self_, node_, __VA_ARGS__)
+static void _report_note_node(struct analyzer *self, struct haste_ast_node *node, const char *restrict fmt, ...)
+{
+	va_list args; va_start(args, fmt);
+	f_vreport_at_token(self->src, "Note", node->start, fmt, args);
+	va_end(args);
+	self->had_error = true;
+	exit(1);
+}
+
+static void _report_note_token(struct analyzer *self, struct token token, const char *restrict fmt, ...)
+{
+	va_list args; va_start(args, fmt);
+	f_vreport_at_token(self->src, "Note", token, fmt, args);
+	va_end(args);
+	self->had_error = true;
+	exit(1);
+}
+
+#define report_warning(self_, node_, ...) \
+	_Generic((node_), \
+		struct haste_ast_node *: _report_warning_node, \
+		struct token: _report_warning_token)(self_, node_, __VA_ARGS__)
+static void _report_warning_node(struct analyzer *self, struct haste_ast_node *node, const char *restrict fmt, ...)
+{
+	va_list args; va_start(args, fmt);
+	f_vreport_at_token(self->src, "Warning", node->start, fmt, args);
+	va_end(args);
+}
+
+static void _report_warning_token(struct analyzer *self, struct token token, const char *restrict fmt, ...)
+{
+	va_list args; va_start(args, fmt);
+	f_vreport_at_token(self->src, "Warning", token, fmt, args);
+	va_end(args);
+}
+
 #define put_local_symbol(self_, name_, ...) _put_local_symbol((self_), (name_), (struct symbol) { __VA_ARGS__ })
 static bool _put_local_symbol(struct analyzer *self, char *name, struct symbol symbol)
 {
@@ -133,28 +195,28 @@ static struct haste_value analyze_node(struct analyzer *self, struct haste_ast_n
 			value = value_add(lhs, rhs);
 			if (IS_NONE(value)) {
 				run_at_percent (1.5) { // has 1.5% chance to happen
-					f_error_at_token(self->src, node->op, "Addition is not impossible. (try harder)");
+					report_error(self, node->op, "Addition is not impossible. (try harder)");
 				} else {
-					f_error_at_token(self->src, node->op, "Addition is not possible.");
+					report_error(self, node->op, "Addition is not possible.");
 				}
 			}
 			break;
 		case TK_MINUS:
 			value = value_sub(lhs, rhs);
 			if (IS_NONE(value)) {
-				f_error_at_token(self->src, node->op, "Subtraction is not possible.");
+				report_error(self, node->op, "Subtraction is not possible.");
 			}
 			break;
 		case TK_STAR:
 			value = value_mul(lhs, rhs);
 			if (IS_NONE(value)) {
-				f_error_at_token(self->src, node->op, "Multiplication is not possible.");
+				report_error(self, node->op, "Multiplication is not possible.");
 			}
 			break;
 		case TK_FSLASH:
 			value = value_div(lhs, rhs);
 			if (IS_NONE(value)) {
-				f_error_at_token(self->src, node->op, "Division is not possible.");
+				report_error(self, node->op, "Division is not possible.");
 			}
 			break;
 		default: unreachable();
@@ -175,7 +237,7 @@ static struct haste_value analyze_node(struct analyzer *self, struct haste_ast_n
 			const char *name = tsprint("{token}", node->token);
 			struct symbol *symbol = find_local_first(self, name);
 			if (symbol == NULL) {
-				f_error_at_token(self->src, node->token, "undefined symbol '{s}'.", name);
+				report_error(self, node, "undefined symbol '{s}'.", name);
 			}
 			value = symbol->value;
 		} else {
@@ -196,13 +258,12 @@ static struct haste_value analyze_node(struct analyzer *self, struct haste_ast_n
 		if (node->cast.to == NULL) unimplemented();
 		to = analyze_node(self, node->cast.to);
 		if (not type_equal(typeof(to), ty_type)) {
-			f_error_at_token(self->src, node->cast.to->start,
-				"expected a {value} got '{value}' instead.", ty_type, typeof(to));
+			report_error(self, node->cast.to, "expected a {value} got '{value}' instead.", ty_type, typeof(to));
 		}
 
 		struct haste_value value = analyze_node(self, node->cast.expr);
 		if (not type_can_cast(to, typeof(value))) {
-			f_error_at_token(self->src, node->start, "Cannot cast '{value}' to '{value}'", typeof(value), to);
+			report_error(self, node, "Cannot cast '{value}' to '{value}'", typeof(value), to);
 		}
 
 		struct haste_value result = value_cast(to, value);
@@ -217,7 +278,7 @@ static struct haste_value analyze_node(struct analyzer *self, struct haste_ast_n
 		}
 
 		if (not type_equal(typeof(type), ty_type)) {
-			f_error_at_token(self->src, node->variable.type->start,
+			report_error(self, node->variable.type,
 				"Expected a {value} got '{value}' instead.", ty_auto, typeof(type));
 		}
 
@@ -229,8 +290,7 @@ static struct haste_value analyze_node(struct analyzer *self, struct haste_ast_n
 		if (type_equal(type, ty_auto)) {
 			type = typeof(value);
 		} else if (not type_can_assign(type, typeof(value))) {
-			f_error_at_token(self->src, name,
-				"cannot assign a value of type '{value}' to '{value}'.", typeof(value), type);
+			report_error(self, name, "cannot assign a value of type '{value}' to '{value}'.", typeof(value), type);
 		}
 
 		if (not type_equal(type, typeof(value))) {
@@ -262,7 +322,7 @@ static struct haste_value analyze_node(struct analyzer *self, struct haste_ast_n
 
 		run_at_percent (0.67) {
 			if (value_equal(value, VAL_UNTYPED_INT(67))) {
-				f_error_at_token(self->src, node->variable.value->start, "THE FORBIDDEN {value} NUMBER IS NOT ALLOWED.", value);
+				report_note(self, node->variable.value, "THE FORBIDDEN {value} NUMBER IS NOT ALLOWED.", value);
 			}
 		}
 
@@ -287,5 +347,8 @@ Error analyze(struct Allocator allocator, struct Allocator arena_allocator, cons
 	}
 
 	end_scope(&analyzer);
+	if (analyzer.had_error) {
+		return ERROR;
+	}
 	return OK;
 }

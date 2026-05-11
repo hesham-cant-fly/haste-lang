@@ -67,12 +67,13 @@ uint32_t decode_utf8(const char **new_pos, const char *p, source_file_id src)
 		len = 2;
 		c = *p & 0x1F;
 	} else {
-		f_error_at(src, start, "invalid UTF-8 sequence");
+		f_report_at(src, "Error", start, "invalid UTF-8 sequence");
+		exit(0);
 	}
 
 	for (int i = 1; i < len; i++) {
 		if ((unsigned char)p[i] >> 6 != 0x2)
-		f_error_at(src, start, "invalid UTF-8 sequence");
+			f_report_at(src, "Error", start, "invalid UTF-8 sequence");
 		c = (c << 6) | (p[i] & 0x3F);
 	}
 

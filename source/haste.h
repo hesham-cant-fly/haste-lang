@@ -422,9 +422,10 @@ bool node_is_declaration(const struct haste_ast_node *node);
 //
 // error.c
 //
-noreturn void f_error_at(const source_file_id src, const char *start, const char *fmt, ...);
-noreturn void f_error_at_token(const source_file_id src, struct token token, const char *fmt, ...);
-noreturn void f_verror_at_token(const source_file_id src, struct token token, const char *fmt, va_list args);
+void f_report_at(const source_file_id src, const char *kind, const char *start, const char *fmt, ...);
+void f_vreport_at(const source_file_id src, const char *kind, const char *start, const char *fmt, va_list args);
+void f_report_at_token(const source_file_id src, const char *kind, struct token token, const char *fmt, ...);
+void f_vreport_at_token(const source_file_id src, const char *kind, struct token token, const char *fmt, va_list args);
 
 //
 // scanner.c

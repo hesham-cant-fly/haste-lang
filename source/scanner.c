@@ -1,4 +1,5 @@
 #include "haste.h"
+#include "my_termcolor.h"
 
 struct scanner {
 	struct Allocator allocator;
@@ -120,10 +121,23 @@ static struct token *add_token(struct scanner *self, enum token_kind kind)
 	return result;
 }
 
+static void report_error(struct scanner *self, const char *at, const char *restrict const fmt, ...)
+{
+	va_list args; va_start(args, fmt);
+	f_vreport_at(self->src, ANSI_CODE_RED "Error", at, fmt, args);
+	va_end(args);
+	self->has_error = true;
+}
+
+static void report_note(struct scanner *self, const char *at, const char *restrict const fmt, ...)
+{
+	va_list args; va_start(args, fmt);
+	f_vreport_at(self->src, ANSI_CODE_GREEN "Note", at, fmt, args);
+	va_end(args);
+}
+
 static void scan_lexem(struct scanner *self)
 {
-	const uint32_t ch = peek(self);
-
 	// skip single line comment
 	if (matches(self, "//")) {
 		advance_until(self, '\n');
@@ -132,8 +146,13 @@ static void scan_lexem(struct scanner *self)
 
 	// skip block comment
 	if (matches(self, "/*")) {
+		const char *begining = self->current - 2;
 		char *q = strstr(self->current, "*/");
-		if (!q) f_error_at(self->src, self->current, "unclosed block comment");
+		if (!q) {
+			report_error(self, begining, "unclosed block comment");
+			report_note(self, begining, "it opened right here");
+			return;
+		}
 		self->current = q + 2;
 		return;
 	}
@@ -231,9 +250,12 @@ static void scan_lexem(struct scanner *self)
 		return;
 	}
 
+
+	const char *pos = self->current;
+	const uint32_t ch = advance(self);
 	if (ch == '\0') return;
 
-	f_error_at(self->src, self->current, "invalid character: '{lc}'", ch);
+	report_error(self, pos, "invalid character: '{lc}'", ch);
 }
 
 static void start_scanning(struct scanner *self)

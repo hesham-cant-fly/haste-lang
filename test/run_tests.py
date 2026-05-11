@@ -17,7 +17,7 @@ def _test_path(group_dir, name, suffix):
     return os.path.join(PROJECT_DIR, group_dir, f"{name}.{suffix}")
 
 
-def _run_one_test(group, file_path):
+def _run_one_test(group, file_path, index=0, leng=0):
     name = os.path.splitext(os.path.basename(file_path))[0]
     group_dir = group["dir"]
     got_path = _test_path(group_dir, name, group["got_suffix"])
@@ -42,10 +42,10 @@ def _run_one_test(group, file_path):
         got_lines = f.readlines()[skip:]
 
     if expected_lines == got_lines:
-        green(f"PASS: {name} ({kind})")
+        green(f"{int((float(index) / float(leng)) * 100.0):3}% PASS {kind:>10}: {name}")
         return {"name": name, "kind": kind, "passed": True}
     else:
-        red(f"FAIL: {name} ({kind} — output mismatch)")
+        red(f"{int((float(index) / float(leng)) * 100.0):3}% FAIL {kind:>10}: {name} (output mismatch)")
         subprocess.run(["diff", "-u", expected_path, got_path])
         return {"name": name, "kind": kind, "passed": False}
 
@@ -93,18 +93,20 @@ def main():
     passed = 0
     failed = 0
 
+    i = 0
     for group, file in all_tests:
-        r = _run_one_test(group, file)
+        r = _run_one_test(group, file, i, len(all_tests))
         if r["passed"]:
             passed += 1
         else:
             failed += 1
+        i += 1
 
     print("---")
     if failed == 0:
-        green("All tests passed!")
+        green("All tests passed! 100%")
     else:
-        red(f"{failed} test(s) failed, {passed} passed")
+        red(f"{failed} test(s) failed ({(float(failed) / float(len(all_tests))) * 100.0}%), {passed} passed ({(float(failed) / float(len(all_tests))) * 100.0}%)")
     sys.exit(failed)
 
 

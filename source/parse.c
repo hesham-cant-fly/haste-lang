@@ -66,6 +66,33 @@ static struct token previous(const struct parser *self)
 	return self->tokens.items[self->current - 1];
 }
 
+static void report_error_at(struct parser *self, struct token token, const char *restrict fmt, ...)
+{
+	va_list args; va_start(args, fmt);
+	f_vreport_at_token(self->src, "Error", token, fmt, args);
+	va_end(args);
+	self->has_error = true;
+	exit(1);
+}
+
+static void report_error(struct parser *self, const char *restrict fmt, ...)
+{
+	struct token token = ended(self) then get_pre_eof(self) otherwise peek(self);
+	va_list args; va_start(args, fmt);
+	f_vreport_at_token(self->src, "Error", token, fmt, args);
+	va_end(args);
+	self->has_error = true;
+	exit(1);
+}
+
+static void vreport_error(struct parser *self, const char *restrict fmt, va_list args)
+{
+	struct token token = peek(self);
+	f_vreport_at_token(self->src, "Error", token, fmt, args);
+	self->has_error = true;
+	exit(1);
+}
+
 #define check(_self, ...) _check((_self), __VA_ARGS__, (enum token_kind){0})
 static bool _check(const struct parser *self, ...)
 {
@@ -113,10 +140,11 @@ static struct token consume(struct parser *self, enum token_kind kind, const cha
 		return previous(self);
 	}
 
-	struct token current = peek(self);
 	va_list args;
 	va_start(args, fmt);
-	f_verror_at_token(self->src, current, fmt, args);
+	vreport_error(self, fmt, args);
+	va_end(args);
+	exit(0);
 }
 
 struct haste_ast_node *binary(struct parser *self, struct haste_ast_node *lhs)
@@ -228,39 +256,29 @@ static struct parser_rule get_rule(struct token token)
 static struct haste_ast_node *parse_precedence(struct parser *self, enum precedence precedence)
 {
 	if (ended(self)) {
-		f_error_at_token(
-			self->src,
-			get_pre_eof(self),
-			"Incomplete expression.");
+		report_error(self, "Incomplete expression.");
 	}
 
 	struct token token = advance(self);
 	ParsePrefixFn prefix_rule = get_rule(token).prefix;
 	if (prefix_rule == NULL) {
-		f_error_at_token(
-			self->src,
+		report_error_at(
+			self,
 			token,
-			"Expected an expression, got `%.*s` instead.",
-			(int)token.len,
-			token.start);
+			"Expected an expression, got `{token}` instead.",
+			token);
 	}
 
 	struct haste_ast_node *left = prefix_rule(self);
 
 	struct parser_rule rule;
 	for (rule = get_rule(peek(self));
-		 (!ended(self)) && precedence <= rule.precedence;
+		 (not ended(self)) and precedence <= rule.precedence;
 		 rule  = get_rule(peek(self))) {
 		struct token tok = advance(self);
 		ParseInfixFn infix_rule = get_rule(tok).infix;
 		if (infix_rule == NULL) {
-			f_error_at_token(
-				self->src,
-				token,
-				"`%.*s` is not a valid operator.",
-				(int)token.len,
-				token.start
-			);
+			report_error_at(self, token, "`{token}` is not a valid operator.", token);
 		}
 
 		left = infix_rule(self, left);
@@ -310,12 +328,13 @@ static struct haste_ast_node *decl(struct parser *self, const bool error_on_unex
 	}
 
 	if (!error_on_unexpected) return NULL;
-	f_error_at_token(
-		self->src,
+	report_error_at(
+		self,
 		token,
-		"Unexpected token: '%.*s'. "
+		"Unexpected token: '{token}'. "
 		"expected either 'const', 'var' or 'func'.",
-		TOKEN_FMT(token));
+		token);
+	exit(0);
 }
 
 Error parse(struct Allocator allocator, const struct token_list tokens, const source_file_id src)
