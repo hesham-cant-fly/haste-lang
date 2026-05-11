@@ -6,32 +6,14 @@
 		assert(IS_TYPE(__VA_ARGS__) and "It should be a type. maybe you forgot to use `typeof()`?"); \
 	} while (0)
 
-struct haste_value ty_unknown = VAL_OBJ(&OBJ_TYPE(
-	.kind = HASTE_TY_UNKNOWN));
-struct haste_value ty_type = VAL_OBJ(&OBJ_TYPE(
-	.kind = HASTE_TY_TYPE,
-	.size = 8,
-	.align = 8));
-struct haste_value ty_int = VAL_OBJ(&OBJ_TYPE(
-	.kind = HASTE_TY_INT,
-	.size = 4,
-	.align = 4));
-struct haste_value ty_untyped_int = VAL_OBJ(&OBJ_TYPE(
-	.kind = HASTE_TY_UNTYPED_INT,
-	.size = 4,
-	.align = 4));
-struct haste_value ty_float = VAL_OBJ(&OBJ_TYPE(
-	.kind = HASTE_TY_FLOAT,
-	.size = 4,
-	.align = 4));
-struct haste_value ty_untyped_float = VAL_OBJ(&OBJ_TYPE(
-	.kind = HASTE_TY_UNTYPED_FLOAT,
-	.size = 4,
-	.align = 4));
-struct haste_value ty_auto = VAL_OBJ(&OBJ_TYPE(
-	.kind = HASTE_TY_AUTO));
-struct haste_value ty_void = VAL_OBJ(&OBJ_TYPE(
-	.kind = HASTE_TY_VOID));
+struct haste_value ty_unknown       = VAL_OBJ(&OBJ_TYPE(.kind = HASTE_TY_UNKNOWN));
+struct haste_value ty_type          = VAL_OBJ(&OBJ_TYPE(.kind = HASTE_TY_TYPE,       .size = 8,  .align = 8));
+struct haste_value ty_int           = VAL_OBJ(&OBJ_TYPE(.kind = HASTE_TY_INT,        .size = 4,  .align = 4));
+struct haste_value ty_untyped_int   = VAL_OBJ(&OBJ_TYPE(.kind = HASTE_TY_UNTYPED_INT,.size = 4,  .align = 4));
+struct haste_value ty_float         = VAL_OBJ(&OBJ_TYPE(.kind = HASTE_TY_FLOAT,      .size = 4,  .align = 4));
+struct haste_value ty_untyped_float = VAL_OBJ(&OBJ_TYPE(.kind = HASTE_TY_UNTYPED_FLOAT,.size=4,  .align=4));
+struct haste_value ty_auto          = VAL_OBJ(&OBJ_TYPE(.kind = HASTE_TY_AUTO));
+struct haste_value ty_void          = VAL_OBJ(&OBJ_TYPE(.kind = HASTE_TY_VOID));
 
 enum arith_op {
 	ARITH_ADD,
@@ -50,44 +32,30 @@ static bool value_is_any_float(struct haste_value v)
 	return v.kind == HASTE_VL_FLOAT or v.kind == HASTE_VL_UNTYPED_FLOAT;
 }
 
-static struct haste_value value_do_arith(
-	const enum arith_op op,
-	const struct haste_value lhs,
-	const struct haste_value rhs)
+static struct haste_value arith_float(enum arith_op op, struct haste_value lhs, struct haste_value rhs)
 {
-	/* reject invalid */
-	if (not (value_is_any_int(lhs) or value_is_any_float(lhs))) return VAL_BAD;
-	if (not (value_is_any_int(rhs) or value_is_any_float(rhs))) return VAL_BAD;
-	if (not type_equal(typeof(lhs), typeof(rhs))
-	    and not type_is_untyped(typeof(lhs))
-	    and not type_is_untyped(typeof(rhs)))
-		return VAL_BAD;
+	double a = value_is_any_float(lhs) then lhs.floating otherwise (double)lhs.integer;
+	double b = value_is_any_float(rhs) then rhs.floating otherwise (double)rhs.integer;
+	double res = 0.0;
 
-	const bool use_float =
-		value_is_any_float(lhs) or value_is_any_float(rhs);
-
-	if (use_float) {
-		double a = value_is_any_float(lhs) then lhs.floating otherwise (double)lhs.integer;
-		double b = value_is_any_float(rhs) then rhs.floating otherwise (double)rhs.integer;
-		double res = 0.0;
-
-		switch (op) {
-		case ARITH_ADD: res = a + b; break;
-		case ARITH_SUB: res = a - b; break;
-		case ARITH_MUL: res = a * b; break;
-		case ARITH_DIV:
-			if (b == 0.0) return VAL_BAD;
-			res = a / b;
-			break;
-		}
-
-		/* result typing rules */
-		if (lhs.kind == HASTE_VL_FLOAT or rhs.kind == HASTE_VL_FLOAT)
-			return VAL_FLOAT(res);
-
-		return VAL_UNTYPED_FLOAT(res);
+	switch (op) {
+	case ARITH_ADD: res = a + b; break;
+	case ARITH_SUB: res = a - b; break;
+	case ARITH_MUL: res = a * b; break;
+	case ARITH_DIV:
+		if (b == 0.0) return VAL_BAD;
+		res = a / b;
+		break;
 	}
 
+	if (lhs.kind == HASTE_VL_FLOAT or rhs.kind == HASTE_VL_FLOAT)
+		return VAL_FLOAT(res);
+
+	return VAL_UNTYPED_FLOAT(res);
+}
+
+static struct haste_value arith_int(enum arith_op op, struct haste_value lhs, struct haste_value rhs)
+{
 	int64_t a = lhs.integer;
 	int64_t b = rhs.integer;
 	int64_t res = 0;
@@ -102,11 +70,28 @@ static struct haste_value value_do_arith(
 		break;
 	}
 
-	/* preserve typed vs untyped */
 	if (lhs.kind == HASTE_VL_INT or rhs.kind == HASTE_VL_INT)
 		return VAL_INT(res);
 
 	return VAL_UNTYPED_INT(res);
+}
+
+static struct haste_value value_do_arith(
+	const enum arith_op op,
+	const struct haste_value lhs,
+	const struct haste_value rhs)
+{
+	if (not (value_is_any_int(lhs) or value_is_any_float(lhs))) return VAL_BAD;
+	if (not (value_is_any_int(rhs) or value_is_any_float(rhs))) return VAL_BAD;
+	if (not type_equal(typeof(lhs), typeof(rhs))
+	    and not type_is_untyped(typeof(lhs))
+	    and not type_is_untyped(typeof(rhs)))
+		return VAL_BAD;
+
+	if (value_is_any_float(lhs) or value_is_any_float(rhs))
+		return arith_float(op, lhs, rhs);
+
+	return arith_int(op, lhs, rhs);
 }
 
 struct haste_value value_add(const struct haste_value lhs, const struct haste_value rhs)
@@ -129,69 +114,51 @@ struct haste_value value_div(const struct haste_value lhs, const struct haste_va
 	return value_do_arith(ARITH_DIV, lhs, rhs);
 }
 
+typedef struct {
+	int64_t as_int;
+	double as_float;
+	bool is_float;
+} RawNumber;
+
+static RawNumber extract_raw(struct haste_value value)
+{
+	if (value_is_any_int(value))   return (RawNumber){ .as_int = value.integer,           .as_float = (double)value.integer, };
+	if (value_is_any_float(value)) return (RawNumber){ .as_int = (int64_t)value.floating, .as_float = value.floating, };
+	unreachable();
+}
+
+static struct haste_value construct_from_raw(struct haste_value to, RawNumber raw)
+{
+	if (type_equal(to, ty_int))
+		return VAL_INT(raw.as_int);
+
+	if (type_equal(to, ty_float))
+		return VAL_FLOAT(raw.as_float);
+
+	unreachable();
+}
+
+static struct haste_value default_for_type(struct haste_value to)
+{
+	if (type_equal(to, ty_int))   return VAL_INT(0);
+	if (type_equal(to, ty_float)) return VAL_FLOAT(0.0f);
+	unreachable();
+}
+
 struct haste_value value_cast(const struct haste_value to, const struct haste_value value)
 {
 	ASSERT_IS_TYPE(to);
 
-	if (type_is_untyped(to)) crash();
-	if (type_equal(to, ty_auto)) crash();
+	if (type_is_untyped(to))     unreachable();
+	if (type_equal(to, ty_auto)) unreachable();
+	if (IS_RUNTIME(value))       unimplemented();
 
 	struct haste_value value_type = typeof(value);
 	if (not type_can_cast(to, value_type)) return VAL_BAD;
-	if (type_equal(to, value_type)) return value;
-	if (IS_RUNTIME(value)) unimplemented();
+	if (type_equal(to, value_type))       return value;
+	if (value_equal(value, VAL_UNINIT))   return default_for_type(to);
 
-	/* uninit -> any */
-	if (value_equal(value, VAL_UNINIT)) {
-		if (type_equal(to, ty_int)) {
-			return VAL_INT(0);
-		}
-		if (type_equal(to, ty_float)) {
-			return VAL_FLOAT(0.0f);
-		}
-		unreachable();
-	}
-
-	/* untyped_int -> int, float */
-	if (type_equal(value_type, ty_untyped_int)) {
-		if (type_equal(to, ty_int)) {
-			return VAL_INT(value.integer);
-		}
-		if (type_equal(to, ty_float)) {
-			return VAL_FLOAT((float)value.integer);
-		}
-		unreachable();
-	}
-
-	/* int -> float */
-	if (type_equal(value_type, ty_int)) {
-		if (type_equal(to, ty_float)) {
-			return VAL_FLOAT((float)value.integer);
-		}
-		unreachable();
-	}
-
-
-	/* untyped_float -> float, int */
-	if (type_equal(value_type, ty_untyped_float)) {
-		if (type_equal(to, ty_float)) {
-			return VAL_FLOAT((float)value.floating);
-		}
-		if (type_equal(to, ty_int)) {
-			return VAL_INT((int64_t)value.floating);
-		}
-		unreachable();
-	}
-
-	/* float -> int */
-	if (type_equal(value_type, ty_float)) {
-		if (type_equal(to, ty_int)) {
-			return VAL_INT((int64_t)value.floating);
-		}
-		unreachable();
-	}
-
-	unreachable();
+	return construct_from_raw(to, extract_raw(value));
 }
 
 struct haste_value typeof_object(const struct haste_object *obj)
@@ -200,6 +167,7 @@ struct haste_value typeof_object(const struct haste_object *obj)
 	case HASTE_OBJ_TYPE:
 		return ty_type;
 	}
+	unreachable();
 }
 
 struct haste_value typeof(const struct haste_value value)
@@ -214,6 +182,7 @@ struct haste_value typeof(const struct haste_value value)
 	case HASTE_VL_RUNTIME:       return value.runtime->type;
 	case HASTE_VL_OBJ:           return typeof_object(value.obj);
 	}
+	unreachable();
 }
 
 bool object_equal(struct haste_object *a, struct haste_object *b)
@@ -382,7 +351,7 @@ int print_value(stream_t stream, const struct haste_value value)
 
 	switch (value.kind) {
 	case HASTE_VL_BAD:
-		printed_amount += sprint(stream, "NONE");
+		printed_amount += sprint(stream, "BAD");
 		break;
 	case HASTE_VL_UNINIT:
 		printed_amount += sprint(stream, "UNINIT");
