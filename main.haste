@@ -1,1 +1,2 @@
-const a: int;
+const a = b;
+const b = 1;

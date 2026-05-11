@@ -230,7 +230,23 @@ static int format_char(stream_t stream, struct modifier_stream mod, va_list args
 {
 	(void)mod;
 	const char ch = va_arg(args, int);
-	return swrite(stream, (void*)&ch, sizeof(ch), 1);
+	struct standard_format_info fmt_info = parse_format_info(&mod, args);
+	const int width = fmt_info.width;
+	const char *const padding_char = fmt_info.zero_padded ? "0" : " ";
+	return swrite_width(stream, (void*)&ch, sizeof(ch), width, padding_char);
+}
+
+static int format_lchar(stream_t stream, struct modifier_stream mod, va_list args)
+{
+	(void)mod;
+	const wchar_t ch = va_arg(args, wchar_t);
+	struct standard_format_info fmt_info = parse_format_info(&mod, args);
+	const int width = fmt_info.width;
+	const char *const padding_char = fmt_info.zero_padded ? "0" : " ";
+
+	char buff[5] = {0};
+	snprintf(buff, 5, "%lc", ch);
+	return swrite_width(stream, (void*)buff, strlen(buff), width, padding_char);
 }
 
 static int format_string(stream_t stream, struct modifier_stream mod, va_list args)
@@ -882,6 +898,7 @@ void setup_io_stream(void)
 	};
 
 	define_format_specifier("c",   format_char);
+	define_format_specifier("lc",  format_lchar);
 	define_format_specifier("s",   format_string);
 
 	define_format_specifier("int", format_int);

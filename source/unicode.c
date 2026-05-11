@@ -46,7 +46,7 @@ int encode_utf8(char *buf, uint32_t c) {
 // encoded in one to four bytes. One byte UTF-8 code points are
 // identical to ASCII. Non-ASCII characters are encoded using more
 // than one byte.
-uint32_t decode_utf8(const char **new_pos, const char *p)
+uint32_t decode_utf8(const char **new_pos, const char *p, source_file_id src)
 {
 	if ((unsigned char)*p < 128) {
 		if (new_pos) *new_pos = p + 1;
@@ -57,24 +57,6 @@ uint32_t decode_utf8(const char **new_pos, const char *p)
 	int len;
 	uint32_t c;
 
-	// if ((unsigned char)*p >= 0b11110000) {
-	// 	len = 4;
-	// 	c = *p & 0b111;
-	// } else if ((unsigned char)*p >= 0b11100000) {
-	// 	len = 3;
-	// 	c = *p & 0b1111;
-	// } else if ((unsigned char)*p >= 0b11000000) {
-	// 	len = 2;
-	// 	c = *p & 0b11111;
-	// } else {
-	// 	error_at(start, "invalid UTF-8 sequence");
-	// }
-
-	// for (int i = 1; i < len; i++) {
-	// 	if ((unsigned char)p[i] >> 6 != 0b10)
-	// 	error_at(start, "invalid UTF-8 sequence");
-	// 	c = (c << 6) | (p[i] & 0b111111);
-	// }
 	if ((unsigned char)*p >= 0xF0) {
 		len = 4;
 		c = *p & 0x7;
@@ -85,12 +67,12 @@ uint32_t decode_utf8(const char **new_pos, const char *p)
 		len = 2;
 		c = *p & 0x1F;
 	} else {
-		error_at(start, "invalid UTF-8 sequence");
+		f_error_at(src, start, "invalid UTF-8 sequence");
 	}
 
 	for (int i = 1; i < len; i++) {
 		if ((unsigned char)p[i] >> 6 != 0x2)
-		error_at(start, "invalid UTF-8 sequence");
+		f_error_at(src, start, "invalid UTF-8 sequence");
 		c = (c << 6) | (p[i] & 0x3F);
 	}
 
@@ -217,11 +199,11 @@ static int char_width(uint32_t c) {
 
 // Returns the number of columns needed to display a given
 // string in a fixed-width font.
-int display_width(const char *p, int len) {
+int display_width(const char *p, int len, source_file_id src) {
 	const char *start = p;
 	int w = 0;
 	while (p - start < len) {
-		uint32_t c = decode_utf8(&p, p);
+		uint32_t c = decode_utf8(&p, p, src);
 		w += char_width(c);
 	}
 	return w;

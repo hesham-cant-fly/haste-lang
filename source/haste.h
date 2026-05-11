@@ -230,10 +230,10 @@ int print_token(stream_t stream, struct token token);
 // unicode.c
 //
 int encode_utf8(char *out, uint32_t c);
-uint32_t decode_utf8(const char **new_pos, const char *p);
+uint32_t decode_utf8(const char **new_pos, const char *p, source_file_id src);
 bool is_ident1(uint32_t c);
 bool is_ident2(uint32_t c);
-int display_width(const char *p, int len);
+int display_width(const char *p, int len, source_file_id src);
 
 //
 // value.c
@@ -425,10 +425,6 @@ bool node_is_declaration(const struct haste_ast_node *node);
 noreturn void f_error_at(const source_file_id src, const char *start, const char *fmt, ...);
 noreturn void f_error_at_token(const source_file_id src, struct token token, const char *fmt, ...);
 noreturn void f_verror_at_token(const source_file_id src, struct token token, const char *fmt, va_list args);
-
-noreturn void error_at(const char *start, const char *fmt, ...);
-noreturn void error_at_token(struct token token, const char *fmt, ...);
-noreturn void verror_at_token(struct token token, const char *fmt, va_list args);
 
 //
 // scanner.c

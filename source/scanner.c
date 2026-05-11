@@ -36,7 +36,7 @@ static bool ended(const struct scanner *self)
 static uint32_t peek(struct scanner *self)
 {
 	if (ended(self)) return '\0';
-	const uint32_t result = decode_utf8(NULL, self->current);
+	const uint32_t result = decode_utf8(NULL, self->current, self->src);
 	if (result == '\0') self->ended = true;
 	return result;
 }
@@ -44,7 +44,7 @@ static uint32_t peek(struct scanner *self)
 static uint32_t advance(struct scanner *self)
 {
 	if (ended(self)) return '\0';
-	const uint32_t result = decode_utf8(&self->current, self->current);
+	const uint32_t result = decode_utf8(&self->current, self->current, self->src);
 	if (result == '\0') self->ended = true;
 	if (result == '\n') self->current_line += 1;
 	return result;
@@ -233,7 +233,7 @@ static void scan_lexem(struct scanner *self)
 
 	if (ch == '\0') return;
 
-	f_error_at(self->src, self->current, "invalid character: '%lc'", ch);
+	f_error_at(self->src, self->current, "invalid character: '{lc}'", ch);
 }
 
 static void start_scanning(struct scanner *self)

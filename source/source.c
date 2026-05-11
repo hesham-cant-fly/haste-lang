@@ -68,15 +68,12 @@ char *read_entire_file(struct Allocator allocator, const char *path)
 	const size_t size = ftell(f);
 	rewind(f);
 
-	char *result = alloc(allocator, size * sizeof(char) + 2);
-	result[0] = '\0';
-
-	const size_t readed = fread(result + 1, sizeof(char), size, f);
+	char *result = alloc(allocator, (size + 1) * sizeof(char));
+	const size_t readed = fread(result, 1, size, f);
 	if (readed != size) Exit(1);
 
-	result[size + 1] = '\0';
-
-	return result + 1;
+	result[size] = '\0';
+	return result;
 }
 
 enum source_file_type get_file_type(const char *path)
