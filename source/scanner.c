@@ -10,20 +10,45 @@ struct scanner {
 	bool has_error, ended;
 };
 
+static char *decode_string(struct Allocator allocator, const char *start, size_t len)
+{
+	char *result = alloc(allocator, len + 1);
+	size_t j = 0;
+	for (size_t i = 0; i < len; i += 1) {
+		if (start[i] == '\\' and i + 1 < len) {
+			i += 1;
+			switch (start[i]) {
+			case 'n':  result[j++] = '\n'; break;
+			case 't':  result[j++] = '\t'; break;
+			case 'r':  result[j++] = '\r'; break;
+			case '0':  result[j++] = '\0'; break;
+			case '\\': result[j++] = '\\'; break;
+			case '"':  result[j++] = '"';  break;
+			default:   result[j++] = start[i]; break;
+			}
+		} else {
+			result[j++] = start[i];
+		}
+	}
+	result[j] = '\0';
+	return result;
+}
+
 static void populate_token_value(struct token *tok) {
 	struct Allocator allocator = get_temporary_allocator();
-	char *buf = nclone_string(allocator, tok->start, tok->len); 
 
-	// TODO: check if integers overflows
     switch (tok->kind) {
-	case TK_INT:
+	case TK_INT: {
+		char *buf = nclone_string(allocator, tok->start, tok->len);
 		tok->ival = strtoll(buf, NULL, 10);
-		break;
-		
-	case TK_FLOAT:
+	} break;
+	case TK_FLOAT: {
+		char *buf = nclone_string(allocator, tok->start, tok->len);
 		tok->fval = strtold(buf, NULL);
-		break;
-		
+	} break;
+	case TK_STR: {
+		tok->str = decode_string(allocator, tok->start + 1, tok->len - 2);
+	} break;
 	default:
 		break;
     }
@@ -59,8 +84,7 @@ static bool check(struct scanner *self, uint32_t ch)
 
 static uint32_t advance_if_eq(struct scanner *self, uint32_t ch)
 {
-	if (check(self, ch))
-	{
+	if (check(self, ch)) {
 		return advance(self);
 	}
 	return '\0';
@@ -95,8 +119,7 @@ static bool matches_any(struct scanner *self, char *str)
 
 static void advance_until(struct scanner *self, uint32_t ch)
 {
-	while (not check(self, ch))
-	{
+	while (not check(self, ch)) {
 		advance(self);
 	}
 }
@@ -136,6 +159,24 @@ static void report_note(struct scanner *self, const char *at, const char *restri
 	va_end(args);
 }
 
+static void scan_string(struct scanner *self)
+{
+	while (not ended(self)) {
+		uint32_t ch = peek(self);
+		if (ch == '"') {
+			advance(self);
+			return;
+		}
+		if (ch == '\\') {
+			advance(self);
+			if (not ended(self)) advance(self);
+			continue;
+		}
+		advance(self);
+	}
+	report_error(self, self->start, "unterminated string literal");
+}
+
 static void scan_lexem(struct scanner *self)
 {
 	// skip single line comment
@@ -169,14 +210,16 @@ static void scan_lexem(struct scanner *self)
 
 	// NOTE: No need for an optimization
 	const struct { const char *str; enum token_kind kind; } keywords[] = {
-		{"int", TK_KW_INT},
-		{"float", TK_KW_FLOAT},
-		{"void", TK_KW_VOID},
-		{"auto", TK_KW_AUTO},
-		{"type", TK_KW_TYPE},
-		{"cast", TK_KW_CAST},
-		{"const", TK_KW_CONST},
-		{"var", TK_KW_VAR},
+		{"string", TK_KW_STRING},
+		{"cstr",   TK_KW_CSTR},
+		{"int",    TK_KW_INT},
+		{"float",  TK_KW_FLOAT},
+		{"void",   TK_KW_VOID},
+		{"auto",   TK_KW_AUTO},
+		{"type",   TK_KW_TYPE},
+		{"cast",   TK_KW_CAST},
+		{"const",  TK_KW_CONST},
+		{"var",    TK_KW_VAR},
 	};
 	for (size_t i=0; i<sizeof(keywords)/sizeof(keywords[0]); i += 1) {
 		if (matches(self, (char*)keywords[i].str)) {
@@ -251,6 +294,13 @@ static void scan_lexem(struct scanner *self)
 		return;
 	}
 
+
+	if (advance_if_eq(self, '"')) {
+		self->start = self->current - 1;
+		scan_string(self);
+		add_token(self, TK_STR);
+		return;
+	}
 
 	const char *pos = self->current;
 	const uint32_t ch = advance(self);

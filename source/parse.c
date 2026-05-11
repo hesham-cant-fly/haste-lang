@@ -242,7 +242,10 @@ struct parser_rule get_rule_from_kind(enum token_kind kind)
 	case TK_FSLASH:     return (struct parser_rule){ NULL,     binary, PREC_FACTOR,  false };
 	case TK_INT:        return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
 	case TK_FLOAT:      return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
+	case TK_STR:        return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
 	case TK_IDENT:      return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
+	case TK_KW_STRING:  return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
+	case TK_KW_CSTR:    return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
 	case TK_KW_INT:     return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
 	case TK_KW_FLOAT:   return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
 	case TK_KW_VOID:    return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };

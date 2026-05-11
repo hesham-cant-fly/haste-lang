@@ -1,0 +1,4 @@
+const a = "hello world";
+const b = "newline\nhere";
+const c = "tab\there";
+const d = "";

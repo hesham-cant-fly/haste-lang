@@ -1,2 +1,4 @@
 const a: int;
 const b: float;
+const c: string;
+const d: cstr;

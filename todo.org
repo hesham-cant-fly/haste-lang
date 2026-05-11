@@ -25,23 +25,6 @@
     Should return =OK= (exit 0).
 
 ** Architecture / Design
-*** TODO Implement statement parsing
-    =source/parse.c= only handles =const=/=var= declarations. The example
-    files show =func=, =if=, =match=, =for=, block statements — none of
-    these are parseable yet.
-
-*** TODO Complete LLVM codegen
-    =source/codegen.c= only handles global =const=/=var=. Missing:
-    - Function codegen with parameters and return values
-    - Runtime expression codegen (not just constant-folded values)
-    - Control flow (if/else, loops)
-    - String constants
-
-*** TODO Implement string literal scanning
-    =source/scanner.c= declares =TK_STR= but never produces string
-    tokens. The scanner needs to handle ="..."= literals with escape
-    sequences.
-
 ** Code Quality / Maintainability
 ** Undefined Behavior / Memory Safety
 *** DONE =get_line_number= walks backwards past buffer

@@ -172,6 +172,8 @@ struct haste_declarations get_source_file_declarations(const source_file_id id);
 
 enum token_kind {
 	TK_IDENT = 1,    // names
+	TK_KW_STRING,    // "string"
+	TK_KW_CSTR,      // "cstr"
 	TK_KW_INT,       // "int"
 	TK_KW_FLOAT,     // "float"
 	TK_KW_VOID,      // "void"
@@ -246,39 +248,36 @@ int display_width(const char *p, int len, source_file_id src);
 //
 // value.c
 //
-#  define VAL_BAD               ((struct haste_value) { .kind = HASTE_VL_BAD })
+#  define VAL_BAD                ((struct haste_value) { .kind = HASTE_VL_BAD })
 #  define VAL_UNINIT             ((struct haste_value) { .kind = HASTE_VL_UNINIT })
-#  define VAL_INT(...)           ((struct haste_value) { .kind = HASTE_VL_INT, .integer = (__VA_ARGS__) })
-#  define VAL_UNTYPED_INT(...)   ((struct haste_value) { .kind = HASTE_VL_UNTYPED_INT, .integer = (__VA_ARGS__) })
-#  define VAL_FLOAT(...)         ((struct haste_value) { .kind = HASTE_VL_FLOAT, .floating = (__VA_ARGS__) })
-#  define VAL_UNTYPED_FLOAT(...) ((struct haste_value) { .kind = HASTE_VL_UNTYPED_FLOAT, .floating = (__VA_ARGS__) })
+#  define VAL_SCALAR(t, ...)     ((struct haste_value) { .kind = HASTE_VL_SCALAR, .type = (t), __VA_ARGS__ })
 #  define VAL_RUNTIME(...)       ((struct haste_value) { .kind = HASTE_VL_RUNTIME, .runtime = (__VA_ARGS__) })
-#  define VAL_OBJ(...)           ((struct haste_value) { .kind = HASTE_VL_OBJ, .obj = (struct haste_object*)(void*)(__VA_ARGS__) })
+#  define VAL_OBJ(t, p)             ((struct haste_value) { .kind = HASTE_VL_OBJ, .type = (t), .obj = (struct haste_object*)(void*)(p) })
 
 #  define OBJ_TYPE(...)          ((struct haste_object_type) { .base = { .kind = HASTE_OBJ_TYPE, }, __VA_ARGS__ })
 
-#  define IS_BAD(...)           ((__VA_ARGS__).kind == HASTE_VL_BAD)
+#  define IS_BAD(...)            ((__VA_ARGS__).kind == HASTE_VL_BAD)
 #  define IS_UNINIT(...)         ((__VA_ARGS__).kind == HASTE_VL_UNINIT)
-#  define IS_INT(...)            ((__VA_ARGS__).kind == HASTE_VL_INT)
-#  define IS_FLOAT(...)          ((__VA_ARGS__).kind == HASTE_VL_FLOAT)
+#  define IS_SCALAR(...)         ((__VA_ARGS__).kind == HASTE_VL_SCALAR)
 #  define IS_RUNTIME(...)        ((__VA_ARGS__).kind == HASTE_VL_RUNTIME)
 #  define IS_OBJ(...)            ((__VA_ARGS__).kind == HASTE_VL_OBJ)
 #  define IS_TYPE(...)           ((IS_OBJ(__VA_ARGS__) and ((__VA_ARGS__).obj->kind == HASTE_OBJ_TYPE)))
 
-#  define AS_OBJ(...)            ((__VA_ARGS__).obj)
-#  define AS_TYPE(...)           ((OAS_TYPE(AS_OBJ(__VA_ARGS__))))
-#  define OAS_TYPE(...)          ((struct haste_object_type *)(__VA_ARGS__))
+#  define AS_OBJ(v)              ((v).obj)
+#  define AS_TYPE(v)             ((OAS_TYPE(AS_OBJ(v))))
+#  define OAS_TYPE(v)            ((struct haste_object_type *)(v))
+
+struct haste_object_type;
+
 struct haste_value {
 	enum haste_value_kind {
-		HASTE_VL_BAD,          // it means something bad.
+		HASTE_VL_BAD,
 		HASTE_VL_UNINIT,
-		HASTE_VL_INT,           // integer
-		HASTE_VL_UNTYPED_INT,   // integer
-		HASTE_VL_FLOAT,         // floating
-		HASTE_VL_UNTYPED_FLOAT, // floating
-		HASTE_VL_RUNTIME,       // runtime // or potentially runtime. used for casting as well!
-		HASTE_VL_OBJ,           // obj
+		HASTE_VL_SCALAR,
+		HASTE_VL_RUNTIME,
+		HASTE_VL_OBJ,
 	} kind;
+	struct haste_object_type *type;
 	bool is_explicitly_comptime : 1;
 
 	union {
@@ -292,7 +291,14 @@ struct haste_value {
 struct haste_object {
 	enum {
 		HASTE_OBJ_TYPE,
+		HASTE_OBJ_STRING,
 	} kind;
+};
+
+struct haste_string_object {
+	struct haste_object base;
+	char *data;
+	size_t len;
 };
 
 struct haste_object_type {
@@ -306,6 +312,9 @@ struct haste_object_type {
 		HASTE_TY_UNTYPED_FLOAT,
 		HASTE_TY_AUTO,
 		HASTE_TY_VOID,
+		HASTE_TY_UNTYPED_STRING,
+		HASTE_TY_STRING,
+		HASTE_TY_CSTR,
 	} kind;
 	size_t size;
 	size_t align;
@@ -319,8 +328,10 @@ extern struct haste_value ty_float;
 extern struct haste_value ty_untyped_float;
 extern struct haste_value ty_auto;
 extern struct haste_value ty_void;
+extern struct haste_value ty_untyped_string;
+extern struct haste_value ty_string;
+extern struct haste_value ty_cstr;
 
-struct haste_value typeof_object(const struct haste_object *obj);
 struct haste_value typeof(const struct haste_value value);
 
 bool value_equal(struct haste_value a, struct haste_value b);

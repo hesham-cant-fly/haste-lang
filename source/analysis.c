@@ -142,19 +142,40 @@ static struct symbol *find_local_first(struct analyzer *self, const char *name)
 
 // ── Token → value ──────────────────────────────────────────────
 
-static struct haste_value token_to_value(struct token token)
+static struct haste_string_object *make_string_obj(struct Allocator allocator, char *data, size_t len)
+{
+	struct haste_string_object *obj = create(
+		allocator, struct haste_string_object,
+		.base = { .kind = HASTE_OBJ_STRING },
+		.data = data,
+		.len = len);
+	return obj;
+}
+
+static struct haste_value token_to_value(struct token token, struct Allocator arena)
 {
 	switch (token.kind) {
 	case TK_IDENT:    unimplemented();
-	case TK_STR:      unimplemented();
-	case TK_INT:      return VAL_UNTYPED_INT(token.ival);
-	case TK_FLOAT:    return VAL_UNTYPED_FLOAT(token.fval);
-	case TK_KW_INT:   return ty_int;
-	case TK_KW_FLOAT: return ty_float;
-	case TK_KW_VOID:  return ty_void;
-	case TK_KW_TYPE:  return ty_type;
-	case TK_KW_AUTO:  return ty_auto;
-	default:          unreachable();
+	case TK_STR: {
+		size_t len = strlen(token.str);
+		char *data = nclone_string(arena, token.str, len);
+		struct haste_string_object *obj = make_string_obj(arena, data, len);
+		return (struct haste_value){
+			.kind = HASTE_VL_OBJ,
+			.type = AS_TYPE(ty_untyped_string),
+			.obj = &obj->base,
+		};
+	}
+	case TK_INT:       return VAL_SCALAR(AS_TYPE(ty_untyped_int), .integer = token.ival);
+	case TK_FLOAT:     return VAL_SCALAR(AS_TYPE(ty_untyped_float), .floating = token.fval);
+	case TK_KW_STRING: return ty_string;
+	case TK_KW_CSTR:   return ty_cstr;
+	case TK_KW_INT:    return ty_int;
+	case TK_KW_FLOAT:  return ty_float;
+	case TK_KW_VOID:   return ty_void;
+	case TK_KW_TYPE:   return ty_type;
+	case TK_KW_AUTO:   return ty_auto;
+	default:           unreachable();
 	}
 }
 
@@ -237,7 +258,7 @@ static struct haste_value analyze_primary(struct analyzer *self, struct haste_as
 		}
 		value = symbol->value;
 	} else {
-		value = token_to_value(node->token);
+		value = token_to_value(node->token, self->arena_allocator);
 	}
 
 	node->type = typeof(value);
@@ -344,7 +365,7 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 	node->variable.value = node_into_value(self->arena_allocator, node->variable.value, value);
 
 	run_at_percent (0.67) {
-		if (value_equal(value, VAL_UNTYPED_INT(67))) {
+		if (value_equal(value, VAL_SCALAR(AS_TYPE(ty_untyped_int), .integer = 67))) {
 			report_note(self, node->variable.value,
 				"THE FORBIDDEN {value} NUMBER IS NOT ALLOWED.", value);
 		}

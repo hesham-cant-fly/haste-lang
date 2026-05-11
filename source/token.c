@@ -4,6 +4,8 @@ static const char *TOKEN_KIND_LIT[] =
 {
 	[0]               = "unknown",
 	[TK_IDENT]        = "ident",
+	[TK_KW_STRING]    = "kw_string",   // "string"
+	[TK_KW_CSTR]      = "kw_cstr",     // "cstr"
 	[TK_KW_INT]       = "kw_int",      // "int"
 	[TK_KW_FLOAT]     = "kw_float",    // "float"
 	[TK_KW_VOID]      = "kw_void",     // "void"

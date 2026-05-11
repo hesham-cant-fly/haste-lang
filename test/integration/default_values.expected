@@ -1,5 +1,9 @@
-; ModuleID = 'main.haste'
-source_filename = "main.haste"
+; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/default_values.haste'
+source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/default_values.haste"
 
 @a = constant i32 0
 @b = constant float 0.000000e+00
+@c = constant { ptr, i64 } { ptr @.str.0, i64 0 }
+@.str.0 = private unnamed_addr constant [1 x i8] zeroinitializer
+@d = constant ptr @.str.1
+@.str.1 = private unnamed_addr constant [1 x i8] zeroinitializer

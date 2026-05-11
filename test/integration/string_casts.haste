@@ -1,0 +1,7 @@
+// Casting from untyped_string to string/cstr
+const a: string = cast[string]"hello";
+const b: cstr = cast[cstr]"world";
+
+// Casting between string types
+const c: string = cast[string]b;
+const d: cstr = cast[cstr]a;

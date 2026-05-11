@@ -1,8 +1,2 @@
-const a: int = 1;
-const b: float = 2;
-const c: int = a + b; // reports this
-const d: int = 1.2;   // and this
-const e: int = 1.2;   // and this
-const f = e;          // "skip" this (no report)
-const g: int = 1.2;   // reports this
-const h = g;          // "skip" this as well
+const a: string = "string";
+const b: cstr = cast[cstr] a;

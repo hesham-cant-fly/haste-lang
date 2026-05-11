@@ -1,0 +1,11 @@
+; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/string_defaults_and_casts.haste'
+source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/string_defaults_and_casts.haste"
+
+@a = constant { ptr, i64 } { ptr @.str.0, i64 5 }
+@.str.0 = private unnamed_addr constant [6 x i8] c"hello\00"
+@b = constant ptr @.str.1
+@.str.1 = private unnamed_addr constant [6 x i8] c"world\00"
+@c = constant { ptr, i64 } { ptr @.str.2, i64 5 }
+@.str.2 = private unnamed_addr constant [6 x i8] c"world\00"
+@d = constant ptr @.str.3
+@.str.3 = private unnamed_addr constant [6 x i8] c"hello\00"
