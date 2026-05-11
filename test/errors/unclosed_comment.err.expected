@@ -1,0 +1,6 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/unclosed_comment.haste:1:12: Error: unclosed block comment
+    1 | /* unclosed
+                   ^ 
+home/hesham/Documents/Projects/haste-lang/test/errors/unclosed_comment.haste:1:1: Note: it opened right here
+    1 | /* unclosed
+        ^ 

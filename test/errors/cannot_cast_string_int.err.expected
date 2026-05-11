@@ -1,0 +1,3 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/cannot_cast_string_int.haste:1:11: Error: Cannot cast 'untyped_string' to 'int'
+    1 | const a = cast[int]"hello";
+                  ^ 

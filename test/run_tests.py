@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, subprocess, sys, glob
+import os, subprocess, sys, glob, re
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HASTE = os.path.join(PROJECT_DIR, "haste")
@@ -25,16 +25,32 @@ def _run_one_test(group, file_path, index=0, leng=0):
     kind = group["kind"]
     cmd = [HASTE, *group["flags"], file_path]
     skip = group.get("skip_lines", 0)
+    expect_failure = group.get("expect_failure", False)
 
     result = subprocess.run(cmd, capture_output=True, cwd=PROJECT_DIR)
-    with open(got_path, "wb") as f:
-        f.write(result.stdout)
-        if result.stderr:
-            f.write(result.stderr)
 
-    if result.returncode != 0:
-        red(f"{int((float(index) / float(leng)) * 100.0):3}% FAIL: {kind:>10}: {name} (compiler crash)")
-        return {"name": name, "kind": kind, "passed": False}
+    ansi_re = re.compile(rb'\033\[[0-9;]*[a-zA-Z]')
+    def strip_ansi(data):
+        return ansi_re.sub(b'', data)
+
+    if expect_failure:
+        got_data = strip_ansi(result.stderr) if result.stderr else b''
+    else:
+        got_data = result.stdout
+        if result.stderr:
+            got_data += result.stderr
+
+    with open(got_path, "wb") as f:
+        f.write(got_data)
+
+    if expect_failure:
+        if result.returncode == 0:
+            red(f"{int((float(index) / float(leng)) * 100.0):3}% FAIL: {kind:>10}: {name} (expected error but compiled successfully)")
+            return {"name": name, "kind": kind, "passed": False}
+    else:
+        if result.returncode != 0:
+            red(f"{int((float(index) / float(leng)) * 100.0):3}% FAIL: {kind:>10}: {name} (compiler crash)")
+            return {"name": name, "kind": kind, "passed": False}
 
     with open(expected_path) as f:
         expected_lines = f.readlines()[skip:]
@@ -65,6 +81,16 @@ TEST_GROUPS = [
         "flags": ["--tokens"],
         "expected_suffix": "tokens.expected",
         "got_suffix": "tokens.got",
+    },
+    {
+        "name": "errors",
+        "kind": "errors",
+        "dir": "test/errors",
+        "pattern": "*.haste",
+        "flags": [],
+        "expected_suffix": "err.expected",
+        "got_suffix": "err.got",
+        "expect_failure": True,
     },
     {
         "name": "integration",

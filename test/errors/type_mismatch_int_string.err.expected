@@ -1,0 +1,3 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/type_mismatch_int_string.haste:1:7: Error: cannot assign a value of type 'untyped_string' to 'int'.
+    1 | const a: int = "hello";
+              ^ 

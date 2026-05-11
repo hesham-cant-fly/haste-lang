@@ -1,0 +1,3 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/undefined_symbol.haste:1:11: Error: undefined symbol 'b'.
+    1 | const a = b;
+                  ^ 

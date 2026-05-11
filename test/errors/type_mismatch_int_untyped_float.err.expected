@@ -1,0 +1,3 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/type_mismatch_int_untyped_float.haste:1:7: Error: cannot assign a value of type 'untyped_float' to 'int'.
+    1 | const a: int = 1.1;
+              ^ 

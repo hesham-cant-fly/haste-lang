@@ -1,0 +1,3 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/expected_expr.haste:1:11: Error: Expected an expression, got `;` instead.
+    1 | const a = ;
+                  ^ 

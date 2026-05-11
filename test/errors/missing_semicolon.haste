@@ -1,0 +1,2 @@
+const a: int = 42
+const b = 1;
