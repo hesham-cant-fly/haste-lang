@@ -143,6 +143,32 @@ cast[target_type] expression
 - Forward references across top-level declarations are supported (hoisting)
 - Type aliases resolve at compile time
 
+** Struct types
+
+#+BEGIN_SRC haste
+const Vec2 = struct {
+    x: float;
+    y: float = 0;          // default value
+};
+#+END_SRC
+
+- Fields are declared as =name: type;= with an optional == default= value
+- A struct type =is a type= value. =typeof(Vec2)= returns =type=
+
+** Struct literals
+
+#+BEGIN_SRC haste
+const pos = Vec2{ x: 0, y: 0 };     // named type literal
+const pos: Vec2 = .{ x: 1 };         // anonymous literal, type from annotation
+const pos = Vec3{};                   // all defaults
+const pos: Vec3;                      // uninitialized → zero values
+#+END_SRC
+
+- =Type{ field: value, ... }= — literal with explicit type
+- =.{}= — anonymous literal; type inferred from the declaration's type annotation
+- Omitting a field uses its declared default (or the base type's default)
+- =const x: StructType;= produces the zero value for all fields
+
 * Examples
 
 ** Constants with explicit types
