@@ -230,9 +230,16 @@ static void scan_lexem(struct scanner *self)
 		{"struct", TK_KW_STRUCT},
 	};
 	for (size_t i=0; i<sizeof(keywords)/sizeof(keywords[0]); i += 1) {
+		const char *saved_current = self->current;
+		const bool saved_ended = self->ended;
 		if (matches(self, (char*)keywords[i].str)) {
-			add_token(self, keywords[i].kind);
-			return;
+			const uint32_t next = decode_utf8(NULL, self->current, self->src);
+			if (not is_ident2(next)) {
+				add_token(self, keywords[i].kind);
+				return;
+			}
+			self->current = saved_current;
+			self->ended = saved_ended;
 		}
 	}
 

@@ -1,0 +1,5 @@
+const integer = 5;
+const floater = int;
+const stringy = "ok";
+const autopilot = float;
+const castaway = auto;

@@ -58,7 +58,6 @@ static void _report_note_node(struct analyzer *self, struct haste_ast_node *node
 	va_list args; va_start(args, fmt);
 	f_vreport_at_token(self->src, ANSI_CODE_GREEN "Note", node->start, fmt, args);
 	va_end(args);
-	self->had_error = true;
 }
 
 static void _report_note_token(struct analyzer *self, struct token token, const char *restrict fmt, ...)
@@ -66,7 +65,6 @@ static void _report_note_token(struct analyzer *self, struct token token, const 
 	va_list args; va_start(args, fmt);
 	f_vreport_at_token(self->src, ANSI_CODE_GREEN "Note", token, fmt, args);
 	va_end(args);
-	self->had_error = true;
 }
 
 #define report_warning(self_, node_, ...) \

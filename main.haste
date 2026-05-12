@@ -1,3 +1,7 @@
+const Person = struct{};
+
+const me = Person{};
+
 const huh = auto{
 	a: 1,
 	b: 2

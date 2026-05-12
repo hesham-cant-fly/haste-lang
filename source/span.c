@@ -9,7 +9,7 @@ struct span span_to_trimed(struct span span)
 		return result;
 	}
 
-	while (isspace(result.start[result.len - 1]) and result.len > 0) {
+	while (result.len > 0 and isspace(result.start[result.len - 1])) {
 		result.len -= 1;
 	}
 

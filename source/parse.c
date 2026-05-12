@@ -369,10 +369,11 @@ static struct haste_ast_node *parse_precedence(struct parser *self, enum precede
 		struct token tok = advance(self);
 		ParseInfixFn infix_rule = get_rule(tok).infix;
 		if (infix_rule == NULL) {
-			report_error_at(self, token, "`{token}` is not a valid operator.", token);
+			report_error_at(self, tok, "`{token}` is not a valid operator.", tok);
 		}
 
 		left = infix_rule(self, left);
+		if (left == NULL) return NULL;
 	}
 
 	return left;
