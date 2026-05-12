@@ -44,8 +44,8 @@ static int custom_format_value(stream_t stream, struct modifier_stream mod, va_l
 static int custom_format_object(stream_t stream, struct modifier_stream mod, va_list args)
 {
 	discard mod;
-	struct haste_object *object = va_arg(args, struct haste_object*);
-	return print_object(stream, object);
+	struct haste_value object = va_arg(args, struct haste_value);
+	return print_object(stream, object.obj, (struct haste_object*)(object.type));
 }
 
 static int custom_format_ast(stream_t stream, struct modifier_stream mod, va_list args)
@@ -139,7 +139,7 @@ int main(int argc, char *argv[argc])
 		return 0;
 	}
 
-	err = codegen(c_allocator, src);
+	err = codegen(c_allocator, src, &intern_table);
 	if (err) {
 		deinit_intern_table(&intern_table);
 		arena_free(&arena);

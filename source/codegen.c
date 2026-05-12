@@ -1,5 +1,6 @@
 #include "haste.h"
 #include "llvm-c/Core.h"
+#include <signal.h>
 
 struct type_map_entry {
 	struct haste_object_type *haste_type;
@@ -10,6 +11,7 @@ struct codegen_context {
 	LLVMContextRef llvm_ctx;
 	LLVMBuilderRef builder;
 	LLVMModuleRef module;
+	struct intern_table *table;
 	size_t struct_type_count;
 	struct type_map_entry struct_types[64];
 };
@@ -190,7 +192,7 @@ static Error codegen_global_node(struct codegen_context *ctx, const struct haste
 		if (node->variable.is_explicitly_comptime) return OK;
 
 		LLVMTypeRef type = llvm_type(ctx, node->type);
-		const char *name = tsprint("{token}", node->variable.name);
+		const char *name = intern_token(ctx->table, node->variable.name);
 		LLVMValueRef global = LLVMAddGlobal(ctx->module, type, name);
 
 		LLVMValueRef init = node->variable.value != NULL
@@ -208,7 +210,7 @@ static Error codegen_global_node(struct codegen_context *ctx, const struct haste
 
 // ── Entry point ──────────────────────────────────────────────────
 
-Error codegen(struct Allocator allocator, const source_file_id src)
+Error codegen(struct Allocator allocator, const source_file_id src, struct intern_table *table)
 {
 	discard allocator;
 	const char *path = get_source_file_path(src);
@@ -221,6 +223,7 @@ Error codegen(struct Allocator allocator, const source_file_id src)
 		.llvm_ctx = llvm_ctx,
 		.builder = builder,
 		.module = module,
+		.table = table,
 	};
 
 	leach (struct haste_ast_node, node, get_source_file_ast(src)) {

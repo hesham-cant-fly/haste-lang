@@ -164,8 +164,11 @@ static struct haste_value token_to_value(struct token token, struct Allocator ar
 			.obj = &obj->base,
 		};
 	}
-	case TK_INT:       return VAL_SCALAR(AS_TYPE(ty_untyped_int), .integer = token.ival);
-	case TK_FLOAT:     return VAL_SCALAR(AS_TYPE(ty_untyped_float), .floating = token.fval);
+	case TK_INT:
+		if (token.ival == 0) return VAL_ZERO;
+		return VAL_SCALAR(AS_TYPE(ty_untyped_int), .integer = token.ival);
+	case TK_FLOAT:
+		return VAL_SCALAR(AS_TYPE(ty_untyped_float), .floating = token.fval);
 	case TK_KW_STRING: return ty_string;
 	case TK_KW_CSTR:   return ty_cstr;
 	case TK_KW_INT:    return ty_int;
@@ -329,7 +332,6 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 
 	struct haste_value value = VAL_UNINIT;
 	if (node->variable.value != NULL) {
-		// TODO: Make much more general
 		// For anonymous struct literals (.{...}) without a type expression,
 		// inject the type annotation so analyze_struct_literal can use it
 		if (node->variable.value->kind == ND_STRUCT_LITERAL
@@ -363,7 +365,7 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 			.node = node);
 		return VAL_BAD;
 	} else if (IS_UNINIT(value)) {
-		value = zero_for_type(self->arena_allocator, type);
+		value = default_for_type(self->arena_allocator, type);
 	}
 
 	if (not type_equal(type, typeof(value))) {
@@ -408,15 +410,26 @@ static struct haste_value analyze_struct_type(struct analyzer *self, struct hast
 	st->fields = alloc(self->arena_allocator, sizeof(struct haste_struct_field) * count);
 
 	size_t i = 0;
+	bool got_an_error = false;
 	leach (struct haste_ast_node, field, node->struct_type.fields) {
 		const char *name = intern_str(self->intern_table, field->struct_field.name.start, field->struct_field.name.len);
 		struct haste_value field_type = analyze_node(self, field->struct_field.type);
+		if (IS_BAD(field_type)) {
+			got_an_error = true;
+			continue;
+		}
 		struct haste_value default_value = {0};
 		bool has_default = false;
 		if (field->struct_field.default_value != NULL) {
 			default_value = analyze_node(self, field->struct_field.default_value);
-			if (not type_equal(typeof(default_value), field_type))
+			if (type_can_assign(field_type, typeof(default_value))) {
 				default_value = value_cast(self->arena_allocator, field_type, default_value);
+			} else {
+				report_error(self, field->struct_field.default_value,
+					"Cannot set the default value of type '{value}' to '{value}'",
+					typeof(default_value), field_type);
+				default_value = VAL_BAD;
+			}
 			has_default = true;
 		}
 		st->fields[i] = (struct haste_struct_field){
@@ -433,6 +446,10 @@ static struct haste_value analyze_struct_type(struct analyzer *self, struct hast
 		.type = AS_TYPE(ty_type),
 		.obj = &st->base.base,
 	};
+	if (got_an_error) {
+		result = VAL_BAD;
+		result.type = AS_TYPE(ty_type);
+	}
 	node = node_into_value(self->arena_allocator, node, result);
 	return result;
 }
@@ -497,7 +514,7 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 		return VAL_BAD;
 	}
 
-	struct haste_struct_type *st = (struct haste_struct_type*)AS_TYPE(struct_type);
+	struct haste_struct_type *st = AS_STRUCT_TYPE(struct_type);
 
 	struct haste_struct_object *so = create(self->arena_allocator, struct haste_struct_object,
 		.base = { .kind = HASTE_OBJ_STRUCT });
@@ -510,9 +527,11 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 			if (not type_equal(typeof(so->fields[i]), st->fields[i].type))
 				so->fields[i] = value_cast(self->arena_allocator, st->fields[i].type, so->fields[i]);
 		} else {
-			so->fields[i] = default_for_type(self->arena_allocator, st->fields[i].type);
+			so->fields[i] = VAL_NONE;
 		}
 	}
+
+	bool has_error = false;
 
 	// Override with provided fields
 	leach (struct haste_ast_node, lit_field, node->struct_literal.fields) {
@@ -534,10 +553,17 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 				}
 				struct haste_value fv = analyze_node(self, lit_field->struct_lit_field.value);
 				if (not IS_BAD(fv)) {
-					if (not type_equal(typeof(fv), st->fields[i].type)) {
+					if (type_can_assign(st->fields[i].type, typeof(fv))) {
 						fv = value_cast(self->arena_allocator, st->fields[i].type, fv);
+					} else {
+						report_error(self, lit_field,
+							"Cannot assign a value of type '{value}' to a value of type '{value}'",
+							typeof(fv), st->fields[i].type);
+						has_error = true;
 					}
 					so->fields[i] = fv;
+				} else {
+					has_error = true;
 				}
 				found = true;
 				break;
@@ -546,7 +572,17 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 		if (not found) {
 			report_error(self, lit_field,
 				"Unknown field '{token}'.", lit_field->struct_lit_field.name);
-			return VAL_BAD;
+			has_error = true;
+		}
+	}
+
+	for (size_t i = 0; i < st->field_count; i += 1) {
+		struct haste_struct_field field = st->fields[i];
+		struct haste_value field_value = so->fields[i];
+		if (IS_NONE(field_value)) {
+			report_error(self, node,
+				"Forgot to set a value for `{s}`.", field.name);
+			has_error = true;
 		}
 	}
 
@@ -555,6 +591,11 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 		.type = AS_TYPE(struct_type),
 		.obj = &so->base,
 	};
+	if (has_error) {
+		result = VAL_BAD;
+		result.type = AS_TYPE(struct_type);
+	}
+
 	node->type = typeof(result);
 	node_transform(node, ND_VALUE, value = result);
 	return result;

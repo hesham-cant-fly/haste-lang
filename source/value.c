@@ -6,6 +6,7 @@
 		assert(IS_TYPE(__VA_ARGS__) and "It should be a type. maybe you forgot to use `typeof()`?"); \
 	} while (0)
 
+static struct haste_object_type _ty_zero_data           = OBJ_TYPE(.kind = HASTE_TY_ZERO);
 static struct haste_object_type _ty_unknown_data        = OBJ_TYPE(.kind = HASTE_TY_UNKNOWN);
 static struct haste_object_type _ty_type_data           = OBJ_TYPE(.kind = HASTE_TY_TYPE,       .size = 8,  .align = 8);
 static struct haste_object_type _ty_int_data            = OBJ_TYPE(.kind = HASTE_TY_INT,        .size = 4,  .align = 4);
@@ -18,6 +19,7 @@ static struct haste_object_type _ty_untyped_string_data = OBJ_TYPE(.kind = HASTE
 static struct haste_object_type _ty_string_data         = OBJ_TYPE(.kind = HASTE_TY_STRING); // TODO:
 static struct haste_object_type _ty_cstr_data           = OBJ_TYPE(.kind = HASTE_TY_CSTR, .size = 8, .align = 4);
 
+struct haste_value ty_zero           = VAL_OBJ(&_ty_type_data, &_ty_zero_data);
 struct haste_value ty_unknown        = { .kind = HASTE_VL_OBJ, .type = &_ty_type_data, .obj = (struct haste_object*)&_ty_unknown_data };
 struct haste_value ty_type           = { .kind = HASTE_VL_OBJ, .type = &_ty_type_data, .obj = (struct haste_object*)&_ty_type_data };
 struct haste_value ty_int            = { .kind = HASTE_VL_OBJ, .type = &_ty_type_data, .obj = (struct haste_object*)&_ty_int_data };
@@ -188,9 +190,9 @@ struct haste_value default_for_type(struct Allocator alloc, struct haste_value t
 			.base = { .kind = HASTE_OBJ_STRUCT });
 		so->fields = alloc(alloc, sizeof(struct haste_value) * st->field_count);
 		for (size_t i = 0; i < st->field_count; i += 1) {
-			if (st->fields[i].has_default)
+			if (st->fields[i].has_default) {
 				so->fields[i] = st->fields[i].default_value;
-			else
+			} else
 				so->fields[i] = default_for_type(alloc, st->fields[i].type);
 		}
 		return (struct haste_value){
@@ -214,6 +216,7 @@ struct haste_value value_cast(struct Allocator alloc, const struct haste_value t
 	if (value_equal(value, VAL_UNINIT))    return default_for_type(alloc, to);
 	if (not type_can_cast(to, value_type)) return VAL_BAD;
 	if (type_equal(to, value_type))        return value;
+	if (IS_ZERO(value))      return zero_for_type(alloc, to);
 
 	if ((type_equal(to, ty_string) or type_equal(to, ty_cstr))
 		and IS_OBJ(value) and value.obj->kind == HASTE_OBJ_STRING) {
@@ -230,7 +233,9 @@ struct haste_value value_cast(struct Allocator alloc, const struct haste_value t
 struct haste_value typeof(const struct haste_value value)
 {
 	switch (value.kind) {
+	case HASTE_VL_NONE:    unreachable();
 	case HASTE_VL_BAD:     return VAL_BAD;
+	case HASTE_VL_ZERO:    return ty_zero;
 	case HASTE_VL_UNINIT:  return ty_unknown;
 	case HASTE_VL_RUNTIME: return value.runtime->type;
 	case HASTE_VL_SCALAR:
@@ -261,8 +266,11 @@ bool object_equal(struct haste_object *a, struct haste_object *b)
 bool value_equal(struct haste_value a, struct haste_value b)
 {
 	switch (a.kind) {
-	case HASTE_VL_BAD:          return false;
+	case HASTE_VL_NONE:
+	case HASTE_VL_BAD:           return false;
 	case HASTE_VL_UNINIT:        return b.kind == HASTE_VL_UNINIT;
+	case HASTE_VL_ZERO:
+		return b.kind == HASTE_VL_ZERO or value_equal(b, VAL_SCALAR(AS_TYPE(ty_untyped_int), 0));
 	case HASTE_VL_SCALAR:
 		if (not IS_SCALAR(b)) return false;
 		if (value_is_any_float(a) or value_is_any_float(b)) {
@@ -314,6 +322,7 @@ bool type_can_assign(const struct haste_value assignable,
 
 	if (type_equal(assignable, value))    return true;
 	if (type_equal(assignable, ty_auto))  return not type_equal(value, ty_unknown);
+	if (type_equal(value, ty_zero))       return true;
 	if (type_equal(assignable, ty_int))   return type_equal(value, ty_unknown) or type_is_integer(value);
 	if (type_equal(assignable, ty_float)) return type_equal(value, ty_unknown) or type_is_untyped_number(value);
 	if (type_equal(assignable, ty_string))
@@ -335,6 +344,7 @@ bool type_can_cast(const struct haste_value to,
 	if (type_equal(from, ty_unknown)) return true;
 	if (type_equal(to, ty_auto))      return true;
 	if (type_equal(to, from))         return true;
+	if (type_equal(from, ty_zero))    return true;
 	if (type_is_number(to))           return type_is_number(from);
 	if (type_equal(to, ty_string) or type_equal(to, ty_cstr) or type_equal(to, ty_untyped_string))
 		return type_equal(from, ty_string) or type_equal(from, ty_cstr) or type_equal(from, ty_untyped_string) or type_equal(from, ty_unknown);
@@ -388,7 +398,7 @@ bool type_is_untyped_number(const struct haste_value t)
 	return type_is_number(t) and type_is_untyped(t);
 }
 
-int print_object(stream_t stream, const struct haste_object *obj)
+int print_object(stream_t stream, const struct haste_object *obj, const struct haste_object *type)
 {
 	int printed_amount = 0;
 	switch (obj->kind) {
@@ -400,6 +410,9 @@ int print_object(stream_t stream, const struct haste_object *obj)
 			break;
 		case HASTE_TY_TYPE:
 			printed_amount += sprint(stream, "type");
+			break;
+		case HASTE_TY_ZERO:
+			printed_amount += sprint(stream, "zero");
 			break;
 		case HASTE_TY_INT:
 			printed_amount += sprint(stream, "int");
@@ -437,9 +450,17 @@ int print_object(stream_t stream, const struct haste_object *obj)
 		struct haste_string_object *s = (struct haste_string_object*)obj;
 		printed_amount += sprint(stream, "{s:*}", s->data, (int)s->len);
 	} break;
-	case HASTE_OBJ_STRUCT:
-		printed_amount += sprint(stream, "struct");
-		break;
+	case HASTE_OBJ_STRUCT: {
+		printed_amount += sprint(stream, "struct {"); // TODO: Make it prints struct's name
+		struct haste_struct_object *so = OAS_STRUCT(obj);
+		struct haste_struct_type *st = OAS_STRUCT_TYPE(type);
+		for (size_t i=0; i<st->field_count; i += 1) {
+			struct haste_struct_field field = st->fields[i];
+			struct haste_value field_value = so->fields[i];
+			printed_amount += sprint(stream, "{s}: {value},", field.name, field_value);
+		}
+		printed_amount += sprint(stream, "}");
+	} break;
 	}
 	return printed_amount;
 }
@@ -449,8 +470,14 @@ int print_value(stream_t stream, const struct haste_value value)
 	int printed_amount = 0;
 
 	switch (value.kind) {
+	case HASTE_VL_NONE:
+		printed_amount += sprint(stream, "NONE");
+		break;
 	case HASTE_VL_BAD:
 		printed_amount += sprint(stream, "BAD");
+		break;
+	case HASTE_VL_ZERO:
+		printed_amount += sprint(stream, "ZERO");
 		break;
 	case HASTE_VL_UNINIT:
 		printed_amount += sprint(stream, "UNINIT");
@@ -465,7 +492,7 @@ int print_value(stream_t stream, const struct haste_value value)
 		printed_amount += print_haste_ast(stream, value.runtime);
 		break;
 	case HASTE_VL_OBJ:
-		printed_amount += sprint(stream, "{obj}", value.obj);
+		printed_amount += sprint(stream, "{obj}", value);
 		break;
 	}
 

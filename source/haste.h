@@ -254,7 +254,9 @@ int display_width(const char *p, int len, source_file_id src);
 //
 // value.c
 //
+#  define VAL_NONE               ((struct haste_value) { .kind = HASTE_VL_NONE })
 #  define VAL_BAD                ((struct haste_value) { .kind = HASTE_VL_BAD })
+#  define VAL_ZERO               ((struct haste_value) { .kind = HASTE_VL_ZERO })
 #  define VAL_UNINIT             ((struct haste_value) { .kind = HASTE_VL_UNINIT })
 #  define VAL_SCALAR(t, ...)     ((struct haste_value) { .kind = HASTE_VL_SCALAR, .type = (t), __VA_ARGS__ })
 #  define VAL_RUNTIME(...)       ((struct haste_value) { .kind = HASTE_VL_RUNTIME, .runtime = (__VA_ARGS__) })
@@ -264,7 +266,9 @@ int display_width(const char *p, int len, source_file_id src);
 #  define OBJ_STRUCT_TYPE(...)   ((struct haste_struct_type) { .base = { .kind = HASTE_OBJ_TYPE, }, __VA_ARGS__ })
 #  define OBJ_STRUCT(...)        ((struct haste_struct_object) { .base = OBJ_TYPE(HASTE_TY_STRUCT), __VA_ARGS__ })
 
+#  define IS_NONE(...)           ((__VA_ARGS__).kind == HASTE_VL_NONE)
 #  define IS_BAD(...)            ((__VA_ARGS__).kind == HASTE_VL_BAD)
+#  define IS_ZERO(...)           ((__VA_ARGS__).kind == HASTE_VL_ZERO)
 #  define IS_UNINIT(...)         ((__VA_ARGS__).kind == HASTE_VL_UNINIT)
 #  define IS_SCALAR(...)         ((__VA_ARGS__).kind == HASTE_VL_SCALAR)
 #  define IS_RUNTIME(...)        ((__VA_ARGS__).kind == HASTE_VL_RUNTIME)
@@ -283,7 +287,9 @@ int display_width(const char *p, int len, source_file_id src);
 
 struct haste_value {
 	enum haste_value_kind {
+		HASTE_VL_NONE, // unset value
 		HASTE_VL_BAD,
+		HASTE_VL_ZERO,
 		HASTE_VL_UNINIT,
 		HASTE_VL_SCALAR,
 		HASTE_VL_RUNTIME,
@@ -329,6 +335,7 @@ struct haste_struct_object {
 struct haste_object_type {
 	struct haste_object base;
 	enum {
+		HASTE_TY_ZERO,
 		HASTE_TY_UNKNOWN,
 		HASTE_TY_TYPE,
 		HASTE_TY_INT,
@@ -403,7 +410,7 @@ bool type_is_number(const struct haste_value t);
 bool type_is_untyped(const struct haste_value t);
 bool type_is_untyped_number(const struct haste_value t);
 
-int print_object(stream_t stream, const struct haste_object *obj);
+int print_object(stream_t stream, const struct haste_object *obj, const struct haste_object *type);
 int print_value(stream_t stream, const struct haste_value value);
 
 //
@@ -558,6 +565,6 @@ Error analyze(struct Allocator allocator,
 //
 // codegen.c
 //
-Error codegen(struct Allocator allocator, const source_file_id src);
+Error codegen(struct Allocator allocator, const source_file_id src, struct intern_table *table);
 
 #endif // !HASTE_H_

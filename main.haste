@@ -1,15 +1,8 @@
-const Person = struct{};
-
-const me = Person{};
-
-const huh = auto{
-	a: 1,
-	b: 2
+const Vec2 = struct {
+	x: float = 6.7;
+	y: float;
 };
 
-const heh = .{
-	a: 1,
-	b: .{
-		c: 2,
-	},
-};
+const a: Vec2; // works as expected
+const b: Vec2 = 0; // works as expected
+const c = Vec2{y: 69,}; // doesn't (assertion failure)

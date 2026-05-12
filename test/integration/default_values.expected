@@ -9,4 +9,4 @@ source_filename = "test/integration/default_values.haste"
 @.str.0 = private unnamed_addr constant [1 x i8] zeroinitializer
 @d = constant ptr @.str.1
 @.str.1 = private unnamed_addr constant [1 x i8] zeroinitializer
-@s = constant %struct.type.0 zeroinitializer
+@s = constant %struct.type.0 { i32 42, float 0x40091EB860000000 }
