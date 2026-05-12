@@ -158,16 +158,39 @@ const Vec2 = struct {
 ** Struct literals
 
 #+BEGIN_SRC haste
-const pos = Vec2{ x: 0, y: 0 };     // named type literal
-const pos: Vec2 = .{ x: 1 };         // anonymous literal, type from annotation
-const pos = Vec3{};                   // all defaults
-const pos: Vec3;                      // uninitialized → zero values
+const pos = Vec2{ x: 0, y: 0 };          // named type literal
+const pos: Vec2 = .{ x: 1 };              // anonymous literal, type from annotation
+const pos: Vec2 = auto{ x: 1 };           // same as .{} with type annotation
+const pos = .{ x: 1, y: 2 };             // anonymous literal, creates struct from fields
+const pos = auto{ x: 1, y: 2 };          // same as .{} without type annotation
+const pos = Vec3{};                        // all defaults
+const pos: Vec3;                           // uninitialized → zero values
 #+END_SRC
 
 - =Type{ field: value, ... }= — literal with explicit type
-- =.{}= — anonymous literal; type inferred from the declaration's type annotation
+- =.{}= / =auto{}= with type annotation (=const x: T = .{...}=) — type is injected before analysis, fields validated against target type
+- =.{}= / =auto{}= without type annotation — creates a fresh anonymous struct type with fields determined by the literal
+- Anonymous struct literals also work nested inside typed struct literal fields:
+  - =Outer{ inner: .{ name: "x" } }= — =Inner= type is injected automatically
+  - =Outer{ inner: auto{ name: "x" } }= — same behavior, =auto= treated as anonymous
+- Empty =.{}= / =auto{}= creates an empty struct type
 - Omitting a field uses its declared default (or the base type's default)
 - =const x: StructType;= produces the zero value for all fields
+
+** Anonymous struct types
+
+#+BEGIN_SRC haste
+const Point = .{ x: 1, y: 2 };            // type: { x: int, y: int }
+const Point = auto{ x: 1, y: 2 };         // same as above
+const empty = .{};                         // type: {}
+const nested = .{ a: .{ b: "deep" } };   // type: { a: { b: string } }
+const copy = nested;                       // same type as nested
+#+END_SRC
+
+- Each anonymous literal produces a unique struct type
+- Nested anonymous literals produce nested anonymous struct types
+- Anonymous struct values can be copied (=const copy = original=), preserving type and value
+- When an anonymous struct is assigned to a typed variable or passed as a typed struct field value, field names and types must match the target
 
 * Examples
 
