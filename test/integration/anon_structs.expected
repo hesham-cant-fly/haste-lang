@@ -1,0 +1,28 @@
+; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/anon_structs.haste'
+source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/anon_structs.haste"
+
+%struct.type.0 = type { { ptr, i64 }, %struct.type.1 }
+%struct.type.1 = type { { ptr, i64 } }
+%struct.type.2 = type { i32, i32 }
+%struct.type.3 = type {}
+%struct.type.4 = type { %struct.type.5 }
+%struct.type.5 = type { ptr }
+%struct.type.6 = type { i32, i32 }
+%struct.type.7 = type {}
+%struct.type.8 = type { i32, %struct.type.9 }
+%struct.type.9 = type { i32 }
+
+@me = constant %struct.type.0 { { ptr, i64 } { ptr @.str.0, i64 5 }, %struct.type.1 { { ptr, i64 } { ptr @.str.1, i64 5 } } }
+@.str.0 = private unnamed_addr constant [6 x i8] c"outer\00"
+@.str.1 = private unnamed_addr constant [6 x i8] c"inner\00"
+@standalone = constant %struct.type.2 { i32 1, i32 2 }
+@empty = constant %struct.type.3 zeroinitializer
+@nested = constant %struct.type.4 { %struct.type.5 { ptr @.str.2 } }
+@.str.2 = private unnamed_addr constant [5 x i8] c"deep\00"
+@me_auto = constant %struct.type.0 { { ptr, i64 } { ptr @.str.3, i64 10 }, %struct.type.1 { { ptr, i64 } { ptr @.str.4, i64 10 } } }
+@.str.3 = private unnamed_addr constant [11 x i8] c"auto-outer\00"
+@.str.4 = private unnamed_addr constant [11 x i8] c"auto-inner\00"
+@standalone_auto = constant %struct.type.6 { i32 3, i32 4 }
+@empty_auto = constant %struct.type.7 zeroinitializer
+@heh = constant %struct.type.8 { i32 1, %struct.type.9 { i32 2 } }
+@baz = constant %struct.type.8 { i32 1, %struct.type.9 { i32 2 } }

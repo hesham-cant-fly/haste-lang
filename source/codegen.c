@@ -95,7 +95,7 @@ static LLVMTypeRef llvm_type(struct codegen_context *ctx, struct haste_value typ
 		ctx->struct_type_count += 1;
 
 		// Set body
-		LLVMTypeRef members[st->field_count];
+		LLVMTypeRef members[st->field_count > 0 ? st->field_count : 1];
 		for (size_t i = 0; i < st->field_count; i += 1) {
 			members[i] = llvm_type(ctx, st->fields[i].type);
 		}
@@ -157,7 +157,7 @@ static LLVMValueRef llvm_value(struct codegen_context *ctx, struct haste_value v
 			LLVMTypeRef llvm_st = llvm_type(ctx, typeof(value));
 			struct haste_struct_object *so = (struct haste_struct_object*)value.obj;
 			struct haste_struct_type *st = (struct haste_struct_type*)AS_TYPE(typeof(value));
-			LLVMValueRef members[st->field_count];
+			LLVMValueRef members[st->field_count > 0 ? st->field_count : 1];
 			for (size_t i = 0; i < st->field_count; i += 1) {
 				members[i] = llvm_value(ctx, so->fields[i]);
 			}

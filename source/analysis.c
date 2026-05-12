@@ -445,12 +445,45 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 
 	if (node->struct_literal.type_expr != NULL) {
 		struct_type = analyze_node(self, node->struct_literal.type_expr);
-	} else {
-		// TODO: Make it more dynamic
-		// For .{...} without type annotation, infer later in analyze_var_decl
-		// Return a placeholder — will be resolved by the parent
-		struct haste_value result = {0};
-		node->type = ty_unknown;
+	}
+	if (node->struct_literal.type_expr == NULL or type_equal(struct_type, ty_auto)) {
+		// Anonymous struct literal — create a struct type from the fields
+		size_t field_count = 0;
+		leach (struct haste_ast_node, f, node->struct_literal.fields)
+			field_count += 1;
+
+		struct haste_struct_type *st = create(self->arena_allocator, struct haste_struct_type,
+			.base = { .base = { .kind = HASTE_OBJ_TYPE }, .kind = HASTE_TY_STRUCT });
+		st->field_count = field_count;
+		size_t fc = field_count > 0 ? field_count : 1;
+		st->fields = alloc(self->arena_allocator, sizeof(struct haste_struct_field) * fc);
+
+		struct haste_struct_object *so = create(self->arena_allocator, struct haste_struct_object,
+			.base = { .kind = HASTE_OBJ_STRUCT });
+		so->fields = alloc(self->arena_allocator, sizeof(struct haste_value) * fc);
+
+		size_t i = 0;
+		leach (struct haste_ast_node, lit_field, node->struct_literal.fields) {
+			const char *name = intern_str(self->intern_table,
+				lit_field->struct_lit_field.name.start,
+				lit_field->struct_lit_field.name.len);
+			struct haste_value fv = analyze_node(self, lit_field->struct_lit_field.value);
+			if (IS_BAD(fv)) return VAL_BAD;
+			st->fields[i] = (struct haste_struct_field){
+				.name = name,
+				.type = typeof(fv),
+			};
+			so->fields[i] = fv;
+			i += 1;
+		}
+
+		struct haste_value result = {
+			.kind = HASTE_VL_OBJ,
+			.type = &st->base,
+			.obj = &so->base,
+		};
+		node->type = typeof(result);
+		node_transform(node, ND_VALUE, value = result);
 		return result;
 	}
 
@@ -460,7 +493,7 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 		return VAL_BAD;
 	}
 
-	if (AS_TYPE(struct_type)->kind != HASTE_TY_STRUCT) {
+	if (not IS_STRUCT_TYPE(struct_type)) {
 		report_error(self, node->struct_literal.type_expr,
 			"Expected a struct type, got '{value}'.", struct_type);
 		return VAL_BAD;
@@ -490,6 +523,17 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 			if (strncmp(lit_field->struct_lit_field.name.start, st->fields[i].name,
 						lit_field->struct_lit_field.name.len) == 0
 				and st->fields[i].name[lit_field->struct_lit_field.name.len] == '\0') {
+				if (lit_field->struct_lit_field.value->kind == ND_STRUCT_LITERAL) {
+					struct haste_ast_node *lit = lit_field->struct_lit_field.value;
+					if (lit->struct_literal.type_expr == NULL
+					    or (lit->struct_literal.type_expr->kind == ND_PRIMARY
+					        and lit->struct_literal.type_expr->token.kind == TK_KW_AUTO)) {
+						struct haste_ast_node *ty_node = create(self->arena_allocator,
+							struct haste_ast_node, .type = typeof(st->fields[i].type));
+						ty_node = node_into_value(self->arena_allocator, ty_node, st->fields[i].type);
+						lit->struct_literal.type_expr = ty_node;
+					}
+				}
 				struct haste_value fv = analyze_node(self, lit_field->struct_lit_field.value);
 				if (not IS_BAD(fv)) {
 					if (not type_equal(typeof(fv), st->fields[i].type)) {

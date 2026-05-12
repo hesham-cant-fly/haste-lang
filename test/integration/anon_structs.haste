@@ -1,0 +1,51 @@
+const Inner = struct {
+	name: string;
+};
+
+const Outer = struct {
+	label: string;
+	inner: Inner;
+};
+
+const me = Outer{
+	label: "outer",
+	inner: .{
+		name: "inner"
+	}
+};
+
+const standalone = .{
+	a: 1,
+	b: 2
+};
+
+const empty = .{};
+
+const nested = .{
+	x: .{
+		y: "deep"
+	}
+};
+
+const me_auto = Outer{
+	label: "auto-outer",
+	inner: auto{
+		name: "auto-inner"
+	}
+};
+
+const standalone_auto = auto{
+	a: 3,
+	b: 4
+};
+
+const empty_auto = auto{};
+
+const heh = .{
+	a: 1,
+	b: .{
+		c: 2
+	}
+};
+
+const baz = heh;
