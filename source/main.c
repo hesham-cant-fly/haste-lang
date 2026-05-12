@@ -72,6 +72,7 @@ int main(int argc, char *argv[argc])
 	srand(time(NULL));
 	setlocale(LC_ALL, "C.UTF-8");
 
+
 	struct Allocator c_allocator = get_c_allocator();
 	set_default_allocator(c_allocator);
 
@@ -80,10 +81,13 @@ int main(int argc, char *argv[argc])
 	struct Arena arena = ArenaDefault();
 	struct Allocator allocator = arena_get_allocator(&arena);
 
+	struct intern_table intern_table = init_intern_table(c_allocator, allocator);
+
 	const source_file_id src = obtain_source_file_id(NULL, options.source_path);
 	struct token_list tokens = {0};
-	err = scan_entire_file(c_allocator, src, &tokens);
+	err = scan_entire_file(c_allocator, &intern_table, src, &tokens);
 	if (err) {
+		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 1;
 	}
@@ -93,47 +97,56 @@ int main(int argc, char *argv[argc])
 			println("{token:#}", tok);
 		}
 		arrfree(c_allocator, tokens);
+		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 0;
 	}
 
 	err = parse(allocator, tokens, src);
 	if (err) {
+		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 1;
 	}
 
 	arrfree(c_allocator, tokens);
 
-	err = hoist(c_allocator, allocator, src);
+	err = hoist(c_allocator, &intern_table, src);
 	if (err) {
+		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 1;
 	}
 
 	if (options.dump_ast) {
 		println("{ast}", get_source_file_ast(src));
+		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 0;
 	}
 
-	err = analyze(c_allocator, allocator, src);
+	err = analyze(c_allocator, allocator, &intern_table, src);
 	if (err) {
+		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 1;
 	}
+
 	if (options.dump_sema) {
 		println("{ast}", get_source_file_ast(src));
+		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 0;
 	}
 
 	err = codegen(c_allocator, src);
 	if (err) {
+		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 1;
 	}
 
+	deinit_intern_table(&intern_table);
 	arena_free(&arena);
 	return 0;
 }

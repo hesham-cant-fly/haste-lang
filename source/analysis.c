@@ -7,7 +7,7 @@ struct scope {
 	struct scope *next;
 	size_t len;
 	struct symbol {
-		char *key;
+		const char *key;
 		bool is_constant : 1;
 		bool is_explicitly_comptime : 1;
 		struct haste_value type;
@@ -19,6 +19,7 @@ struct scope {
 struct analyzer {
 	struct Allocator allocator;
 	struct Allocator arena_allocator;
+	struct intern_table *intern_table;
 	struct scope *global, *local;
 	const source_file_id src;
 	bool had_error;
@@ -110,7 +111,7 @@ static void end_scope(struct analyzer *self)
 #define put_local_symbol(self_, name_, ...) put_symbol(self_, (self_)->local, name_, __VA_ARGS__)
 #define put_global_symbol(self_, name_, ...) put_symbol(self_, (self_)->global, name_, __VA_ARGS__)
 #define put_symbol(self_, scope_, name_, ...) _put_symbol((self_), (scope_), (name_), (struct symbol) { __VA_ARGS__ })
-static bool _put_symbol(struct analyzer *self, struct scope *scope, char *name, struct symbol symbol)
+static bool _put_symbol(struct analyzer *self, struct scope *scope, const char *name, struct symbol symbol)
 {
 	symbol.key = name;
 	if (hmget(*scope, name)) return true;
@@ -158,8 +159,7 @@ static struct haste_value token_to_value(struct token token, struct Allocator ar
 	case TK_IDENT:    unimplemented();
 	case TK_STR: {
 		size_t len = strlen(token.str);
-		char *data = nclone_string(arena, token.str, len);
-		struct haste_string_object *obj = make_string_obj(arena, data, len);
+		struct haste_string_object *obj = make_string_obj(arena, (char *)token.str, len);
 		return (struct haste_value){
 			.kind = HASTE_VL_OBJ,
 			.type = AS_TYPE(ty_untyped_string),
@@ -250,7 +250,7 @@ static struct haste_value analyze_primary(struct analyzer *self, struct haste_as
 {
 	struct haste_value value = {0};
 	if (node->token.kind == TK_IDENT) {
-		const char *name = tsprint("{token}", node->token);
+		const char *name = intern_token(self->intern_table, node->token);
 		struct symbol *symbol = find_local_first(self, name);
 		if (symbol == NULL) {
 			report_error(self, node, "undefined symbol '{s}'.", name);
@@ -299,14 +299,13 @@ static struct haste_value analyze_cast(struct analyzer *self, struct haste_ast_n
 
 static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_ast_node *node)
 {
-	struct token name = node->variable.name;
+	const char *name = intern_token(self->intern_table, node->variable.name);
 	const bool is_constant = node->variable.is_constant;
-	char *name_str = nclone_string(self->arena_allocator, name.start, name.len);
 	struct scope *target_scope = node->variable.is_global then self->global otherwise self->local;
 
 	if (node->variable.type == NULL and node->variable.value == NULL) {
 		report_error(self, node, "You need to either specify the type or the value or both.");
-		put_symbol(self, target_scope, name_str,
+		put_symbol(self, target_scope, name,
 			.type = VAL_BAD,
 			.value = VAL_BAD,
 			.is_constant = is_constant,
@@ -322,7 +321,7 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 	if (not type_equal(typeof(type), ty_type)) {
 		report_error(self, node->variable.type,
 			"Expected a {value} got '{value}' instead.", ty_auto, typeof(type));
-		put_symbol(self, target_scope, name_str,
+		put_symbol(self, target_scope, name,
 			.value = VAL_BAD,
 			.type = VAL_BAD,
 			.is_constant = is_constant,
@@ -345,7 +344,7 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 		}
 		value = analyze_node(self, node->variable.value);
 		if (IS_BAD(value)) {
-			put_symbol(self, target_scope, name_str,
+			put_symbol(self, target_scope, name,
 				.value = VAL_BAD,
 				.type = VAL_BAD,
 				.is_constant = is_constant,
@@ -357,9 +356,9 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 	if (type_equal(type, ty_auto)) {
 		type = typeof(value);
 	} else if (not type_can_assign(type, typeof(value))) {
-		report_error(self, name,
+		report_error(self, node->variable.name,
 			"cannot assign a value of type '{value}' to '{value}'.", typeof(value), type);
-		put_symbol(self, target_scope, name_str,
+		put_symbol(self, target_scope, name,
 			.value = VAL_BAD,
 			.type = VAL_BAD,
 			.is_constant = is_constant,
@@ -376,7 +375,7 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 	const bool is_explicitly_comptime = node->variable.is_explicitly_comptime
 		or (is_constant and type_equal(type, ty_type));
 
-	put_symbol(self, target_scope, name_str,
+	put_symbol(self, target_scope, name,
 		.type = type,
 		.value = value,
 		.is_constant = is_constant,
@@ -412,7 +411,7 @@ static struct haste_value analyze_struct_type(struct analyzer *self, struct hast
 
 	size_t i = 0;
 	leach (struct haste_ast_node, field, node->struct_type.fields) {
-		char *name = nclone_string(self->arena_allocator, field->struct_field.name.start, field->struct_field.name.len);
+		const char *name = intern_str(self->intern_table, field->struct_field.name.start, field->struct_field.name.len);
 		struct haste_value field_type = analyze_node(self, field->struct_field.type);
 		struct haste_value default_value = {0};
 		bool has_default = false;
@@ -542,11 +541,15 @@ static struct haste_value analyze_node(struct analyzer *self, struct haste_ast_n
 	}
 }
 
-Error analyze(struct Allocator allocator, struct Allocator arena_allocator, const source_file_id src)
+Error analyze(struct Allocator allocator,
+              struct Allocator arena_allocator,
+              struct intern_table *intern_table,
+              const source_file_id src)
 {
 	struct analyzer analyzer = {
 		.allocator = allocator,
 		.arena_allocator = arena_allocator,
+		.intern_table = intern_table,
 		.src = src,
 	};
 	begin_scope(&analyzer);

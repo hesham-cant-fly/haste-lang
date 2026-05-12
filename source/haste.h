@@ -83,7 +83,7 @@ struct source_file {
 	struct haste_declarations {
 		size_t len;
 		struct haste_declaration {
-			char *key; // name
+			const char *key; // name
 			struct haste_ast_node *node;
 			bool analyzing : 1;
 		} *items;
@@ -169,8 +169,7 @@ struct haste_declarations get_source_file_declarations(const source_file_id id);
 //
 // token.c
 //
-
-	enum token_kind {
+enum token_kind {
 	TK_IDENT = 1,    // names
 	TK_KW_STRING,    // "string"
 	TK_KW_CSTR,      // "cstr"
@@ -219,7 +218,8 @@ struct token {
 	union {
 		int64_t ival;
 		double fval;
-		char *str;
+		const char *str;
+		const char *ident;
 	};
 };
 
@@ -315,7 +315,7 @@ struct haste_string_object {
 };
 
 struct haste_struct_field {
-	char *name;
+	const char *name;
 	struct haste_value type;
 	struct haste_value default_value;
 	bool has_default;
@@ -368,11 +368,6 @@ extern struct haste_value ty_struct;
 struct haste_value typeof(const struct haste_value value);
 
 bool value_equal(struct haste_value a, struct haste_value b);
-
-// bool type_can_add(const struct haste_value lhs, const struct haste_value rhs);
-// bool type_can_sub(const struct haste_value lhs, const struct haste_value rhs);
-// bool type_can_mul(const struct haste_value lhs, const struct haste_value rhs);
-// bool type_can_div(const struct haste_value lhs, const struct haste_value rhs);
 
 struct haste_value value_add(const struct haste_value lhs, const struct haste_value rhs);
 struct haste_value value_sub(const struct haste_value lhs, const struct haste_value rhs);
@@ -508,10 +503,32 @@ void f_report_at_token(const source_file_id src, const char *kind, struct token 
 void f_vreport_at_token(const source_file_id src, const char *kind, struct token token, const char *fmt, va_list args);
 
 //
+// intern.c
+//
+struct intern_table {
+	struct Allocator arena;
+	struct Allocator allocator;
+	size_t cap, len;
+	struct intern_entry {
+		uint64_t hash;
+		const char *str;
+		size_t len;
+	} *entries;
+};
+
+struct intern_table init_intern_table(struct Allocator allocator, struct Allocator arena);
+void deinit_intern_table(struct intern_table *table);
+
+const char *intern_str(struct intern_table *table, const char *start, size_t len);
+const char *intern_token(struct intern_table *table, struct token token);
+const char *intern_cstr(struct intern_table *table, const char *str);
+
+//
 // scanner.c
 //
 Error scan_entire_file(
 	struct Allocator allocator,
+	struct intern_table *table,
 	const source_file_id src,
 	struct token_list *out);
 
@@ -527,13 +544,16 @@ Error parse(
 // hoisting.c
 //
 Error hoist(struct Allocator allocator,
-            struct Allocator arena_allocator,
+			struct intern_table *table,
             const source_file_id src);
 
 //
 // analysis.c
 //
-Error analyze(struct Allocator allocator, struct Allocator arena_allocator, const source_file_id src);
+Error analyze(struct Allocator allocator,
+              struct Allocator arena_allocator,
+              struct intern_table *intern_table,
+              const source_file_id src);
 
 //
 // codegen.c

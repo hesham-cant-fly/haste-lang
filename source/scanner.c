@@ -3,6 +3,7 @@
 
 struct scanner {
 	struct Allocator allocator;
+	struct intern_table *table;
 	struct token_list tokens;
 	source_file_id src;
 	const char *start, *current;
@@ -10,48 +11,54 @@ struct scanner {
 	bool has_error, ended;
 };
 
-static char *decode_string(struct Allocator allocator, const char *start, size_t len)
+static const char *decode_string(struct scanner *self, const char *start, size_t len)
 {
-	char *result = alloc(allocator, len + 1);
+	char *chars = alloc(self->allocator, len + 1);
 	size_t j = 0;
 	for (size_t i = 0; i < len; i += 1) {
 		if (start[i] == '\\' and i + 1 < len) {
 			i += 1;
 			switch (start[i]) {
-			case 'n':  result[j++] = '\n'; break;
-			case 't':  result[j++] = '\t'; break;
-			case 'r':  result[j++] = '\r'; break;
-			case '0':  result[j++] = '\0'; break;
-			case '\\': result[j++] = '\\'; break;
-			case '"':  result[j++] = '"';  break;
-			default:   result[j++] = start[i]; break;
+			case 'n':  chars[j++] = '\n'; break;
+			case 't':  chars[j++] = '\t'; break;
+			case 'r':  chars[j++] = '\r'; break;
+			case '0':  chars[j++] = '\0'; break;
+			case '\\': chars[j++] = '\\'; break;
+			case '"':  chars[j++] = '"';  break;
+			default:   chars[j++] = start[i]; break;
 			}
 		} else {
-			result[j++] = start[i];
+			chars[j++] = start[i];
 		}
 	}
-	result[j] = '\0';
+	chars[j] = '\0';
+
+	const char *result = intern_cstr(self->table, chars);
+	destroy(self->allocator, chars);
 	return result;
 }
 
-static void populate_token_value(struct token *tok) {
-	struct Allocator allocator = get_temporary_allocator();
-
+static void populate_token_value(struct scanner *self, struct token *tok) {
     switch (tok->kind) {
 	case TK_INT: {
-		char *buf = nclone_string(allocator, tok->start, tok->len);
+		char *buf = tsprint("{s:*}", tok->start, (int)tok->len);
 		tok->ival = strtoll(buf, NULL, 10);
 	} break;
 	case TK_FLOAT: {
-		char *buf = nclone_string(allocator, tok->start, tok->len);
+		char *buf = tsprint("{s:*}", tok->start, (int)tok->len);
 		tok->fval = strtold(buf, NULL);
 	} break;
+	case TK_IDENT: {
+		tok->ident = intern_str(self->table, tok->start, tok->len);
+	} break;
 	case TK_STR: {
-		tok->str = decode_string(allocator, tok->start + 1, tok->len - 2);
+		tok->str = decode_string(self, tok->start + 1, tok->len - 2);
 	} break;
 	default:
 		break;
     }
+
+	reset_temporary_allocator();
 }
 
 static bool ended(const struct scanner *self)
@@ -140,7 +147,7 @@ static struct token *add_token(struct scanner *self, enum token_kind kind)
 			self->current,
 			.line = self->line));
 	struct token *result = &self->tokens.items[self->tokens.len - 1];
-	populate_token_value(result);
+	populate_token_value(self, result);
 	return result;
 }
 
@@ -233,9 +240,9 @@ static void scan_lexem(struct scanner *self)
 	                      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	                      "$_")) {
 		advance_all(self, "abcdefghijklmnopqrstuvwxyz"
-	                          "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-							  "0123456789"
-	                          "$_");
+	                      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+						  "0123456789"
+	                      "$_");
 		add_token(self, TK_IDENT);
 		return;
 	}
@@ -342,6 +349,7 @@ static void start_scanning(struct scanner *self)
 
 Error scan_entire_file(
 	struct Allocator allocator,
+	struct intern_table *table,
 	const source_file_id src,
 	struct token_list *out)
 {
@@ -349,6 +357,7 @@ Error scan_entire_file(
 	struct scanner scanner = {
 		.allocator = allocator,
 		.tokens = {0},
+		.table = table,
 		.src = src,
 		.start = content,
 		.current = content,

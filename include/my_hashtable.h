@@ -188,9 +188,6 @@ void _hm_put_impl(
         *items_ptr = _hm_init_impl(allocator, item_size, MY_HASHTABLE_CAPACITY);
     }
 
-	// if (*items_ptr && *len >= (*cap * 7) / 10) {
-	// 	_hm_resize(allocator, items_ptr, len, cap, item_size);
-	// }
 	if (*items_ptr && *len >= (hmcapraw(*items_ptr) * 7) / 10) {
 		_hm_resize(allocator, items_ptr, len, item_size);
 	}

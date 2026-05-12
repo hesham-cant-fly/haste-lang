@@ -1,9 +1,5 @@
-const Vec3 = struct {
-	x: float = 1;
-	y: float = 1;
-	z: float = 1;
-};
-
-const pos1 = Vec3{}; // uses the default values that are defined in the struct
-
-const pos2: Vec3; // sets everything to 0
+const a: int = 1;
+const b = a + 1;
+const c = a + 1;
+const d = a + 1;
+const e = a + 1;
