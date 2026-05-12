@@ -1,0 +1,9 @@
+const Vec2 = struct {
+    x: float = 6.7;
+    y: float;
+};
+const a: int = 0;
+const b: float = 0;
+const c: string = 0;
+const d: cstr = 0;
+const e: Vec2 = 0;

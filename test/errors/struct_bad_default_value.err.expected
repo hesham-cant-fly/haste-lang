@@ -1,0 +1,3 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/struct_bad_default_value.haste:2:14: Error: Cannot set the default value of type 'untyped_string' to 'int'
+    2 | x: int = "hello";
+                 ^ 

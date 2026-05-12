@@ -1,0 +1,3 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/struct_field_not_a_type.haste:2:8: Error: expected a type for field, got 'untyped_int' instead.
+    2 | x: 42;
+           ^ 

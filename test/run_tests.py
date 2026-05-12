@@ -130,7 +130,7 @@ def main():
 
     print("---")
     if failed == 0:
-        green("All tests passed! 100%")
+        green(f"All tests passed! 100% ({len(all_tests)} tests in total)")
     else:
         red(f"{failed} test(s) failed ({int((float(failed) / float(len(all_tests))) * 100.0)}%), {passed} passed ({int((float(passed) / float(len(all_tests))) * 100.0)}%)")
     sys.exit(failed)

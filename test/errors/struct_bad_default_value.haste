@@ -1,0 +1,3 @@
+const S = struct {
+    x: int = "hello";
+};

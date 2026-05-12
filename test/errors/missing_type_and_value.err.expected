@@ -1,0 +1,3 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/missing_type_and_value.haste:1:1: Error: You need to either specify the type or the value or both.
+    1 | const x;
+        ^ 

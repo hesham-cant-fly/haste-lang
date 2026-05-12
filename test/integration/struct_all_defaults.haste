@@ -1,0 +1,7 @@
+const AllDefaults = struct {
+    a: int = 1;
+    b: float = 2.5;
+    c: string = "hi";
+};
+const x = AllDefaults{};
+const y: AllDefaults;

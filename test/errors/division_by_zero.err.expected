@@ -1,0 +1,3 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/division_by_zero.haste:1:13: Error: Division is not possible between 'untyped_int' and 'zero'
+    1 | const x = 1 / 0;
+                    ^ 

@@ -414,7 +414,11 @@ static struct haste_value analyze_struct_type(struct analyzer *self, struct hast
 	leach (struct haste_ast_node, field, node->struct_type.fields) {
 		const char *name = intern_str(self->intern_table, field->struct_field.name.start, field->struct_field.name.len);
 		struct haste_value field_type = analyze_node(self, field->struct_field.type);
-		if (IS_BAD(field_type)) {
+		if (IS_BAD(field_type) or not type_equal(typeof(field_type), ty_type)) {
+			if (not IS_BAD(field_type)) {
+				report_error(self, field->struct_field.type,
+					"expected a type for field, got '{value}' instead.", typeof(field_type));
+			}
 			got_an_error = true;
 			continue;
 		}
