@@ -1,0 +1,2 @@
+const Vec2 = struct { x: int; y: int; };
+const v = Vec2{ x: 1, y: 2, z: 3 };

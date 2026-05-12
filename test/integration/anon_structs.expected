@@ -1,5 +1,5 @@
-; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/anon_structs.haste'
-source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/anon_structs.haste"
+; ModuleID = 'test/integration/anon_structs.haste'
+source_filename = "test/integration/anon_structs.haste"
 
 %struct.type.0 = type { { ptr, i64 }, %struct.type.1 }
 %struct.type.1 = type { { ptr, i64 } }
@@ -11,6 +11,8 @@ source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/an
 %struct.type.7 = type {}
 %struct.type.8 = type { i32, %struct.type.9 }
 %struct.type.9 = type { i32 }
+%struct.type.10 = type { { ptr, i64 }, i32 }
+%struct.type.11 = type { ptr }
 
 @me = constant %struct.type.0 { { ptr, i64 } { ptr @.str.0, i64 5 }, %struct.type.1 { { ptr, i64 } { ptr @.str.1, i64 5 } } }
 @.str.0 = private unnamed_addr constant [6 x i8] c"outer\00"
@@ -26,3 +28,7 @@ source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/an
 @empty_auto = constant %struct.type.7 zeroinitializer
 @heh = constant %struct.type.8 { i32 1, %struct.type.9 { i32 2 } }
 @baz = constant %struct.type.8 { i32 1, %struct.type.9 { i32 2 } }
+@hd = constant %struct.type.10 { { ptr, i64 } { ptr @.str.5, i64 8 }, i32 99 }
+@.str.5 = private unnamed_addr constant [9 x i8] c"override\00"
+@hd_auto = constant %struct.type.11 { ptr @.str.6 }
+@.str.6 = private unnamed_addr constant [14 x i8] c"auto-override\00"

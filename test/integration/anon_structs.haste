@@ -49,3 +49,16 @@ const heh = .{
 };
 
 const baz = heh;
+
+const HasDefault = struct {
+	label: string = "default";
+	value: int = 99;
+};
+
+const hd = HasDefault{
+	label: "override"
+};
+
+const hd_auto = auto{
+	label: "auto-override"
+};

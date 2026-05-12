@@ -45,11 +45,9 @@ static struct token get_eof(const struct parser *self)
 
 static struct token get_pre_eof(const struct parser *self)
 {
-	// if (self->tokens.len == 0) {
-	// 	return (struct token){0};
-	// } else if (self->tokens.len == 1) {
-	// 	return self->tokens.items[self->tokens.len - 1];
-	// }
+	if (self->tokens.len < 2) {
+		return get_eof(self);
+	}
 	return self->tokens.items[self->tokens.len - 2];
 }
 

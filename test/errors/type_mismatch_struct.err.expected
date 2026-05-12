@@ -1,0 +1,3 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/type_mismatch_struct.haste:3:7: Error: cannot assign a value of type 'struct' to 'struct'.
+    3 | const v: Vec2 = Vec3{ x: 1, y: 2, z: 3 };
+              ^ 

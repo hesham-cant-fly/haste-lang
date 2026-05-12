@@ -1,33 +1,11 @@
-/* const Person = struct{ */
-/* 	name: string; */
-/* 	age: int; */
-/* 	job: Job; */
-/* }; */
-
-/* const Job = struct { */
-/* 	name: string; */
-/* }; */
-
-/* const me = Person{ */
-/* 	name: "Hesham", */
-/* 	age: 21, */
-/* 	job: .{ */
-/* 		name: "Jobless" */
-/* 	} */
-/* }; */
-
-// auto struct: generate new type automatically
 const huh = auto{
 	a: 1,
 	b: 2
 };
 
-// same as above
 const heh = .{
 	a: 1,
 	b: .{
 		c: 2,
 	},
 };
-
-const baz = heh;

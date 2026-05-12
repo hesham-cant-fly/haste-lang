@@ -291,6 +291,17 @@ bool type_equal(const struct haste_value v1,
 	if (t1 == t2) return true;
 	if (t1->kind != t2->kind) return false;
 
+	if (t1->kind == HASTE_TY_STRUCT) {
+		const struct haste_struct_type *s1 = (const struct haste_struct_type *)t1;
+		const struct haste_struct_type *s2 = (const struct haste_struct_type *)t2;
+		if (s1->field_count != s2->field_count) return false;
+		for (size_t i = 0; i < s1->field_count; i++) {
+			if (s1->fields[i].name != s2->fields[i].name) return false;
+			if (!type_equal(s1->fields[i].type, s2->fields[i].type)) return false;
+		}
+		return true;
+	}
+
 	return t1->size == t2->size and t1->align == t2->align;
 }
 

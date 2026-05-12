@@ -2,3 +2,9 @@ const a: int;
 const b: float;
 const c: string;
 const d: cstr;
+
+const S = struct {
+	x: int = 42;
+	y: float = 3.14;
+};
+const s: S;
