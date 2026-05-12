@@ -292,7 +292,7 @@ static struct haste_value analyze_cast(struct analyzer *self, struct haste_ast_n
 		return VAL_BAD;
 	}
 
-	struct haste_value result = value_cast(to, value);
+	struct haste_value result = value_cast(self->arena_allocator, to, value);
 	node->type = typeof(result);
 	return result;
 }
@@ -303,6 +303,16 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 	const bool is_constant = node->variable.is_constant;
 	char *name_str = nclone_string(self->arena_allocator, name.start, name.len);
 	struct scope *target_scope = node->variable.is_global then self->global otherwise self->local;
+
+	if (node->variable.type == NULL and node->variable.value == NULL) {
+		report_error(self, node, "You need to either specify the type or the value or both.");
+		put_symbol(self, target_scope, name_str,
+			.type = VAL_BAD,
+			.value = VAL_BAD,
+			.is_constant = is_constant,
+			.node = node);
+		return VAL_BAD;
+	}
 
 	struct haste_value type = ty_auto;
 	if (node->variable.type != NULL) {
@@ -322,6 +332,17 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 
 	struct haste_value value = VAL_UNINIT;
 	if (node->variable.value != NULL) {
+		// TODO: Make much more general
+		// For anonymous struct literals (.{...}) without a type expression,
+		// inject the type annotation so analyze_struct_literal can use it
+		if (node->variable.value->kind == ND_STRUCT_LITERAL
+		    && node->variable.value->struct_literal.type_expr == NULL
+		    && !type_equal(type, ty_auto)) {
+			struct haste_ast_node *ty_node = create(self->arena_allocator,
+				struct haste_ast_node, .type = typeof(type));
+			ty_node = node_into_value(self->arena_allocator, ty_node, type);
+			node->variable.value->struct_literal.type_expr = ty_node;
+		}
 		value = analyze_node(self, node->variable.value);
 		if (IS_BAD(value)) {
 			put_symbol(self, target_scope, name_str,
@@ -344,10 +365,12 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 			.is_constant = is_constant,
 			.node = node);
 		return VAL_BAD;
+	} else if (IS_UNINIT(value)) {
+		value = zero_for_type(self->arena_allocator, type);
 	}
 
 	if (not type_equal(type, typeof(value))) {
-		value = value_cast(type, value);
+		value = value_cast(self->arena_allocator, type, value);
 	}
 
 	const bool is_explicitly_comptime = node->variable.is_explicitly_comptime
@@ -374,6 +397,128 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 	return value;
 }
 
+// ── Struct analysis ───────────────────────────────────────────────
+
+static struct haste_value analyze_struct_type(struct analyzer *self, struct haste_ast_node *node)
+{
+	struct haste_struct_type *st = create(self->arena_allocator, struct haste_struct_type,
+		.base = { .base = { .kind = HASTE_OBJ_TYPE }, .kind = HASTE_TY_STRUCT });
+
+	size_t count = 0;
+	leach (struct haste_ast_node, field, node->struct_type.fields)
+		count += 1;
+	st->field_count = count;
+	st->fields = alloc(self->arena_allocator, sizeof(struct haste_struct_field) * count);
+
+	size_t i = 0;
+	leach (struct haste_ast_node, field, node->struct_type.fields) {
+		char *name = nclone_string(self->arena_allocator, field->struct_field.name.start, field->struct_field.name.len);
+		struct haste_value field_type = analyze_node(self, field->struct_field.type);
+		struct haste_value default_value = {0};
+		bool has_default = false;
+		if (field->struct_field.default_value != NULL) {
+			default_value = analyze_node(self, field->struct_field.default_value);
+			if (not type_equal(typeof(default_value), field_type))
+				default_value = value_cast(self->arena_allocator, field_type, default_value);
+			has_default = true;
+		}
+		st->fields[i] = (struct haste_struct_field){
+			.name = name,
+			.type = field_type,
+			.default_value = default_value,
+			.has_default = has_default,
+		};
+		i += 1;
+	}
+
+	struct haste_value result = {
+		.kind = HASTE_VL_OBJ,
+		.type = AS_TYPE(ty_type),
+		.obj = &st->base.base,
+	};
+	node = node_into_value(self->arena_allocator, node, result);
+	return result;
+}
+
+static struct haste_value analyze_struct_literal(struct analyzer *self, struct haste_ast_node *node)
+{
+	struct haste_value struct_type = {0};
+
+	if (node->struct_literal.type_expr != NULL) {
+		struct_type = analyze_node(self, node->struct_literal.type_expr);
+	} else {
+		// TODO: Make it more dynamic
+		// For .{...} without type annotation, infer later in analyze_var_decl
+		// Return a placeholder — will be resolved by the parent
+		struct haste_value result = {0};
+		node->type = ty_unknown;
+		return result;
+	}
+
+	if (not type_equal(typeof(struct_type), ty_type)) {
+		report_error(self, node->struct_literal.type_expr,
+			"Expected a type, got '{value}'.", typeof(struct_type));
+		return VAL_BAD;
+	}
+
+	if (AS_TYPE(struct_type)->kind != HASTE_TY_STRUCT) {
+		report_error(self, node->struct_literal.type_expr,
+			"Expected a struct type, got '{value}'.", struct_type);
+		return VAL_BAD;
+	}
+
+	struct haste_struct_type *st = (struct haste_struct_type*)AS_TYPE(struct_type);
+
+	struct haste_struct_object *so = create(self->arena_allocator, struct haste_struct_object,
+		.base = { .kind = HASTE_OBJ_STRUCT });
+	so->fields = alloc(self->arena_allocator, sizeof(struct haste_value) * st->field_count);
+
+	// Initialize all fields with their defaults first
+	for (size_t i = 0; i < st->field_count; i += 1) {
+		if (st->fields[i].has_default) {
+			so->fields[i] = st->fields[i].default_value;
+			if (not type_equal(typeof(so->fields[i]), st->fields[i].type))
+				so->fields[i] = value_cast(self->arena_allocator, st->fields[i].type, so->fields[i]);
+		} else {
+			so->fields[i] = default_for_type(self->arena_allocator, st->fields[i].type);
+		}
+	}
+
+	// Override with provided fields
+	leach (struct haste_ast_node, lit_field, node->struct_literal.fields) {
+		bool found = false;
+		for (size_t i = 0; i < st->field_count; i += 1) {
+			if (strncmp(lit_field->struct_lit_field.name.start, st->fields[i].name,
+						lit_field->struct_lit_field.name.len) == 0
+				and st->fields[i].name[lit_field->struct_lit_field.name.len] == '\0') {
+				struct haste_value fv = analyze_node(self, lit_field->struct_lit_field.value);
+				if (not IS_BAD(fv)) {
+					if (not type_equal(typeof(fv), st->fields[i].type)) {
+						fv = value_cast(self->arena_allocator, st->fields[i].type, fv);
+					}
+					so->fields[i] = fv;
+				}
+				found = true;
+				break;
+			}
+		}
+		if (not found) {
+			report_error(self, lit_field,
+				"Unknown field '{token}'.", lit_field->struct_lit_field.name);
+			return VAL_BAD;
+		}
+	}
+
+	struct haste_value result = {
+		.kind = HASTE_VL_OBJ,
+		.type = AS_TYPE(struct_type),
+		.obj = &so->base,
+	};
+	node->type = typeof(result);
+	node_transform(node, ND_VALUE, value = result);
+	return result;
+}
+
 // ── Main dispatch ────────────────────────────────────────────────
 
 static struct haste_value analyze_node(struct analyzer *self, struct haste_ast_node *node)
@@ -383,13 +528,17 @@ static struct haste_value analyze_node(struct analyzer *self, struct haste_ast_n
 	}
 
 	switch (node->kind) {
-	case ND_VALUE:     unreachable();
-	case ND_BINARY:    return analyze_binary(self, node);
-	case ND_UNARY:     return analyze_unary(self, node);
-	case ND_PRIMARY:   return analyze_primary(self, node);
-	case ND_GROUPING:  return analyze_grouping(self, node);
-	case ND_CAST:      return analyze_cast(self, node);
-	case ND_VAR_DECL:  return analyze_var_decl(self, node);
+	case ND_STRUCT_FIELD:     unreachable();
+	case ND_STRUCT_LIT_FIELD: unreachable();
+	case ND_VALUE:            unreachable();
+	case ND_BINARY:           return analyze_binary(self, node);
+	case ND_UNARY:            return analyze_unary(self, node);
+	case ND_PRIMARY:          return analyze_primary(self, node);
+	case ND_GROUPING:         return analyze_grouping(self, node);
+	case ND_CAST:             return analyze_cast(self, node);
+	case ND_STRUCT_TYPE:      return analyze_struct_type(self, node);
+	case ND_STRUCT_LITERAL:   return analyze_struct_literal(self, node);
+	case ND_VAR_DECL:         return analyze_var_decl(self, node);
 	}
 }
 

@@ -170,7 +170,7 @@ struct haste_declarations get_source_file_declarations(const source_file_id id);
 // token.c
 //
 
-enum token_kind {
+	enum token_kind {
 	TK_IDENT = 1,    // names
 	TK_KW_STRING,    // "string"
 	TK_KW_CSTR,      // "cstr"
@@ -182,6 +182,7 @@ enum token_kind {
 	TK_KW_CAST,      // "cast"
 	TK_KW_CONST,     // "const"
 	TK_KW_VAR,       // "var"
+	TK_KW_STRUCT,    // "struct"
 
 	TK_SEMI_COLON,   // ";"
 
@@ -190,8 +191,13 @@ enum token_kind {
 	TK_OPEN_PAREN,   // "("
 	TK_CLOSE_PAREN,  // ")"
 
+	TK_OPEN_BRACE,   // "{"
+	TK_CLOSE_BRACE,  // "}"
+
 	TK_COLON,        // ":"
 	TK_EQ,           // "="
+	TK_COMMA,        // ","
+	TK_DOT,          // "."
 
 	TK_PLUS,         // "+"
 	TK_MINUS,        // "-"
@@ -252,9 +258,11 @@ int display_width(const char *p, int len, source_file_id src);
 #  define VAL_UNINIT             ((struct haste_value) { .kind = HASTE_VL_UNINIT })
 #  define VAL_SCALAR(t, ...)     ((struct haste_value) { .kind = HASTE_VL_SCALAR, .type = (t), __VA_ARGS__ })
 #  define VAL_RUNTIME(...)       ((struct haste_value) { .kind = HASTE_VL_RUNTIME, .runtime = (__VA_ARGS__) })
-#  define VAL_OBJ(t, p)             ((struct haste_value) { .kind = HASTE_VL_OBJ, .type = (t), .obj = (struct haste_object*)(void*)(p) })
+#  define VAL_OBJ(t, p)          ((struct haste_value) { .kind = HASTE_VL_OBJ, .type = (t), .obj = (struct haste_object*)(void*)(p) })
 
 #  define OBJ_TYPE(...)          ((struct haste_object_type) { .base = { .kind = HASTE_OBJ_TYPE, }, __VA_ARGS__ })
+#  define OBJ_STRUCT_TYPE(...)   ((struct haste_struct_type) { .base = { .kind = HASTE_OBJ_TYPE, }, __VA_ARGS__ })
+#  define OBJ_STRUCT(...)        ((struct haste_struct_object) { .base = OBJ_TYPE(HASTE_TY_STRUCT), __VA_ARGS__ })
 
 #  define IS_BAD(...)            ((__VA_ARGS__).kind == HASTE_VL_BAD)
 #  define IS_UNINIT(...)         ((__VA_ARGS__).kind == HASTE_VL_UNINIT)
@@ -262,12 +270,16 @@ int display_width(const char *p, int len, source_file_id src);
 #  define IS_RUNTIME(...)        ((__VA_ARGS__).kind == HASTE_VL_RUNTIME)
 #  define IS_OBJ(...)            ((__VA_ARGS__).kind == HASTE_VL_OBJ)
 #  define IS_TYPE(...)           ((IS_OBJ(__VA_ARGS__) and ((__VA_ARGS__).obj->kind == HASTE_OBJ_TYPE)))
+#  define IS_STRUCT_TYPE(...)    ((IS_TYPE(__VA_ARGS__)) and (AS_TYPE(__VA_ARGS__)->kind == HASTE_TY_STRUCT))
+#  define IS_STRUCT(...)         ((IS_OBJ(__VA_ARGS__)) and ((__VA_ARGS__).obj->kind == HASTE_OBJ_STRUCT))
 
 #  define AS_OBJ(v)              ((v).obj)
 #  define AS_TYPE(v)             ((OAS_TYPE(AS_OBJ(v))))
+#  define AS_STRUCT(v)           ((OAS_STRUCT(AS_OBJ(v))))
+#  define AS_STRUCT_TYPE(v)      ((OAS_STRUCT_TYPE(AS_OBJ(v))))
 #  define OAS_TYPE(v)            ((struct haste_object_type *)(v))
-
-struct haste_object_type;
+#  define OAS_STRUCT_TYPE(v)     ((struct haste_struct_type *)(v))
+#  define OAS_STRUCT(v)          ((struct haste_struct_object *)(v))
 
 struct haste_value {
 	enum haste_value_kind {
@@ -292,6 +304,7 @@ struct haste_object {
 	enum {
 		HASTE_OBJ_TYPE,
 		HASTE_OBJ_STRING,
+		HASTE_OBJ_STRUCT,
 	} kind;
 };
 
@@ -299,6 +312,18 @@ struct haste_string_object {
 	struct haste_object base;
 	char *data;
 	size_t len;
+};
+
+struct haste_struct_field {
+	char *name;
+	struct haste_value type;
+	struct haste_value default_value;
+	bool has_default;
+};
+
+struct haste_struct_object {
+	struct haste_object base;
+	struct haste_value *fields;
 };
 
 struct haste_object_type {
@@ -315,9 +340,16 @@ struct haste_object_type {
 		HASTE_TY_UNTYPED_STRING,
 		HASTE_TY_STRING,
 		HASTE_TY_CSTR,
+		HASTE_TY_STRUCT,
 	} kind;
 	size_t size;
 	size_t align;
+};
+
+struct haste_struct_type {
+	struct haste_object_type base;
+	size_t field_count;
+	struct haste_struct_field *fields;
 };
 
 extern struct haste_value ty_unknown;
@@ -331,6 +363,7 @@ extern struct haste_value ty_void;
 extern struct haste_value ty_untyped_string;
 extern struct haste_value ty_string;
 extern struct haste_value ty_cstr;
+extern struct haste_value ty_struct;
 
 struct haste_value typeof(const struct haste_value value);
 
@@ -358,7 +391,9 @@ struct haste_value value_div(const struct haste_value lhs, const struct haste_va
   * @param value can be any value
   * @returns `value' casted to the type `to'. upon failing it will return `VAL_BAD'
   */
-struct haste_value value_cast(const struct haste_value to, const struct haste_value value);
+struct haste_value value_cast(struct Allocator alloc, const struct haste_value to, const struct haste_value value);
+struct haste_value zero_for_type(struct Allocator alloc, struct haste_value to);
+struct haste_value default_for_type(struct Allocator alloc, struct haste_value to);
 
 bool type_equal(const struct haste_value t1,
                 const struct haste_value t2);
@@ -392,6 +427,12 @@ struct haste_ast_node {
 
 		ND_CAST,     // struct { ... } cast
 
+		/* Structs */
+		ND_STRUCT_TYPE,       // struct { fields... }
+		ND_STRUCT_FIELD,      // name: type [= default]
+		ND_STRUCT_LITERAL,    // Type{...} or .{...}
+		ND_STRUCT_LIT_FIELD,  // name: value
+
 		/* Statements */
 		ND_VAR_DECL, // struct { ... } variable
 	} kind;
@@ -413,6 +454,26 @@ struct haste_ast_node {
 			struct haste_ast_node *to;
 			struct haste_ast_node *expr;
 		} cast;
+
+		struct {                     // ND_STRUCT_TYPE
+			struct haste_ast_node *fields;
+		} struct_type;
+
+		struct {                     // ND_STRUCT_FIELD
+			struct token name;
+			struct haste_ast_node *type;
+			struct haste_ast_node *default_value;
+		} struct_field;
+
+		struct {                     // ND_STRUCT_LITERAL
+			struct haste_ast_node *type_expr;
+			struct haste_ast_node *fields;
+		} struct_literal;
+
+		struct {                     // ND_STRUCT_LIT_FIELD
+			struct token name;
+			struct haste_ast_node *value;
+		} struct_lit_field;
 
 		struct {                     // ND_VAR_DECL
 			bool is_constant : 1;

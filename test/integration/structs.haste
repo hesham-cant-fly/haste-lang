@@ -1,0 +1,23 @@
+const Vec2 = struct {
+	x: float;
+	y: float = 0;
+};
+
+const pos = Vec2{
+	x: 0,
+	y: 0
+};
+
+const another_pos: Vec2 = .{
+	x: 1,
+};
+
+const Vec3 = struct {
+	x: float = 1;
+	y: float = 1;
+	z: float = 1;
+};
+
+const pos2 = Vec3{};
+
+const pos3: Vec3;

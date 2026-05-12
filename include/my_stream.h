@@ -1336,7 +1336,7 @@ static int mem_write(void *data, const unsigned char *in, size_t m)
 	const int write_amount = m < remaining ? m : remaining - 1;
 	memcpy(self->buffer + self->pos, in, sizeof(char) * write_amount);
 	self->pos += write_amount;
-	self->buffer[write_amount] = '\0';
+	self->buffer[self->pos] = '\0';
 
 	return write_amount;
 }

@@ -159,7 +159,22 @@ static struct haste_string_object _default_empty_string = {
 	.len = 0,
 };
 
-static struct haste_value default_for_type(struct haste_value to)
+struct haste_value zero_for_type(struct Allocator alloc, struct haste_value to)
+{
+	if (IS_STRUCT_TYPE(to)) {
+		struct haste_struct_type *st = AS_STRUCT_TYPE(to);
+		struct haste_struct_object *so = create(alloc, struct haste_struct_object,
+			.base.kind = HASTE_OBJ_STRUCT);
+		so->fields = alloc(alloc, sizeof(struct haste_value) * st->field_count);
+		for (size_t i=0; i < st->field_count; i += 1) {
+			so->fields[i] = default_for_type(alloc, st->fields[i].type);
+		}
+		return VAL_OBJ(AS_TYPE(to), so);
+	}
+	return default_for_type(alloc, to);
+}
+
+struct haste_value default_for_type(struct Allocator alloc, struct haste_value to)
 {
 	if (type_equal(to, ty_int))   return VAL_SCALAR(AS_TYPE(ty_int), .integer = 0);
 	if (type_equal(to, ty_float)) return VAL_SCALAR(AS_TYPE(ty_float), .floating = 0.0f);
@@ -167,10 +182,27 @@ static struct haste_value default_for_type(struct haste_value to)
 		return (struct haste_value){ .kind = HASTE_VL_OBJ, .type = AS_TYPE(ty_string), .obj = &_default_empty_string.base };
 	if (type_equal(to, ty_cstr))
 		return (struct haste_value){ .kind = HASTE_VL_OBJ, .type = AS_TYPE(ty_cstr), .obj = &_default_empty_string.base };
+	if (IS_STRUCT_TYPE(to)) {
+		struct haste_struct_type *st = AS_STRUCT_TYPE(to);
+		struct haste_struct_object *so = create(alloc, struct haste_struct_object,
+			.base = { .kind = HASTE_OBJ_STRUCT });
+		so->fields = alloc(alloc, sizeof(struct haste_value) * st->field_count);
+		for (size_t i = 0; i < st->field_count; i += 1) {
+			if (st->fields[i].has_default)
+				so->fields[i] = st->fields[i].default_value;
+			else
+				so->fields[i] = default_for_type(alloc, st->fields[i].type);
+		}
+		return (struct haste_value){
+			.kind = HASTE_VL_OBJ,
+			.type = AS_TYPE(to),
+			.obj = &so->base,
+		};
+	}
 	unreachable();
 }
 
-struct haste_value value_cast(const struct haste_value to, const struct haste_value value)
+struct haste_value value_cast(struct Allocator alloc, const struct haste_value to, const struct haste_value value)
 {
 	ASSERT_IS_TYPE(to);
 	const struct haste_value value_type = typeof(value);
@@ -179,7 +211,7 @@ struct haste_value value_cast(const struct haste_value to, const struct haste_va
 	if (type_equal(to, ty_auto))           unreachable();
 	if (IS_RUNTIME(value))                 unimplemented();
 	if (IS_BAD(value))                     return VAL_BAD;
-	if (value_equal(value, VAL_UNINIT))    return default_for_type(to);
+	if (value_equal(value, VAL_UNINIT))    return default_for_type(alloc, to);
 	if (not type_can_cast(to, value_type)) return VAL_BAD;
 	if (type_equal(to, value_type))        return value;
 
@@ -220,6 +252,8 @@ bool object_equal(struct haste_object *a, struct haste_object *b)
 		struct haste_string_object *sb = (struct haste_string_object*)b;
 		return sa->len == sb->len and memcmp(sa->data, sb->data, sa->len) == 0;
 	}
+	case HASTE_OBJ_STRUCT:
+		return a == b;
 	}
 	return false;
 }
@@ -275,6 +309,8 @@ bool type_can_assign(const struct haste_value assignable,
 		return type_equal(value, ty_string) or type_equal(value, ty_untyped_string) or type_equal(value, ty_unknown);
 	if (type_equal(assignable, ty_cstr))
 		return type_equal(value, ty_cstr) or type_equal(value, ty_untyped_string) or type_equal(value, ty_unknown);
+
+	if (type_equal(value, ty_unknown)) return true;
 
 	return false;
 }
@@ -381,12 +417,18 @@ int print_object(stream_t stream, const struct haste_object *obj)
 		case HASTE_TY_CSTR:
 			printed_amount += sprint(stream, "cstr");
 			break;
+		case HASTE_TY_STRUCT:
+			printed_amount += sprint(stream, "struct");
+			break;
 		}
 	} break;
 	case HASTE_OBJ_STRING: {
 		struct haste_string_object *s = (struct haste_string_object*)obj;
 		printed_amount += sprint(stream, "{s:*}", s->data, (int)s->len);
 	} break;
+	case HASTE_OBJ_STRUCT:
+		printed_amount += sprint(stream, "struct");
+		break;
 	}
 	return printed_amount;
 }

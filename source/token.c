@@ -14,6 +14,7 @@ static const char *TOKEN_KIND_LIT[] =
 	[TK_KW_CAST]      = "kw_cast",     // "cast"
 	[TK_KW_CONST]     = "kw_const",    // "const"
 	[TK_KW_VAR]       = "kw_var",      // "var"
+	[TK_KW_STRUCT]    = "kw_struct",   // "struct"
 
 	[TK_SEMI_COLON]   = "semi_colon",  // ";"
 
@@ -22,8 +23,13 @@ static const char *TOKEN_KIND_LIT[] =
 	[TK_OPEN_PAREN]   = "open_paren",  // "("
 	[TK_CLOSE_PAREN]  = "close_paren", // ")"
 
+	[TK_OPEN_BRACE]   = "open_brace",  // "{"
+	[TK_CLOSE_BRACE]  = "close_brace", // "}"
+
 	[TK_COLON]        = "colon",       // ":"
 	[TK_EQ]           = "eq",          // "="
+	[TK_COMMA]        = "comma",       // ","
+	[TK_DOT]          = "dot",         // "."
 
 	[TK_PLUS]         = "plus",        // "+"
 	[TK_MINUS]        = "minus",       // "-"

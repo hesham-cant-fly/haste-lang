@@ -1,5 +1,5 @@
-; ModuleID = 'test/integration/string_const.haste'
-source_filename = "test/integration/string_const.haste"
+; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/string_const.haste'
+source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/string_const.haste"
 
 @a = constant ptr @.str.0
 @.str.0 = private unnamed_addr constant [12 x i8] c"hello world\00"

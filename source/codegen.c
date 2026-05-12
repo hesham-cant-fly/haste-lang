@@ -1,10 +1,17 @@
 #include "haste.h"
 #include "llvm-c/Core.h"
 
+struct type_map_entry {
+	struct haste_object_type *haste_type;
+	LLVMTypeRef llvm_type;
+};
+
 struct codegen_context {
 	LLVMContextRef llvm_ctx;
 	LLVMBuilderRef builder;
 	LLVMModuleRef module;
+	size_t struct_type_count;
+	struct type_map_entry struct_types[64];
 };
 
 static void context_deinit(struct codegen_context *ctx)
@@ -70,6 +77,32 @@ static LLVMTypeRef llvm_type(struct codegen_context *ctx, struct haste_value typ
 	if (type_equal(type, ty_untyped_string) or type_equal(type, ty_cstr))
 		return t_i8ptr(ctx);
 
+	if (IS_STRUCT_TYPE(type)) {
+		struct haste_struct_type *st = (struct haste_struct_type*)AS_TYPE(type);
+
+		// Check cache
+		for (size_t i = 0; i < ctx->struct_type_count; i += 1) {
+			if (ctx->struct_types[i].haste_type == AS_TYPE(type))
+				return ctx->struct_types[i].llvm_type;
+		}
+
+		// Create named struct
+		char *name = tsprint("struct.type.{z}", ctx->struct_type_count);
+		LLVMTypeRef llvm_st = LLVMStructCreateNamed(ctx->llvm_ctx, name);
+
+		ctx->struct_types[ctx->struct_type_count].haste_type = AS_TYPE(type);
+		ctx->struct_types[ctx->struct_type_count].llvm_type = llvm_st;
+		ctx->struct_type_count += 1;
+
+		// Set body
+		LLVMTypeRef members[st->field_count];
+		for (size_t i = 0; i < st->field_count; i += 1) {
+			members[i] = llvm_type(ctx, st->fields[i].type);
+		}
+		LLVMStructSetBody(llvm_st, members, (unsigned)st->field_count, false);
+		return llvm_st;
+	}
+
 	unreachable();
 }
 
@@ -80,8 +113,7 @@ static uint64_t string_global_counter = 0;
 static LLVMValueRef emit_string_global(struct codegen_context *ctx,
                                        const char *data, uint64_t len)
 {
-	char name[64];
-	snprintf(name, sizeof(name), ".str.%lu", string_global_counter++);
+	char *name = tsprint(".str.{lu}", string_global_counter++);
 
 	LLVMValueRef global = LLVMAddGlobal(ctx->module,
 		LLVMArrayType(t_i8(ctx), len + 1), name);
@@ -120,6 +152,18 @@ static LLVMValueRef llvm_value(struct codegen_context *ctx, struct haste_value v
 
 			return LLVMConstBitCast(global, t_i8ptr(ctx));
 		}
+
+		if (value.obj->kind == HASTE_OBJ_STRUCT) {
+			LLVMTypeRef llvm_st = llvm_type(ctx, typeof(value));
+			struct haste_struct_object *so = (struct haste_struct_object*)value.obj;
+			struct haste_struct_type *st = (struct haste_struct_type*)AS_TYPE(typeof(value));
+			LLVMValueRef members[st->field_count];
+			for (size_t i = 0; i < st->field_count; i += 1) {
+				members[i] = llvm_value(ctx, so->fields[i]);
+			}
+			return LLVMConstNamedStruct(llvm_st, members, (unsigned)st->field_count);
+		}
+
 		unreachable();
 	}
 	default: unreachable();

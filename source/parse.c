@@ -232,6 +232,88 @@ static struct haste_ast_node *grouping(struct parser *self)
 		.body = child);
 }
 
+// ── Struct parsing ────────────────────────────────────────────────
+
+static struct haste_ast_node *struct_type_prefix(struct parser *self)
+{
+	struct token start = previous(self);
+	consume(self, TK_OPEN_BRACE, "Expected '{' after 'struct'.");
+
+	struct haste_ast_node head = {0};
+	struct haste_ast_node *current = &head;
+	while (not check(self, TK_CLOSE_BRACE) and not ended(self)) {
+		struct token name = consume(self, TK_IDENT, "Expected field name.");
+		consume(self, TK_COLON, "Expected ':' after field name.");
+		struct haste_ast_node *type = expr(self);
+		struct haste_ast_node *default_value = NULL;
+		if (match(self, TK_EQ)) default_value = expr(self);
+		consume(self, TK_SEMI_COLON, "Expected ';' after field declaration.");
+
+		current->next = create(
+			self->allocator,
+			struct haste_ast_node,
+			.kind = ND_STRUCT_FIELD,
+			.start = name,
+			.struct_field = {
+				.name = name,
+				.type = type,
+				.default_value = default_value,
+			});
+		current = current->next;
+	}
+
+	consume(self, TK_CLOSE_BRACE, "Expected '}' after struct fields.");
+	return create(
+		self->allocator,
+		struct haste_ast_node,
+		.kind = ND_STRUCT_TYPE,
+		.start = start,
+		.struct_type = { .fields = head.next });
+}
+
+static struct haste_ast_node *struct_literal_infix(struct parser *self, struct haste_ast_node *type_expr)
+{
+	struct haste_ast_node head = {0};
+	struct haste_ast_node *current = &head;
+
+	while (not check(self, TK_CLOSE_BRACE) and not ended(self)) {
+		struct token name = consume(self, TK_IDENT, "Expected field name.");
+		consume(self, TK_COLON, "Expected ':' after field name.");
+		struct haste_ast_node *value = expr(self);
+		if (check(self, TK_COMMA)) advance(self);
+		else if (not check(self, TK_CLOSE_BRACE))
+			consume(self, TK_COMMA, "Expected ',' or '}}' after field value.");
+
+		current->next = create(
+			self->allocator,
+			struct haste_ast_node,
+			.kind = ND_STRUCT_LIT_FIELD,
+			.start = name,
+			.struct_lit_field = {
+				.name = name,
+				.value = value,
+			});
+		current = current->next;
+	}
+
+	consume(self, TK_CLOSE_BRACE, "Expected '}}' after struct literal fields.");
+	return create(
+		self->allocator,
+		struct haste_ast_node,
+		.kind = ND_STRUCT_LITERAL,
+		.start = previous(self),
+		.struct_literal = {
+			.type_expr = type_expr,
+			.fields = head.next,
+		});
+}
+
+static struct haste_ast_node *anon_struct_prefix(struct parser *self)
+{
+	consume(self, TK_OPEN_BRACE, "Expected '{' after '.'.");
+	return struct_literal_infix(self, NULL);
+}
+
 struct parser_rule get_rule_from_kind(enum token_kind kind)
 {
 	switch (kind) {
@@ -251,7 +333,10 @@ struct parser_rule get_rule_from_kind(enum token_kind kind)
 	case TK_KW_VOID:    return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
 	case TK_KW_AUTO:    return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
 	case TK_KW_TYPE:    return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
+	case TK_KW_STRUCT:  return (struct parser_rule){ struct_type_prefix, NULL, PREC_PRIMARY, false };
 	case TK_KW_CAST:    return (struct parser_rule){ cast,     NULL,   PREC_UNARY,   false };
+	case TK_OPEN_BRACE: return (struct parser_rule){ NULL,     struct_literal_infix, PREC_PRIMARY, false };
+	case TK_DOT:        return (struct parser_rule){ anon_struct_prefix, NULL, PREC_PRIMARY, false };
 	default:            return (struct parser_rule){ NULL,     NULL,   PREC_NONE,    false };
 	}
 }

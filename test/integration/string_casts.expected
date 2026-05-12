@@ -1,5 +1,5 @@
-; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/string_defaults_and_casts.haste'
-source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/string_defaults_and_casts.haste"
+; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/string_casts.haste'
+source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/string_casts.haste"
 
 @a = constant { ptr, i64 } { ptr @.str.0, i64 5 }
 @.str.0 = private unnamed_addr constant [6 x i8] c"hello\00"

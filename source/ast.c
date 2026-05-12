@@ -11,6 +11,11 @@ static const char *HASTE_AST_NODE_KIND[] =
 
 	[ND_CAST]     = "cast",
 
+	[ND_STRUCT_TYPE]      = "struct_type",
+	[ND_STRUCT_FIELD]     = "struct_field",
+	[ND_STRUCT_LITERAL]   = "struct_literal",
+	[ND_STRUCT_LIT_FIELD] = "struct_lit_field",
+
 	[ND_VAR_DECL] = "var_decl",
 };
 
@@ -75,6 +80,33 @@ static int print_haste_ast_node(stream_t file, const struct haste_ast_node *node
 		printed_amount += sprint(file, "\"value\": ");
 		if (node->variable.value) printed_amount += print_haste_ast_node(file, node->variable.value);
 		else printed_amount += sprint(file, "null");
+		break;
+	case ND_STRUCT_TYPE:
+		printed_amount += sprint(file, "\"fields\": ");
+		printed_amount += print_haste_ast(file, node->struct_type.fields);
+		break;
+	case ND_STRUCT_FIELD:
+		printed_amount += sprint(file, "\"name\": \"{span}\",", token_to_span(node->struct_field.name));
+		printed_amount += sprint(file, "\"type\": ");
+		if (node->struct_field.type) printed_amount += print_haste_ast_node(file, node->struct_field.type);
+		else printed_amount += sprint(file, "null");
+		printed_amount += sprint(file, ",");
+		printed_amount += sprint(file, "\"default\": ");
+		if (node->struct_field.default_value) printed_amount += print_haste_ast_node(file, node->struct_field.default_value);
+		else printed_amount += sprint(file, "null");
+		break;
+	case ND_STRUCT_LITERAL:
+		printed_amount += sprint(file, "\"type_expr\": ");
+		if (node->struct_literal.type_expr) printed_amount += print_haste_ast_node(file, node->struct_literal.type_expr);
+		else printed_amount += sprint(file, "null");
+		printed_amount += sprint(file, ",");
+		printed_amount += sprint(file, "\"fields\": ");
+		printed_amount += print_haste_ast(file, node->struct_literal.fields);
+		break;
+	case ND_STRUCT_LIT_FIELD:
+		printed_amount += sprint(file, "\"name\": \"{span}\",", token_to_span(node->struct_lit_field.name));
+		printed_amount += sprint(file, "\"value\": ");
+		printed_amount += print_haste_ast_node(file, node->struct_lit_field.value);
 		break;
 	}
 	printed_amount += sprint(file, "}");

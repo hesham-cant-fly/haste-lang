@@ -220,6 +220,7 @@ static void scan_lexem(struct scanner *self)
 		{"cast",   TK_KW_CAST},
 		{"const",  TK_KW_CONST},
 		{"var",    TK_KW_VAR},
+		{"struct", TK_KW_STRUCT},
 	};
 	for (size_t i=0; i<sizeof(keywords)/sizeof(keywords[0]); i += 1) {
 		if (matches(self, (char*)keywords[i].str)) {
@@ -294,6 +295,25 @@ static void scan_lexem(struct scanner *self)
 		return;
 	}
 
+	if (advance_if_eq(self, '{')) {
+		add_token(self, TK_OPEN_BRACE);
+		return;
+	}
+
+	if (advance_if_eq(self, '}')) {
+		add_token(self, TK_CLOSE_BRACE);
+		return;
+	}
+
+	if (advance_if_eq(self, ',')) {
+		add_token(self, TK_COMMA);
+		return;
+	}
+
+	if (advance_if_eq(self, '.')) {
+		add_token(self, TK_DOT);
+		return;
+	}
 
 	if (advance_if_eq(self, '"')) {
 		self->start = self->current - 1;
