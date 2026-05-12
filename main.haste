@@ -1,8 +1,8 @@
 const Vec2 = struct {
-	x: float = 6.7;
+	x: float;
 	y: float;
 };
 
 const a: Vec2; // works as expected
 const b: Vec2 = 0; // works as expected
-const c = Vec2{y: 69,}; // doesn't (assertion failure)
+const c: Vec2 = .{};

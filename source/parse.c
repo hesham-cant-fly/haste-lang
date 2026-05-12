@@ -271,6 +271,7 @@ static struct haste_ast_node *struct_type_prefix(struct parser *self)
 
 static struct haste_ast_node *struct_literal_infix(struct parser *self, struct haste_ast_node *type_expr)
 {
+	struct token start = type_expr != NULL then type_expr->start otherwise previous(self);
 	struct haste_ast_node head = {0};
 	struct haste_ast_node *current = &head;
 
@@ -280,7 +281,7 @@ static struct haste_ast_node *struct_literal_infix(struct parser *self, struct h
 		struct haste_ast_node *value = expr(self);
 		if (check(self, TK_COMMA)) advance(self);
 		else if (not check(self, TK_CLOSE_BRACE))
-			consume(self, TK_COMMA, "Expected ',' or '}}' after field value.");
+			consume(self, TK_COMMA, "Expected ',' or '}' after field value.");
 
 		current->next = create(
 			self->allocator,
@@ -294,12 +295,12 @@ static struct haste_ast_node *struct_literal_infix(struct parser *self, struct h
 		current = current->next;
 	}
 
-	consume(self, TK_CLOSE_BRACE, "Expected '}}' after struct literal fields.");
+	consume(self, TK_CLOSE_BRACE, "Expected '}' after struct literal fields.");
 	return create(
 		self->allocator,
 		struct haste_ast_node,
 		.kind = ND_STRUCT_LITERAL,
-		.start = previous(self),
+		.start = start,
 		.struct_literal = {
 			.type_expr = type_expr,
 			.fields = head.next,
