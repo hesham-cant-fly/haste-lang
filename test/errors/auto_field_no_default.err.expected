@@ -1,0 +1,3 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/auto_field_no_default.haste:2:5: Error: Cannot infer type for field 'x' without a default value.
+    2 | x: auto;
+        ^ 

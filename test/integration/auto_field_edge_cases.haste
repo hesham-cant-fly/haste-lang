@@ -1,0 +1,8 @@
+const S = struct {
+    a: auto = 0;
+    b: auto = 0.0;
+    c: auto = "hi";
+};
+
+const x: S = .{};
+const y = S{};

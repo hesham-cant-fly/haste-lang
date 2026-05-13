@@ -63,7 +63,7 @@ static LLVMTypeRef llvm_type(struct codegen_context *ctx, struct haste_value typ
 {
 	assert(IS_TYPE(type));
 
-	if (type_equal(type, ty_int) or type_equal(type, ty_untyped_int))
+	if (type_equal(type, ty_int) or type_equal(type, ty_untyped_int) or type_equal(type, ty_zero))
 		return t_i32(ctx);
 
 	if (type_equal(type, ty_float) or type_equal(type, ty_untyped_float))
@@ -136,6 +136,9 @@ static LLVMValueRef llvm_value(struct codegen_context *ctx, struct haste_value v
 	assert(not IS_TYPE(value));
 
 	switch (value.kind) {
+	case HASTE_VL_ZERO: {
+		return LLVMConstInt(t_i32(ctx), 0, true);
+	}
 	case HASTE_VL_SCALAR: {
 		if (value.type->kind == HASTE_TY_INT or value.type->kind == HASTE_TY_UNTYPED_INT)
 			return LLVMConstInt(t_i32(ctx), value.integer, true);
@@ -170,7 +173,8 @@ static LLVMValueRef llvm_value(struct codegen_context *ctx, struct haste_value v
 
 		unreachable();
 	}
-	default: unreachable();
+	default:
+		unreachable();
 	}
 }
 

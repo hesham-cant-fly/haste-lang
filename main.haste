@@ -1,11 +1,13 @@
 const Vec2 = struct {
-	x: float;
-	y: float = 0;
+	x: auto = 6.0;
+	y: auto = 7.0;
 };
 
-const d = .{
-	x: 1,
-	y: 1,
+// same as above
+const Point = struct {
+	x := 6.0;
+	y := 7.0;
 };
 
-const e = cast[Vec2] d;
+const a: Vec2 = .{};
+const b: Point = .{};

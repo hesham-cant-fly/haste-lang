@@ -255,7 +255,7 @@ int display_width(const char *p, int len, source_file_id src);
 // value.c
 //
 #  define VAL_NONE                  ((struct haste_value) { .kind = HASTE_VL_NONE })
-#  define VAL_BAD                   ((struct haste_value) { .kind = HASTE_VL_BAD })
+#  define VAL_BAD                   ((struct haste_value) { .kind = HASTE_VL_BAD  })
 #  define VAL_ZERO                  ((struct haste_value) { .kind = HASTE_VL_ZERO })
 #  define VAL_UNINIT                ((struct haste_value) { .kind = HASTE_VL_UNINIT })
 #  define VAL_SCALAR(t, ...)        ((struct haste_value) { .kind = HASTE_VL_SCALAR, .type = (t), __VA_ARGS__ })
@@ -363,6 +363,7 @@ struct haste_struct_type {
 	struct haste_struct_field *fields;
 };
 
+extern struct haste_value ty_zero;
 extern struct haste_value ty_unknown;
 extern struct haste_value ty_type;
 extern struct haste_value ty_int;
@@ -406,6 +407,8 @@ bool type_can_assign(const struct haste_value assignable,
                      const struct haste_value value);
 bool type_can_cast(const struct haste_value to,
                    const struct haste_value from);
+
+struct haste_value untyped_to_typed(struct haste_value type);
 
 bool type_is_integer(const struct haste_value t);
 bool type_is_float(const struct haste_value t);

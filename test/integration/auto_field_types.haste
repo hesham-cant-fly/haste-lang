@@ -1,0 +1,21 @@
+const Vec2 = struct {
+    x: auto = 6.0;
+    y: auto = 7.0;
+};
+
+const Point = struct {
+    x := 6.0;
+    y := 7.0;
+};
+
+const Mixed = struct {
+    a: int = 1;
+    b: auto = 2.5;
+    c := "hello";
+};
+
+const a: Vec2 = .{};
+const b: Point = .{};
+const c: Mixed = .{};
+const d: Mixed = Mixed{};
+const e = Mixed{a: 10};

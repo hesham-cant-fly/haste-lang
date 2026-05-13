@@ -242,9 +242,14 @@ static struct haste_ast_node *struct_type_prefix(struct parser *self)
 	while (not check(self, TK_CLOSE_BRACE) and not ended(self)) {
 		struct token name = consume(self, TK_IDENT, "Expected field name.");
 		consume(self, TK_COLON, "Expected ':' after field name.");
-		struct haste_ast_node *type = expr(self);
+		struct haste_ast_node *type = NULL;
 		struct haste_ast_node *default_value = NULL;
-		if (match(self, TK_EQ)) default_value = expr(self);
+		if (match(self, TK_EQ)) {
+			default_value = expr(self);
+		} else {
+			type = expr(self);
+			if (match(self, TK_EQ)) default_value = expr(self);
+		}
 		consume(self, TK_SEMI_COLON, "Expected ';' after field declaration.");
 
 		current->next = create(

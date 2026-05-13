@@ -427,8 +427,9 @@ static struct haste_value analyze_struct_type(struct analyzer *self, struct hast
 		.base = { .base = { .kind = HASTE_OBJ_TYPE }, .kind = HASTE_TY_STRUCT });
 
 	size_t count = 0;
-	leach (struct haste_ast_node, field, node->struct_type.fields)
+	leach (struct haste_ast_node, field, node->struct_type.fields) {
 		count += 1;
+	}
 	st->field_count = count;
 	st->fields = alloc(self->arena_allocator, sizeof(struct haste_struct_field) * count);
 
@@ -436,7 +437,9 @@ static struct haste_value analyze_struct_type(struct analyzer *self, struct hast
 	bool has_error = false;
 	leach (struct haste_ast_node, field, node->struct_type.fields) {
 		const char *name = intern_str(self->intern_table, field->struct_field.name.start, field->struct_field.name.len);
-		struct haste_value field_type = analyze_node(self, field->struct_field.type);
+		struct haste_value field_type = ty_auto;
+		if (field->struct_field.type != NULL)
+			field_type = analyze_node(self, field->struct_field.type);
 		if (IS_BAD(field_type) or not type_equal(typeof(field_type), ty_type)) {
 			if (not IS_BAD(field_type)) {
 				report_error(self, field->struct_field.type,
@@ -452,6 +455,10 @@ static struct haste_value analyze_struct_type(struct analyzer *self, struct hast
 			default_value = analyze_node(self, field->struct_field.default_value);
 			if (type_can_assign(field_type, typeof(default_value))) {
 				default_value = value_cast(self->arena_allocator, field_type, default_value);
+				if (type_equal(field_type, ty_auto)) {
+					field_type = typeof(default_value);
+					field_type = untyped_to_typed(field_type);
+				}
 			} else {
 				report_error(self, field->struct_field.default_value,
 					"Cannot set the default value of type '{value}' to '{value}'",
@@ -461,6 +468,13 @@ static struct haste_value analyze_struct_type(struct analyzer *self, struct hast
 			}
 			has_default = true;
 		}
+		if (type_equal(field_type, ty_auto) and not has_default) {
+			report_error(self, field->struct_field.name,
+				"Cannot infer type for field '{s}' without a default value.", name);
+			has_error = true;
+			continue;
+		}
+
 		st->fields[i] = (struct haste_struct_field){
 			.name = name,
 			.type = field_type,
