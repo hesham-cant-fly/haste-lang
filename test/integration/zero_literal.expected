@@ -1,7 +1,7 @@
 ; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/zero_literal.haste'
 source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/zero_literal.haste"
 
-%struct.type.0 = type { float, float }
+%struct.type.Vec2.0 = type { float, float }
 
 @a = constant i32 0
 @b = constant float 0.000000e+00
@@ -9,4 +9,4 @@ source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/ze
 @.str.0 = private unnamed_addr constant [1 x i8] zeroinitializer
 @d = constant ptr @.str.1
 @.str.1 = private unnamed_addr constant [1 x i8] zeroinitializer
-@e = constant %struct.type.0 zeroinitializer
+@e = constant %struct.type.Vec2.0 zeroinitializer

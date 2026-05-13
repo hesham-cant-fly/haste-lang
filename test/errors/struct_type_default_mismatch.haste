@@ -1,0 +1,3 @@
+const S1 = struct { x: int = 5; };
+const S2 = struct { x: int = 10; };
+const a: S1 = S2{x: 3};

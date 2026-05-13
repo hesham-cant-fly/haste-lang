@@ -1,8 +1,11 @@
 const Vec2 = struct {
 	x: float;
-	y: float;
+	y: float = 0;
 };
 
-const a: Vec2; // works as expected
-const b: Vec2 = 0; // works as expected
-const c: Vec2 = .{};
+const d = .{
+	x: 1,
+	y: 1,
+};
+
+const e: Vec2 = d;

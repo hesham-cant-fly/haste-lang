@@ -1,10 +1,10 @@
 ; ModuleID = 'test/integration/structs.haste'
 source_filename = "test/integration/structs.haste"
 
-%struct.type.0 = type { float, float }
-%struct.type.1 = type { float, float, float }
+%struct.type.Vec2.0 = type { float, float }
+%struct.type.Vec3.1 = type { float, float, float }
 
-@pos = constant %struct.type.0 zeroinitializer
-@another_pos = constant %struct.type.0 { float 1.000000e+00, float 0.000000e+00 }
-@pos2 = constant %struct.type.1 { float 1.000000e+00, float 1.000000e+00, float 1.000000e+00 }
-@pos3 = constant %struct.type.1 { float 1.000000e+00, float 1.000000e+00, float 1.000000e+00 }
+@pos = constant %struct.type.Vec2.0 zeroinitializer
+@another_pos = constant %struct.type.Vec2.0 { float 1.000000e+00, float 0.000000e+00 }
+@pos2 = constant %struct.type.Vec3.1 { float 1.000000e+00, float 1.000000e+00, float 1.000000e+00 }
+@pos3 = constant %struct.type.Vec3.1 { float 1.000000e+00, float 1.000000e+00, float 1.000000e+00 }

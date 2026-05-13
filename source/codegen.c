@@ -11,9 +11,9 @@ struct codegen_context {
 	LLVMContextRef llvm_ctx;
 	LLVMBuilderRef builder;
 	LLVMModuleRef module;
+	struct Allocator allocator;
 	struct intern_table *table;
-	size_t struct_type_count;
-	struct type_map_entry struct_types[64];
+	struct { size_t cap, len; struct type_map_entry *items; } struct_types;
 };
 
 static void context_deinit(struct codegen_context *ctx)
@@ -21,6 +21,7 @@ static void context_deinit(struct codegen_context *ctx)
 	LLVMDisposeBuilder(ctx->builder);
 	LLVMDisposeModule(ctx->module);
 	LLVMContextDispose(ctx->llvm_ctx);
+	arrfree(ctx->allocator, ctx->struct_types);
 	*ctx = (struct codegen_context){0};
 }
 
@@ -79,22 +80,23 @@ static LLVMTypeRef llvm_type(struct codegen_context *ctx, struct haste_value typ
 	if (type_equal(type, ty_untyped_string) or type_equal(type, ty_cstr))
 		return t_i8ptr(ctx);
 
-	if (IS_STRUCT_TYPE(type)) {
+	if (IS_STRUCT_TYPE(type) or IS_AUTO_STRUCT_TYPE(type)) {
 		struct haste_struct_type *st = (struct haste_struct_type*)AS_TYPE(type);
 
 		// Check cache
-		for (size_t i = 0; i < ctx->struct_type_count; i += 1) {
-			if (ctx->struct_types[i].haste_type == AS_TYPE(type))
-				return ctx->struct_types[i].llvm_type;
+		for (size_t i = 0; i < ctx->struct_types.len; i += 1) {
+			if (ctx->struct_types.items[i].haste_type == AS_TYPE(type))
+				return ctx->struct_types.items[i].llvm_type;
 		}
 
 		// Create named struct
-		char *name = tsprint("struct.type.{z}", ctx->struct_type_count);
+		char *name = tsprint("struct.type.{s}.{z}", st->base.name then st->base.name otherwise "auto", ctx->struct_types.len);
 		LLVMTypeRef llvm_st = LLVMStructCreateNamed(ctx->llvm_ctx, name);
 
-		ctx->struct_types[ctx->struct_type_count].haste_type = AS_TYPE(type);
-		ctx->struct_types[ctx->struct_type_count].llvm_type = llvm_st;
-		ctx->struct_type_count += 1;
+		arrpush(ctx->allocator, ctx->struct_types, ((struct type_map_entry){
+			.haste_type = AS_TYPE(type),
+			.llvm_type = llvm_st,
+		}));
 
 		// Set body
 		LLVMTypeRef members[st->field_count > 0 ? st->field_count : 1];
@@ -212,7 +214,6 @@ static Error codegen_global_node(struct codegen_context *ctx, const struct haste
 
 Error codegen(struct Allocator allocator, const source_file_id src, struct intern_table *table)
 {
-	discard allocator;
 	const char *path = get_source_file_path(src);
 
 	LLVMContextRef llvm_ctx = LLVMContextCreate();
@@ -223,6 +224,7 @@ Error codegen(struct Allocator allocator, const source_file_id src, struct inter
 		.llvm_ctx = llvm_ctx,
 		.builder = builder,
 		.module = module,
+		.allocator = allocator,
 		.table = table,
 	};
 

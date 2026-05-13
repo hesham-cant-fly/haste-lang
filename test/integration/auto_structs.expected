@@ -1,0 +1,34 @@
+; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/auto_structs.haste'
+source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/auto_structs.haste"
+
+%struct.type.Outer.0 = type { { ptr, i64 }, %struct.type.Inner.1 }
+%struct.type.Inner.1 = type { { ptr, i64 } }
+%struct.type.auto.2 = type { i32, i32 }
+%struct.type.auto.3 = type {}
+%struct.type.auto.4 = type { %struct.type.auto.5 }
+%struct.type.auto.5 = type { ptr }
+%struct.type.auto.6 = type { i32, i32 }
+%struct.type.auto.7 = type {}
+%struct.type.auto.8 = type { i32, %struct.type.auto.9 }
+%struct.type.auto.9 = type { i32 }
+%struct.type.HasDefault.10 = type { { ptr, i64 }, i32 }
+%struct.type.auto.11 = type { ptr }
+
+@me = constant %struct.type.Outer.0 { { ptr, i64 } { ptr @.str.0, i64 5 }, %struct.type.Inner.1 { { ptr, i64 } { ptr @.str.1, i64 5 } } }
+@.str.0 = private unnamed_addr constant [6 x i8] c"outer\00"
+@.str.1 = private unnamed_addr constant [6 x i8] c"inner\00"
+@standalone = constant %struct.type.auto.2 { i32 1, i32 2 }
+@empty = constant %struct.type.auto.3 zeroinitializer
+@nested = constant %struct.type.auto.4 { %struct.type.auto.5 { ptr @.str.2 } }
+@.str.2 = private unnamed_addr constant [5 x i8] c"deep\00"
+@me_auto = constant %struct.type.Outer.0 { { ptr, i64 } { ptr @.str.3, i64 10 }, %struct.type.Inner.1 { { ptr, i64 } { ptr @.str.4, i64 10 } } }
+@.str.3 = private unnamed_addr constant [11 x i8] c"auto-outer\00"
+@.str.4 = private unnamed_addr constant [11 x i8] c"auto-inner\00"
+@standalone_auto = constant %struct.type.auto.6 { i32 3, i32 4 }
+@empty_auto = constant %struct.type.auto.7 zeroinitializer
+@heh = constant %struct.type.auto.8 { i32 1, %struct.type.auto.9 { i32 2 } }
+@baz = constant %struct.type.auto.8 { i32 1, %struct.type.auto.9 { i32 2 } }
+@hd = constant %struct.type.HasDefault.10 { { ptr, i64 } { ptr @.str.5, i64 8 }, i32 99 }
+@.str.5 = private unnamed_addr constant [9 x i8] c"override\00"
+@hd_auto = constant %struct.type.auto.11 { ptr @.str.6 }
+@.str.6 = private unnamed_addr constant [14 x i8] c"auto-override\00"

@@ -254,36 +254,38 @@ int display_width(const char *p, int len, source_file_id src);
 //
 // value.c
 //
-#  define VAL_NONE               ((struct haste_value) { .kind = HASTE_VL_NONE })
-#  define VAL_BAD                ((struct haste_value) { .kind = HASTE_VL_BAD })
-#  define VAL_ZERO               ((struct haste_value) { .kind = HASTE_VL_ZERO })
-#  define VAL_UNINIT             ((struct haste_value) { .kind = HASTE_VL_UNINIT })
-#  define VAL_SCALAR(t, ...)     ((struct haste_value) { .kind = HASTE_VL_SCALAR, .type = (t), __VA_ARGS__ })
-#  define VAL_RUNTIME(...)       ((struct haste_value) { .kind = HASTE_VL_RUNTIME, .runtime = (__VA_ARGS__) })
-#  define VAL_OBJ(t, p)          ((struct haste_value) { .kind = HASTE_VL_OBJ, .type = (t), .obj = (struct haste_object*)(void*)(p) })
+#  define VAL_NONE                  ((struct haste_value) { .kind = HASTE_VL_NONE })
+#  define VAL_BAD                   ((struct haste_value) { .kind = HASTE_VL_BAD })
+#  define VAL_ZERO                  ((struct haste_value) { .kind = HASTE_VL_ZERO })
+#  define VAL_UNINIT                ((struct haste_value) { .kind = HASTE_VL_UNINIT })
+#  define VAL_SCALAR(t, ...)        ((struct haste_value) { .kind = HASTE_VL_SCALAR, .type = (t), __VA_ARGS__ })
+#  define VAL_RUNTIME(...)          ((struct haste_value) { .kind = HASTE_VL_RUNTIME, .runtime = (__VA_ARGS__) })
+#  define VAL_OBJ(t, p)             ((struct haste_value) { .kind = HASTE_VL_OBJ, .type = (t), .obj = (struct haste_object*)(void*)(p) })
 
-#  define OBJ_TYPE(...)          ((struct haste_object_type) { .base = { .kind = HASTE_OBJ_TYPE, }, __VA_ARGS__ })
-#  define OBJ_STRUCT_TYPE(...)   ((struct haste_struct_type) { .base = { .kind = HASTE_OBJ_TYPE, }, __VA_ARGS__ })
-#  define OBJ_STRUCT(...)        ((struct haste_struct_object) { .base = OBJ_TYPE(HASTE_TY_STRUCT), __VA_ARGS__ })
+#  define OBJ_TYPE(...)             ((struct haste_object_type) { .base = { .kind = HASTE_OBJ_TYPE, }, __VA_ARGS__ })
+#  define OBJ_STRUCT_TYPE(...)      ((struct haste_struct_type) { .base = { .base.kind = HASTE_OBJ_TYPE, .kind = HASTE_TY_STRUCT }, __VA_ARGS__ })
+#  define OBJ_AUTO_STRUCT_TYPE(...) ((struct haste_struct_type) { .base = { .base.kind = HASTE_OBJ_TYPE, .kind = HASTE_TY_AUTO_STRUCT }, __VA_ARGS__ })
+#  define OBJ_STRUCT(...)           ((struct haste_struct_object) { .base = OBJ_TYPE(HASTE_TY_STRUCT), __VA_ARGS__ })
 
-#  define IS_NONE(...)           ((__VA_ARGS__).kind == HASTE_VL_NONE)
-#  define IS_BAD(...)            ((__VA_ARGS__).kind == HASTE_VL_BAD)
-#  define IS_ZERO(...)           ((__VA_ARGS__).kind == HASTE_VL_ZERO)
-#  define IS_UNINIT(...)         ((__VA_ARGS__).kind == HASTE_VL_UNINIT)
-#  define IS_SCALAR(...)         ((__VA_ARGS__).kind == HASTE_VL_SCALAR)
-#  define IS_RUNTIME(...)        ((__VA_ARGS__).kind == HASTE_VL_RUNTIME)
-#  define IS_OBJ(...)            ((__VA_ARGS__).kind == HASTE_VL_OBJ)
-#  define IS_TYPE(...)           ((IS_OBJ(__VA_ARGS__) and ((__VA_ARGS__).obj->kind == HASTE_OBJ_TYPE)))
-#  define IS_STRUCT_TYPE(...)    ((IS_TYPE(__VA_ARGS__)) and (AS_TYPE(__VA_ARGS__)->kind == HASTE_TY_STRUCT))
-#  define IS_STRUCT(...)         ((IS_OBJ(__VA_ARGS__)) and ((__VA_ARGS__).obj->kind == HASTE_OBJ_STRUCT))
+#  define IS_NONE(...)              ((__VA_ARGS__).kind == HASTE_VL_NONE)
+#  define IS_BAD(...)               ((__VA_ARGS__).kind == HASTE_VL_BAD)
+#  define IS_ZERO(...)              ((__VA_ARGS__).kind == HASTE_VL_ZERO)
+#  define IS_UNINIT(...)            ((__VA_ARGS__).kind == HASTE_VL_UNINIT)
+#  define IS_SCALAR(...)            ((__VA_ARGS__).kind == HASTE_VL_SCALAR)
+#  define IS_RUNTIME(...)           ((__VA_ARGS__).kind == HASTE_VL_RUNTIME)
+#  define IS_OBJ(...)               ((__VA_ARGS__).kind == HASTE_VL_OBJ)
+#  define IS_TYPE(...)              ((IS_OBJ(__VA_ARGS__) and ((__VA_ARGS__).obj->kind == HASTE_OBJ_TYPE)))
+#  define IS_STRUCT_TYPE(...)       ((IS_TYPE(__VA_ARGS__)) and (AS_TYPE(__VA_ARGS__)->kind == HASTE_TY_STRUCT))
+#  define IS_AUTO_STRUCT_TYPE(...)  ((IS_TYPE(__VA_ARGS__)) and (AS_TYPE(__VA_ARGS__)->kind == HASTE_TY_AUTO_STRUCT))
+#  define IS_STRUCT(...)            ((IS_OBJ(__VA_ARGS__)) and ((__VA_ARGS__).obj->kind == HASTE_OBJ_STRUCT))
 
-#  define AS_OBJ(v)              ((v).obj)
-#  define AS_TYPE(v)             ((OAS_TYPE(AS_OBJ(v))))
-#  define AS_STRUCT(v)           ((OAS_STRUCT(AS_OBJ(v))))
-#  define AS_STRUCT_TYPE(v)      ((OAS_STRUCT_TYPE(AS_OBJ(v))))
-#  define OAS_TYPE(v)            ((struct haste_object_type *)(v))
-#  define OAS_STRUCT_TYPE(v)     ((struct haste_struct_type *)(v))
-#  define OAS_STRUCT(v)          ((struct haste_struct_object *)(v))
+#  define AS_OBJ(v)                 ((v).obj)
+#  define AS_TYPE(v)                ((OAS_TYPE(AS_OBJ(v))))
+#  define AS_STRUCT(v)              ((OAS_STRUCT(AS_OBJ(v))))
+#  define AS_STRUCT_TYPE(v)         ((OAS_STRUCT_TYPE(AS_OBJ(v))))
+#  define OAS_TYPE(v)               ((struct haste_object_type *)(v))
+#  define OAS_STRUCT_TYPE(v)        ((struct haste_struct_type *)(v))
+#  define OAS_STRUCT(v)             ((struct haste_struct_object *)(v))
 
 struct haste_value {
 	enum haste_value_kind {
@@ -348,7 +350,9 @@ struct haste_object_type {
 		HASTE_TY_STRING,
 		HASTE_TY_CSTR,
 		HASTE_TY_STRUCT,
+		HASTE_TY_AUTO_STRUCT,
 	} kind;
+	const char *name;
 	size_t size;
 	size_t align;
 };
@@ -370,7 +374,6 @@ extern struct haste_value ty_void;
 extern struct haste_value ty_untyped_string;
 extern struct haste_value ty_string;
 extern struct haste_value ty_cstr;
-extern struct haste_value ty_struct;
 
 struct haste_value typeof(const struct haste_value value);
 

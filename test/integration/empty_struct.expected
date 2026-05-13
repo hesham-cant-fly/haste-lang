@@ -1,7 +1,7 @@
 ; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/empty_struct.haste'
 source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/empty_struct.haste"
 
-%struct.type.0 = type {}
+%struct.type.Empty.0 = type {}
 
-@e = constant %struct.type.0 zeroinitializer
-@e2 = constant %struct.type.0 zeroinitializer
+@e = constant %struct.type.Empty.0 zeroinitializer
+@e2 = constant %struct.type.Empty.0 zeroinitializer

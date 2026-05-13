@@ -391,10 +391,16 @@ static struct haste_ast_node *variable_decl(struct parser *self, bool is_constan
 	struct token name = consume(self, TK_IDENT, "expected a variable name.");
 
 	struct haste_ast_node *type = NULL;
-	if (match(self, TK_COLON)) type = expr(self);
-
 	struct haste_ast_node *value = NULL;
-	if (match(self, TK_EQ)) value = expr(self);
+	if (match(self, TK_COLON)) {
+		if (match(self, TK_EQ)) {
+			value = expr(self);
+		} else {
+			type = expr(self);
+		}
+	}
+
+	if (value == NULL and match(self, TK_EQ)) value = expr(self);
 
 	consume(self, TK_SEMI_COLON, "Expected ';' at the end of the variable declaration.");
 
