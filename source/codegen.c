@@ -216,7 +216,7 @@ static Error codegen_global_node(struct codegen_context *ctx, const struct haste
 
 // ── Entry point ──────────────────────────────────────────────────
 
-Error codegen(struct Allocator allocator, const source_file_id src, struct intern_table *table)
+Error codegen(struct Allocator allocator, const source_file_id src, struct intern_table *table, const char *output_path, bool dump_to_stderr)
 {
 	const char *path = get_source_file_path(src);
 
@@ -236,7 +236,17 @@ Error codegen(struct Allocator allocator, const source_file_id src, struct inter
 		codegen_global_node(&ctx, node);
 	}
 
-	LLVMDumpModule(ctx.module);
+	if (dump_to_stderr) {
+		LLVMDumpModule(ctx.module);
+	} else if (output_path) {
+		char *err_msg = NULL;
+		if (LLVMPrintModuleToFile(ctx.module, output_path, &err_msg)) {
+			fprintf(stderr, "error: failed to write LLVM IR to '%s': %s\n", output_path, err_msg);
+			LLVMDisposeMessage(err_msg);
+			context_deinit(&ctx);
+			return ERROR;
+		}
+	}
 	context_deinit(&ctx);
 	return OK;
 }

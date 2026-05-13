@@ -89,7 +89,9 @@ const char *intern_token(struct intern_table *table, struct token token)
 {
 	switch (token.kind) {
 	case TK_STR: return intern_cstr(table, token.str);
-	case TK_IDENT: return intern_cstr(table, token.ident);
+	case TK_IDENT:
+		// return intern_str(table, token.start, token.len);
+		return intern_cstr(table, token.ident);
 	default:
 		break;
 	}

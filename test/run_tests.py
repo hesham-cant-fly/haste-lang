@@ -26,19 +26,25 @@ def _run_one_test(group, file_path, index=0, leng=0):
     cmd = [HASTE, *group["flags"], file_path]
     skip = group.get("skip_lines", 0)
     expect_failure = group.get("expect_failure", False)
+    file_output_ext = group.get("file_output")
 
     result = subprocess.run(cmd, capture_output=True, cwd=PROJECT_DIR)
 
-    ansi_re = re.compile(rb'\033\[[0-9;]*[a-zA-Z]')
-    def strip_ansi(data):
-        return ansi_re.sub(b'', data)
-
-    if expect_failure:
-        got_data = strip_ansi(result.stderr) if result.stderr else b''
+    if file_output_ext:
+        output_path = os.path.splitext(file_path)[0] + file_output_ext
+        with open(output_path, "rb") as f:
+            got_data = f.read()
     else:
-        got_data = result.stdout
-        if result.stderr:
-            got_data += result.stderr
+        ansi_re = re.compile(rb'\033\[[0-9;]*[a-zA-Z]')
+        def strip_ansi(data):
+            return ansi_re.sub(b'', data)
+
+        if expect_failure:
+            got_data = strip_ansi(result.stderr) if result.stderr else b''
+        else:
+            got_data = result.stdout
+            if result.stderr:
+                got_data += result.stderr
 
     with open(got_path, "wb") as f:
         f.write(got_data)
@@ -81,6 +87,7 @@ TEST_GROUPS = [
         "flags": ["--tokens"],
         "expected_suffix": "tokens.expected",
         "got_suffix": "tokens.got",
+        "file_output": ".tokens",
     },
     {
         "name": "errors",
@@ -101,6 +108,7 @@ TEST_GROUPS = [
         "expected_suffix": "expected",
         "got_suffix": "got",
         "skip_lines": 2,
+        "file_output": ".ll",
     },
 ]
 # ────────────────────────────────────────────────────────────────

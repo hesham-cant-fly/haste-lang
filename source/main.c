@@ -9,6 +9,33 @@
 #define MY_HASHTABLE_IMPL
 #define MY_STREAM_IMPL
 #include "haste.h"
+#include "my_timing.h"
+#include "cwalk.h"
+
+static stream_t open_dump_stream(const struct options *opts, const char *ext, char *path_buf, size_t path_buf_size)
+{
+	if (opts->do_dump)
+		return serr;
+
+	const char *path = opts->output_path;
+	if (!path) {
+		cwk_path_change_extension(opts->source_path, ext, path_buf, path_buf_size);
+		path = path_buf;
+	}
+
+	stream_t out = sopen(path, "w");
+	if (!out.data) {
+		fprintf(stderr, "error: failed to open '%s' for writing\n", path);
+		return out;
+	}
+	return out;
+}
+
+static void close_dump_stream(const struct options *opts, stream_t out)
+{
+	if (!opts->do_dump)
+		sclose(out);
+}
 
 static void print_errno(void)
 {
@@ -83,9 +110,15 @@ int main(int argc, char *argv[argc])
 
 	struct intern_table intern_table = init_intern_table(c_allocator, allocator);
 
+	enum { PHASE_LEX, PHASE_PARSE, PHASE_HOIST, PHASE_ANALYZE, PHASE_CODEGEN, PHASE_COUNT };
+	struct timer timers[PHASE_COUNT] = {0};
+	const char *phase_names[PHASE_COUNT] = { "lexer", "parser", "hoisting", "analysis", "codegen" };
+
 	const source_file_id src = obtain_source_file_id(NULL, options.source_path);
 	struct token_list tokens = {0};
+	timer_start(&timers[PHASE_LEX]);
 	err = scan_entire_file(c_allocator, &intern_table, src, &tokens);
+	timer_stop(&timers[PHASE_LEX]);
 	if (err) {
 		deinit_intern_table(&intern_table);
 		arena_free(&arena);
@@ -93,16 +126,22 @@ int main(int argc, char *argv[argc])
 	}
 
 	if (options.dump_tokens) {
+		char path_buf[4096];
+		stream_t out = open_dump_stream(&options, ".tokens", path_buf, sizeof(path_buf));
+		if (!out.data) { arrfree(c_allocator, tokens); deinit_intern_table(&intern_table); arena_free(&arena); return 1; }
 		arreach (struct token, tok, tokens) {
-			println("{token:#}", tok);
+			sprintln(out, "{token:#}", tok);
 		}
+		close_dump_stream(&options, out);
 		arrfree(c_allocator, tokens);
 		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 0;
 	}
 
+	timer_start(&timers[PHASE_PARSE]);
 	err = parse(allocator, tokens, src);
+	timer_stop(&timers[PHASE_PARSE]);
 	if (err) {
 		deinit_intern_table(&intern_table);
 		arena_free(&arena);
@@ -111,7 +150,9 @@ int main(int argc, char *argv[argc])
 
 	arrfree(c_allocator, tokens);
 
+	timer_start(&timers[PHASE_HOIST]);
 	err = hoist(c_allocator, &intern_table, src);
+	timer_stop(&timers[PHASE_HOIST]);
 	if (err) {
 		deinit_intern_table(&intern_table);
 		arena_free(&arena);
@@ -119,13 +160,19 @@ int main(int argc, char *argv[argc])
 	}
 
 	if (options.dump_ast) {
-		println("{ast}", get_source_file_ast(src));
+		char path_buf[4096];
+		stream_t out = open_dump_stream(&options, ".json", path_buf, sizeof(path_buf));
+		if (!out.data) { deinit_intern_table(&intern_table); arena_free(&arena); return 1; }
+		sprintln(out, "{ast}", get_source_file_ast(src));
+		close_dump_stream(&options, out);
 		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 0;
 	}
 
+	timer_start(&timers[PHASE_ANALYZE]);
 	err = analyze(c_allocator, allocator, &intern_table, src);
+	timer_stop(&timers[PHASE_ANALYZE]);
 	if (err) {
 		deinit_intern_table(&intern_table);
 		arena_free(&arena);
@@ -133,18 +180,55 @@ int main(int argc, char *argv[argc])
 	}
 
 	if (options.dump_sema) {
-		println("{ast}", get_source_file_ast(src));
+		char path_buf[4096];
+		stream_t out = open_dump_stream(&options, ".json", path_buf, sizeof(path_buf));
+		if (!out.data) { deinit_intern_table(&intern_table); arena_free(&arena); return 1; }
+		sprintln(out, "{ast}", get_source_file_ast(src));
+		close_dump_stream(&options, out);
 		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 0;
 	}
 
-	err = codegen(c_allocator, src, &intern_table);
+	if (options.dump_llvm) {
+		const char *llvm_path = NULL;
+		bool llvm_to_stderr = false;
+		char llvm_path_buf[4096];
+		if (options.do_dump) {
+			llvm_to_stderr = true;
+		} else {
+			llvm_path = options.output_path;
+			if (!llvm_path) {
+				cwk_path_change_extension(options.source_path, ".ll", llvm_path_buf, sizeof(llvm_path_buf));
+				llvm_path = llvm_path_buf;
+			}
+		}
+		timer_start(&timers[PHASE_CODEGEN]);
+		err = codegen(c_allocator, src, &intern_table, llvm_path, llvm_to_stderr);
+		timer_stop(&timers[PHASE_CODEGEN]);
+		if (err) {
+			deinit_intern_table(&intern_table);
+			arena_free(&arena);
+			return 1;
+		}
+		if (options.do_measure)
+			print_timing_report(timers, phase_names, PHASE_COUNT);
+		deinit_intern_table(&intern_table);
+		arena_free(&arena);
+		return 0;
+	}
+
+	timer_start(&timers[PHASE_CODEGEN]);
+	err = codegen(c_allocator, src, &intern_table, NULL, false);
+	timer_stop(&timers[PHASE_CODEGEN]);
 	if (err) {
 		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 1;
 	}
+
+	if (options.do_measure)
+		print_timing_report(timers, phase_names, PHASE_COUNT);
 
 	deinit_intern_table(&intern_table);
 	arena_free(&arena);

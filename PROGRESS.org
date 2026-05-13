@@ -158,6 +158,26 @@ const Vec2 = struct {
 - Struct types are **nominally typed**: each struct declaration creates a unique type, even if two declarations have identical fields
   - =const S1 = struct { x: int; y: int; };= and =const S2 = struct { x: int; y: int; };= are /distinct types/ — =const a: S1 = S2{...}= is a type error
 - Struct type names appear in error messages and LLVM IR instead of generic =struct= labels
+
+** Auto-typed struct fields
+
+#+BEGIN_SRC haste
+const Vec2 = struct {
+    x: auto = 6.0;     // infers x: float = 6.0
+    y: auto = 7.0;     // infers y: float = 7.0
+};
+
+const Point = struct {
+    x := 6.0;           // shorthand: same as x: auto = 6.0
+    y := 7.0;           // shorthand: same as y: auto = 7.0
+};
+#+END_SRC
+
+- =auto= type with an == default value infers the field type from the default
+  - =0= → =int=, =0.0= → =float=, ="hi"= → =string=
+- =:= shorthand syntax is sugar for =: auto ==
+- Auto-inferred fields are fully typed — they work with =Type{}=, =.{}=, and defaults
+- Fields declared as =name: auto;= (no default) are rejected: "Cannot infer type for field"
   
 ** Struct literals
 

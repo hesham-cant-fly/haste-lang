@@ -45,7 +45,10 @@ struct options {
 	bool dump_ast    : 1;
 	bool dump_sema   : 1;
 	bool dump_llvm   : 1;
+	bool do_measure  : 1;
+	bool do_dump     : 1;
 	const char *source_path;
+	const char *output_path;
 };
 
 Error parse_arguments(const int argc, const char *argv[argc], struct options *out);
@@ -571,6 +574,6 @@ Error analyze(struct Allocator allocator,
 //
 // codegen.c
 //
-Error codegen(struct Allocator allocator, const source_file_id src, struct intern_table *table);
+Error codegen(struct Allocator allocator, const source_file_id src, struct intern_table *table, const char *output_path, bool dump_to_stderr);
 
 #endif // !HASTE_H_
