@@ -189,17 +189,7 @@ const Point = auto{ x: 1, y: 2 };         // same as .{}
 const empty = .{};                         // type: {} (empty auto-struct)
 const nested = .{ a: .{ b: "deep" } };   // type: { a: { b: string } }
 const copy = nested;                       // same auto-struct type as nested
-#+END_SRC
 
-- Auto-struct literals (=.{}= or =auto{}=) assign each auto-struct literal a unique anonymous type (=HASTE_TY_AUTO_STRUCT=)
-- Nested auto-structs produce nested anonymous types
-- Auto-struct values can be copied (=const copy = original=), preserving type identity
-- When an auto-struct is assigned to a typed variable or used as a typed struct field value, the target type is injected before field analysis:
-  - =const a: Vec2 = .{ x: 1, y: 2 };= — the =Vec2= type is injected, fields validated against =Vec2=
-  - =Outer{ inner: .{ name: "x" } }= — =Inner= type is injected onto the nested auto-struct
-- Unannotated auto-struct literals create fresh types; they are /not/ compatible with any other struct type, even structurally identical ones
-- auto-struct can implicitly coerce to predefined struct types.
-#+begin_src haste
 const Vec2 = struct {
 	x: float;
 	y: float;
@@ -211,10 +201,19 @@ const d = auto{
 };
 
 const pos: Vec2 = d;
+
 // the `cast` operator also works
 const vel = cast[Vec2]d;
-#+end_src
+#+END_SRC
 
+- Auto-struct literals (=.{}= or =auto{}=) assign each auto-struct literal a unique anonymous type (=HASTE_TY_AUTO_STRUCT=)
+- Nested auto-structs produce nested anonymous types
+- Auto-struct values can be copied (=const copy = original=), preserving type identity
+- When an auto-struct is assigned to a typed variable or used as a typed struct field value, the target type is injected before field analysis:
+  - =const a: Vec2 = .{ x: 1, y: 2 };= — the =Vec2= type is injected, fields validated against =Vec2=
+  - =Outer{ inner: .{ name: "x" } }= — =Inner= type is injected onto the nested auto-struct
+- Unannotated auto-struct literals create fresh types; they are /not/ compatible with any other struct type, even structurally identical ones
+- auto-struct can implicitly coerce to predefined struct types.
 
 * Examples
 
