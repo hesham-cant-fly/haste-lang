@@ -1333,7 +1333,7 @@ static int mem_write(void *data, const unsigned char *in, size_t m)
 	const size_t remaining = self->len - self->pos;
 	if (remaining == 0) return 0;
 
-	const int write_amount = m < remaining ? m : remaining - 1;
+	const size_t write_amount = m < remaining ? m : remaining - 1;
 	memcpy(self->buffer + self->pos, in, sizeof(char) * write_amount);
 	self->pos += write_amount;
 	self->buffer[self->pos] = '\0';
