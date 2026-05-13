@@ -10,6 +10,6 @@ secret/
 .direnv
 compile_flags.txt
 *.got
-*.ll
-*.tokens
-*.json
+test/**/*.ll
+test/**/*.tokens
+test/**/*.json
