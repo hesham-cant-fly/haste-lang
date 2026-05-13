@@ -8,4 +8,4 @@ const d = .{
 	y: 1,
 };
 
-const e: Vec2 = d;
+const e = cast[Vec2] d;

@@ -1,5 +1,5 @@
 #+TITLE: Haste Language — Implemented Features
-#+DATE: 2026-05-11
+#+DATE: 2026-05-13
 
 * Declarations
 
@@ -142,6 +142,7 @@ cast[target_type] expression
 - Arithmetic on literals is constant-folded
 - Forward references across top-level declarations are supported (hoisting)
 - Type aliases resolve at compile time
+- Recursive declarations (e.g. =const S = struct { x: S; };=) are detected at compile time.
 
 ** Struct types
 
@@ -154,7 +155,10 @@ const Vec2 = struct {
 
 - Fields are declared as =name: type;= with an optional == default= value
 - A struct type =is a type= value. =typeof(Vec2)= returns =type=
-
+- Struct types are **nominally typed**: each struct declaration creates a unique type, even if two declarations have identical fields
+  - =const S1 = struct { x: int; y: int; };= and =const S2 = struct { x: int; y: int; };= are /distinct types/ — =const a: S1 = S2{...}= is a type error
+- Struct type names appear in error messages and LLVM IR instead of generic =struct= labels
+  
 ** Struct literals
 
 #+BEGIN_SRC haste
@@ -168,29 +172,49 @@ const pos: Vec3;                           // uninitialized → zero values
 #+END_SRC
 
 - =Type{ field: value, ... }= — literal with explicit type
-- =.{}= / =auto{}= with type annotation (=const x: T = .{...}=) — type is injected before analysis, fields validated against target type
-- =.{}= / =auto{}= without type annotation — creates a fresh anonymous struct type with fields determined by the literal
-- Anonymous struct literals also work nested inside typed struct literal fields:
-  - =Outer{ inner: .{ name: "x" } }= — =Inner= type is injected automatically
-  - =Outer{ inner: auto{ name: "x" } }= — same behavior, =auto= treated as anonymous
+- =.{}= / =auto{}= with type annotation (=const x: T = .{...}=) — target type is injected before analysis, fields validated against target type
+- =.{}= / =auto{}= without type annotation — auto-struct literal; creates a fresh anonymous struct type with fields determined by the literal (see [[Auto struct types (=.{}= / =auto{}=)]])
+- Auto-struct literals also work nested inside typed struct literal fields:
+  - =Outer{ inner: .{ name: "x" } }= — =Inner= type is injected automatically onto the nested auto-struct
+  - =Outer{ inner: auto{ name: "x" } }= — same behavior
 - Empty =.{}= / =auto{}= creates an empty struct type
 - Omitting a field uses its declared default (or the base type's default)
 - =const x: StructType;= produces the zero value for all fields
 
-** Anonymous struct types
+** Auto struct types (=.{}= / =auto{}=)
 
 #+BEGIN_SRC haste
-const Point = .{ x: 1, y: 2 };            // type: { x: int, y: int }
-const Point = auto{ x: 1, y: 2 };         // same as above
-const empty = .{};                         // type: {}
+const Point = .{ x: 1, y: 2 };            // type: { x: int, y: int } (auto-struct)
+const Point = auto{ x: 1, y: 2 };         // same as .{}
+const empty = .{};                         // type: {} (empty auto-struct)
 const nested = .{ a: .{ b: "deep" } };   // type: { a: { b: string } }
-const copy = nested;                       // same type as nested
+const copy = nested;                       // same auto-struct type as nested
 #+END_SRC
 
-- Each anonymous literal produces a unique struct type
-- Nested anonymous literals produce nested anonymous struct types
-- Anonymous struct values can be copied (=const copy = original=), preserving type and value
-- When an anonymous struct is assigned to a typed variable or passed as a typed struct field value, field names and types must match the target
+- Auto-struct literals (=.{}= or =auto{}=) assign each auto-struct literal a unique anonymous type (=HASTE_TY_AUTO_STRUCT=)
+- Nested auto-structs produce nested anonymous types
+- Auto-struct values can be copied (=const copy = original=), preserving type identity
+- When an auto-struct is assigned to a typed variable or used as a typed struct field value, the target type is injected before field analysis:
+  - =const a: Vec2 = .{ x: 1, y: 2 };= — the =Vec2= type is injected, fields validated against =Vec2=
+  - =Outer{ inner: .{ name: "x" } }= — =Inner= type is injected onto the nested auto-struct
+- Unannotated auto-struct literals create fresh types; they are /not/ compatible with any other struct type, even structurally identical ones
+- auto-struct can implicitly coerce to predefined struct types.
+#+begin_src haste
+const Vec2 = struct {
+	x: float;
+	y: float;
+};
+
+const d = auto{
+	x: 1,
+	y: 2
+};
+
+const pos: Vec2 = d;
+// the `cast` operator also works
+const vel = cast[Vec2]d;
+#+end_src
+
 
 * Examples
 
