@@ -287,11 +287,45 @@ Struct values are created with brace syntax:
 const pos = Vec2{ x: 0, y: 0 };          // literal with explicit type
 const pos: Vec2 = .{ x: 1 };              // anonymous literal, type from annotation
 const pos = .{ x: 1, y: 2 };             // anonymous, creates fresh struct type
-const pos = Vec2{};                        // all fields use defaults
-const pos: Vec2;                           // uninitialized → zero values
 #+END_SRC
 
 =Type{ field: value, ... }= is a literal with an explicit struct type. =.{}= with a type annotation (=const x: T = .{...}=) injects the target type before field analysis, so fields are validated against the target. =.{}= without a type annotation creates a fresh anonymous struct type. Empty =.{}= creates an empty struct type. Omitting a field uses its declared default value.
+
+Now lets suppose we have a struct =Foo= defined as below. as you can see, field =a= has a default value of =1=. but =b= is not.
+#+begin_src haste
+const Foo = struct {
+	a: int = 1;
+	b: float;
+};
+#+end_src
+
+If you used the initializer below you are required to set the non-default fields. otherwise you get an error
+#+begin_src haste
+const foo = Foo{
+	b: 6,
+};
+
+const foo2 = Foo {}; // you get an error
+#+end_src
+
+If you declared a variable. and you specified the type without specifying a value. haste will set the fields with default values to their default. but those who doesn't have a default value will be set to zero.
+#+begin_src haste
+const foo: Foo; // here `a` will have a value of 1
+                // but `b` will have a value of 0
+#+end_src
+
+If you wanna explicitly set everything in the struct to zero. you can just assign =0= to it.
+#+begin_src haste
+const foo: Foo = 0;
+// you can also use the `cast` operator
+const foo2: Foo = cast 0;
+const foo3 = cast[Foo]0;
+
+// this also works? I didn't expect it to work at first actually. but it did!
+const a = 0;
+const foo4: Foo = cast a;
+#+end_src
+
 
 ** Auto struct types
 
