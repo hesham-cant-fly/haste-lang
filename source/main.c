@@ -143,6 +143,7 @@ int main(int argc, char *argv[argc])
 	err = parse(allocator, tokens, src);
 	timer_stop(&timers[PHASE_PARSE]);
 	if (err) {
+		arrfree(c_allocator, tokens);
 		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 1;

@@ -1,0 +1,7 @@
+; ModuleID = ''
+source_filename = ""
+
+@a = constant i32 42
+@b = constant float 0x40091EB860000000
+@c = constant ptr @.str.0
+@.str.0 = private unnamed_addr constant [6 x i8] c"hello\00"

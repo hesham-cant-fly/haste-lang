@@ -1,0 +1,3 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/int_overflow_sub.haste:1:32: Error: Subtraction is not possible between 'untyped_int' and 'untyped_int'
+    1 | const x = -9223372036854775807 - 2;
+                                       ^ 
