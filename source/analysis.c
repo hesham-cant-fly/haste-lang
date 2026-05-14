@@ -346,8 +346,37 @@ static struct haste_value resolve_binary_op(struct analyzer *self, struct haste_
 static struct haste_value analyze_unary(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
 {
 	struct haste_value value = analyze_node(self, node->rhs, expected_type);
+
+	switch (node->op.kind) {
+	case TK_MINUS:
+		if (IS_ZERO(value)) {
+			value = VAL_SCALAR(AS_TYPE(typeof(value)), .integer = 0);
+		} else if (IS_SCALAR(value)) {
+			if (type_is_integer(typeof(value)))
+				value.integer = -value.integer;
+			else if (type_is_float(typeof(value)))
+				value.floating = -value.floating;
+			else
+				goto neg_error;
+		} else if (IS_BAD(value)) {
+			return VAL_BAD;
+		} else {
+			goto neg_error;
+		}
+		break;
+	default:
+		break;
+	}
+
 	node->type = typeof(value);
+	node->kind = ND_VALUE;
+	node->value = value;
 	return value;
+
+neg_error:
+	report_error(self, node->op,
+		"Negation is not possible on '{value}'.", typeof(value));
+	return VAL_BAD;
 }
 
 static struct haste_value analyze_primary(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
@@ -468,11 +497,16 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 	const bool is_explicitly_comptime = node->variable.is_explicitly_comptime
 		or (is_constant and type_equal(type, ty_type));
 
-	put_symbol(self, target_scope, name,
+	if (_put_symbol(self, target_scope, name, (struct symbol){
 		.type = type, .value = value,
 		.is_constant = is_constant,
 		.is_explicitly_comptime = is_explicitly_comptime,
-		.node = node);
+		.node = node,
+	})) {
+		report_error(self, node->variable.name,
+			"duplicate declaration of '{s}'.", name);
+		return VAL_BAD;
+	}
 
 	node->type = type;
 	node->variable.is_explicitly_comptime = is_explicitly_comptime;

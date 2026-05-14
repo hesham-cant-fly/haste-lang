@@ -206,11 +206,12 @@ int main(int argc, char *argv[argc])
 		timer_start(&timers[PHASE_CODEGEN]);
 		err = codegen(c_allocator, src, &intern_table, llvm_path, llvm_to_stderr);
 		timer_stop(&timers[PHASE_CODEGEN]);
-		if (err) {
-			deinit_intern_table(&intern_table);
-			arena_free(&arena);
-			return 1;
-		}
+	if (err) {
+		arrfree(c_allocator, tokens);
+		deinit_intern_table(&intern_table);
+		arena_free(&arena);
+		return 1;
+	}
 		if (options.do_measure)
 			print_timing_report(timers, phase_names, PHASE_COUNT);
 		deinit_intern_table(&intern_table);

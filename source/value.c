@@ -78,11 +78,28 @@ static struct haste_value arith_int(enum arith_op op, struct haste_value lhs, st
 	int64_t res = 0;
 
 	switch (op) {
-	case ARITH_ADD: res = a + b; break;
-	case ARITH_SUB: res = a - b; break;
-	case ARITH_MUL: res = a * b; break;
+	case ARITH_ADD:
+		if ((b > 0 && a > INT64_MAX - b) or (b < 0 && a < INT64_MIN - b))
+			return VAL_BAD;
+		res = a + b;
+		break;
+	case ARITH_SUB:
+		if ((b > 0 && a < INT64_MIN + b) or (b < 0 && a > INT64_MAX + b))
+			return VAL_BAD;
+		res = a - b;
+		break;
+	case ARITH_MUL:
+		if (a != 0 and b != 0) {
+			if ((a > 0 and b > 0 and a > INT64_MAX / b)
+			    or (a > 0 and b < 0 and b < INT64_MIN / a)
+			    or (a < 0 and b > 0 and a < INT64_MIN / b)
+			    or (a < 0 and b < 0 and a < INT64_MAX / b))
+				return VAL_BAD;
+		}
+		res = a * b;
+		break;
 	case ARITH_DIV:
-		if (b == 0) return VAL_BAD;
+		if (b == 0 or (a == INT64_MIN and b == -1)) return VAL_BAD;
 		res = a / b;
 		break;
 	}
@@ -95,9 +112,12 @@ static struct haste_value arith_int(enum arith_op op, struct haste_value lhs, st
 
 static struct haste_value value_do_arith(
 	const enum arith_op op,
-	const struct haste_value lhs,
-	const struct haste_value rhs)
+	struct haste_value lhs,
+	struct haste_value rhs)
 {
+	if (IS_ZERO(lhs)) lhs = VAL_SCALAR(AS_TYPE(ty_untyped_int), .integer = 0);
+	if (IS_ZERO(rhs)) rhs = VAL_SCALAR(AS_TYPE(ty_untyped_int), .integer = 0);
+
 	if (not (value_is_any_int(lhs) or value_is_any_float(lhs))) return VAL_BAD;
 	if (not (value_is_any_int(rhs) or value_is_any_float(rhs))) return VAL_BAD;
 	if (not type_equal(typeof(lhs), typeof(rhs))

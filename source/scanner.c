@@ -11,6 +11,8 @@ struct scanner {
 	bool has_error, ended;
 };
 
+static bool is_digit(uint32_t c) { return c >= '0' and c <= '9'; }
+
 static const char *decode_string(struct scanner *self, const char *start, size_t len)
 {
 	char *chars = alloc(self->allocator, len + 1);
@@ -113,27 +115,11 @@ static bool matches(struct scanner *self, char *str)
 	return true;
 }
 
-static bool matches_any(struct scanner *self, char *str)
-{
-	const size_t str_len = strlen(str);
-	for (size_t i=0; i < str_len; i += 1) {
-		if (advance_if_eq(self, str[i])) {
-			return true;
-		}
-	}
-	return false;
-}
-
 static void advance_until(struct scanner *self, uint32_t ch)
 {
 	while (not check(self, ch)) {
 		advance(self);
 	}
-}
-
-static void advance_all(struct scanner *self, char *str)
-{
-	while (matches_any(self, str));
 }
 
 static struct token *add_token(struct scanner *self, enum token_kind kind)
@@ -184,6 +170,20 @@ static void scan_string(struct scanner *self)
 	report_error(self, self->start, "unterminated string literal");
 }
 
+static void skip_whitespace(struct scanner *self)
+{
+	while (not ended(self)) {
+		uint32_t c = peek(self);
+		if (c == ' ' or c == '\t' or c == '\r') {
+			advance(self);
+		} else if (c == '\n') {
+			advance(self);
+		} else {
+			break;
+		}
+	}
+}
+
 static void scan_lexem(struct scanner *self)
 {
 	// skip single line comment
@@ -207,10 +207,16 @@ static void scan_lexem(struct scanner *self)
 	}
 
 	// numbers (float and integers)
-	if (matches_any(self, "0123456789")) {
-		advance_all(self, "0123456789");
-		const bool is_float = advance_if_eq(self, '.');
-		if (is_float) advance_all(self, "0123456789");
+	if (not ended(self) and is_digit(peek(self))) {
+		advance(self);
+		while (not ended(self) and is_digit(peek(self)))
+			advance(self);
+		const bool is_float = not ended(self) and peek(self) == '.';
+		if (is_float) {
+			advance(self);
+			while (not ended(self) and is_digit(peek(self)))
+				advance(self);
+		}
 		add_token(self, is_float then TK_FLOAT otherwise TK_INT);
 		return;
 	}
@@ -243,48 +249,40 @@ static void scan_lexem(struct scanner *self)
 		}
 	}
 
-	if (matches_any(self, "abcdefghijklmnopqrstuvwxyz"
-	                      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	                      "$_")) {
-		advance_all(self, "abcdefghijklmnopqrstuvwxyz"
-	                      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-						  "0123456789"
-	                      "$_");
+	// identifiers
+	if (not ended(self) and is_ident1(peek(self))) {
+		advance(self);
+		while (not ended(self) and is_ident2(peek(self)))
+			advance(self);
 		add_token(self, TK_IDENT);
 		return;
 	}
 
-	{
-		static const struct { char ch; enum token_kind kind; } single_char_tokens[] = {
-			{';', TK_SEMI_COLON},
-			{'[', TK_OPEN_BRAKET},
-			{']', TK_CLOSE_BRAKET},
-			{'(', TK_OPEN_PAREN},
-			{')', TK_CLOSE_PAREN},
-			{':', TK_COLON},
-			{'=', TK_EQ},
-			{'+', TK_PLUS},
-			{'-', TK_MINUS},
-			{'*', TK_STAR},
-			{'/', TK_FSLASH},
-			{'{', TK_OPEN_BRACE},
-			{'}', TK_CLOSE_BRACE},
-			{',', TK_COMMA},
-			{'.', TK_DOT},
-		};
-		for (size_t i = 0; i < sizeof(single_char_tokens)/sizeof(single_char_tokens[0]); i += 1) {
-			if (advance_if_eq(self, single_char_tokens[i].ch)) {
-				add_token(self, single_char_tokens[i].kind);
-				return;
-			}
+	// single-character tokens
+	if (not ended(self)) {
+		switch (peek(self)) {
+		case ';': advance(self); add_token(self, TK_SEMI_COLON); return;
+		case '[': advance(self); add_token(self, TK_OPEN_BRAKET); return;
+		case ']': advance(self); add_token(self, TK_CLOSE_BRAKET); return;
+		case '(': advance(self); add_token(self, TK_OPEN_PAREN); return;
+		case ')': advance(self); add_token(self, TK_CLOSE_PAREN); return;
+		case ':': advance(self); add_token(self, TK_COLON); return;
+		case '=': advance(self); add_token(self, TK_EQ); return;
+		case '+': advance(self); add_token(self, TK_PLUS); return;
+		case '-': advance(self); add_token(self, TK_MINUS); return;
+		case '*': advance(self); add_token(self, TK_STAR); return;
+		case '/': advance(self); add_token(self, TK_FSLASH); return;
+		case '{': advance(self); add_token(self, TK_OPEN_BRACE); return;
+		case '}': advance(self); add_token(self, TK_CLOSE_BRACE); return;
+		case ',': advance(self); add_token(self, TK_COMMA); return;
+		case '.': advance(self); add_token(self, TK_DOT); return;
+		case '"':
+			self->start = self->current;
+			advance(self);
+			scan_string(self);
+			add_token(self, TK_STR);
+			return;
 		}
-	}
-
-	if (advance_if_eq(self, '"')) {
-		self->start = self->current - 1;
-		scan_string(self);
-		add_token(self, TK_STR);
-		return;
 	}
 
 	const char *pos = self->current;
@@ -297,7 +295,7 @@ static void scan_lexem(struct scanner *self)
 static void start_scanning(struct scanner *self)
 {
 	while (not ended(self)) {
-		advance_all(self, " \n\t\r");
+		skip_whitespace(self);
 
 		self->line = self->current_line;
 		self->start = self->current;
