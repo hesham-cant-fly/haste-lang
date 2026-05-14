@@ -27,30 +27,14 @@ static void context_deinit(struct codegen_context *ctx)
 
 // ── LLVM type helpers ─────────────────────────────────────────────
 
-static LLVMTypeRef t_i8(struct codegen_context *ctx)
-{
-	return LLVMInt8TypeInContext(ctx->llvm_ctx);
-}
+#define DEFINE_LLVM_TYPE_FN(name, llvm_call) \
+	static LLVMTypeRef t_##name(struct codegen_context *ctx) { return llvm_call; }
 
-static LLVMTypeRef t_i32(struct codegen_context *ctx)
-{
-	return LLVMInt32TypeInContext(ctx->llvm_ctx);
-}
-
-static LLVMTypeRef t_i64(struct codegen_context *ctx)
-{
-	return LLVMInt64TypeInContext(ctx->llvm_ctx);
-}
-
-static LLVMTypeRef t_f32(struct codegen_context *ctx)
-{
-	return LLVMFloatTypeInContext(ctx->llvm_ctx);
-}
-
-static LLVMTypeRef t_void(struct codegen_context *ctx)
-{
-	return LLVMVoidTypeInContext(ctx->llvm_ctx);
-}
+DEFINE_LLVM_TYPE_FN(i8,   LLVMInt8TypeInContext(ctx->llvm_ctx))
+DEFINE_LLVM_TYPE_FN(i32,  LLVMInt32TypeInContext(ctx->llvm_ctx))
+DEFINE_LLVM_TYPE_FN(i64,  LLVMInt64TypeInContext(ctx->llvm_ctx))
+DEFINE_LLVM_TYPE_FN(f32,  LLVMFloatTypeInContext(ctx->llvm_ctx))
+DEFINE_LLVM_TYPE_FN(void, LLVMVoidTypeInContext(ctx->llvm_ctx))
 
 static LLVMTypeRef t_i8ptr(struct codegen_context *ctx)
 {
@@ -99,7 +83,7 @@ static LLVMTypeRef llvm_type(struct codegen_context *ctx, struct haste_value typ
 		}));
 
 		// Set body
-		LLVMTypeRef members[st->field_count > 0 ? st->field_count : 1];
+		LLVMTypeRef members[SAFE_COUNT(st->field_count)];
 		for (size_t i = 0; i < st->field_count; i += 1) {
 			members[i] = llvm_type(ctx, st->fields[i].type);
 		}
@@ -164,7 +148,7 @@ static LLVMValueRef llvm_value(struct codegen_context *ctx, struct haste_value v
 			LLVMTypeRef llvm_st = llvm_type(ctx, typeof(value));
 			struct haste_struct_object *so = (struct haste_struct_object*)value.obj;
 			struct haste_struct_type *st = (struct haste_struct_type*)AS_TYPE(typeof(value));
-			LLVMValueRef members[st->field_count > 0 ? st->field_count : 1];
+			LLVMValueRef members[SAFE_COUNT(st->field_count)];
 			for (size_t i = 0; i < st->field_count; i += 1) {
 				members[i] = llvm_value(ctx, so->fields[i]);
 			}

@@ -11,6 +11,8 @@
 #include "my_array.h"
 #include "my_managed_array.h"
 #include "my_stream.h"
+
+#define SAFE_COUNT(n) ((n) > 0 ? (n) : (size_t)1)
 #include <stdarg.h>
 #include <stdnoreturn.h>
 
@@ -418,6 +420,13 @@ bool type_is_float(const struct haste_value t);
 bool type_is_number(const struct haste_value t);
 bool type_is_untyped(const struct haste_value t);
 bool type_is_untyped_number(const struct haste_value t);
+bool type_is_any_string(const struct haste_value t);
+
+bool type_equal_struct(const struct haste_object_type *t1, const struct haste_object_type *t2);
+uint64_t type_hash(const struct haste_value t);
+bool is_comptime_known(const struct haste_value v);
+
+ssize_t find_named_field(const struct haste_struct_type *st, const char *name);
 
 int print_object(stream_t stream, const struct haste_object *obj, const struct haste_object *type);
 int print_value(stream_t stream, const struct haste_value value);

@@ -222,7 +222,7 @@ struct haste_value value_cast(struct Allocator alloc, const struct haste_value t
 	if (value_equal(value, VAL_UNINIT))    return default_for_type(alloc, to);
 	if (IS_ZERO(value))                    return zero_for_type(alloc, to);
 
-	if ((type_equal(to, ty_string) or type_equal(to, ty_cstr))
+	if (type_is_any_string(to)
 		and IS_OBJ(value) and value.obj->kind == HASTE_OBJ_STRING) {
 		return (struct haste_value){
 			.kind = HASTE_VL_OBJ,
@@ -315,6 +315,8 @@ bool value_equal(struct haste_value a, struct haste_value b)
 	}
 }
 
+bool type_equal_struct(const struct haste_object_type *t1, const struct haste_object_type *t2);
+
 bool type_equal(const struct haste_value v1,
                 const struct haste_value v2)
 {
@@ -327,9 +329,60 @@ bool type_equal(const struct haste_value v1,
 	if (t1 == t2) return true;
 	if (t1->kind != t2->kind) return false;
 
-	if (t1->kind == HASTE_TY_STRUCT) return false;
+	if (t1->kind == HASTE_TY_STRUCT)       return t1 == t2;
+	if (t1->kind == HASTE_TY_AUTO_STRUCT) return type_equal_struct(t1, t2);
 
 	return t1->size == t2->size and t1->align == t2->align;
+}
+
+bool type_equal_struct(const struct haste_object_type *t1, const struct haste_object_type *t2)
+{
+	const struct haste_struct_type *st1 = (const struct haste_struct_type *)t1;
+	const struct haste_struct_type *st2 = (const struct haste_struct_type *)t2;
+
+	if (st1->field_count != st2->field_count) return false;
+
+	for (size_t i = 0; i < st1->field_count; i += 1) {
+		if (strcmp(st1->fields[i].name, st2->fields[i].name) != 0) return false;
+		if (not type_equal(st1->fields[i].type, st2->fields[i].type)) return false;
+	}
+
+	return true;
+}
+
+uint64_t type_hash(const struct haste_value t)
+{
+	ASSERT_IS_TYPE(t);
+
+	const struct haste_object_type *ot = AS_TYPE(t);
+	uint64_t h = ot->kind;
+
+	if (ot->name != NULL)
+		for (const char *p = ot->name; *p; p += 1)
+			h = h * 31 + (unsigned char)*p;
+
+	if (ot->kind == HASTE_TY_STRUCT) {
+		const struct haste_struct_type *st = (const struct haste_struct_type *)ot;
+		for (size_t i = 0; i < st->field_count; i += 1) {
+			for (const char *p = st->fields[i].name; *p; p += 1)
+				h = h * 31 + (unsigned char)*p;
+			h = h * 31 + (uint64_t)st->fields[i].type.kind;
+		}
+	}
+
+	return h;
+}
+
+bool is_comptime_known(const struct haste_value v)
+{
+	switch (v.kind) {
+	case HASTE_VL_SCALAR:
+	case HASTE_VL_ZERO:
+	case HASTE_VL_OBJ:
+		return true;
+	default:
+		return false;
+	}
 }
 
 bool type_can_assign(const struct haste_value assignable,
@@ -344,10 +397,8 @@ bool type_can_assign(const struct haste_value assignable,
 	if (type_equal(assignable, ty_auto))  return not type_equal(value, ty_unknown);
 	if (type_equal(assignable, ty_int))   return type_equal(value, ty_unknown) or type_is_integer(value);
 	if (type_equal(assignable, ty_float)) return type_equal(value, ty_unknown) or type_is_untyped_number(value);
-	if (type_equal(assignable, ty_string))
-		return type_equal(value, ty_string) or type_equal(value, ty_untyped_string) or type_equal(value, ty_unknown);
-	if (type_equal(assignable, ty_cstr))
-		return type_equal(value, ty_cstr) or type_equal(value, ty_untyped_string) or type_equal(value, ty_unknown);
+	if (type_is_any_string(assignable))
+		return type_is_any_string(value) or type_equal(value, ty_unknown);
 
 	if (type_equal(value, ty_unknown)) return true;
 
@@ -358,19 +409,8 @@ bool type_can_assign(const struct haste_value assignable,
 		if (val_st->field_count > ass_st->field_count) return false;
 
 		for (size_t i=0; i < ass_st->field_count; i += 1) {
-			bool found = false;
-			struct haste_struct_field ass_field = ass_st->fields[i];
-
-			for (size_t j=0; j < val_st->field_count; j += 1) {
-				struct haste_struct_field val_field = val_st->fields[j];
-				if (strcmp(ass_field.name, val_field.name) == 0) {
-					found = true;
-					break;
-				}
-			}
-
-			if (ass_field.has_default) continue;
-			if (not found) return false;
+			if (ass_st->fields[i].has_default) continue;
+			if (find_named_field(val_st, ass_st->fields[i].name) < 0) return false;
 		}
 
 		return true;
@@ -394,10 +434,23 @@ bool type_can_cast(const struct haste_value to,
 	if (type_equal(to, from))         return true;
 	if (type_equal(from, ty_zero))    return true;
 	if (type_is_number(to))           return type_is_number(from);
-	if (type_equal(to, ty_string) or type_equal(to, ty_cstr) or type_equal(to, ty_untyped_string))
-		return type_equal(from, ty_string) or type_equal(from, ty_cstr) or type_equal(from, ty_untyped_string) or type_equal(from, ty_unknown);
+	if (type_is_any_string(to))
+		return type_is_any_string(from) or type_equal(from, ty_unknown);
 
 	return false;
+}
+
+ssize_t find_named_field(const struct haste_struct_type *st, const char *name)
+{
+	for (size_t i = 0; i < st->field_count; i += 1)
+		if (strcmp(st->fields[i].name, name) == 0)
+			return i;
+	return -1;
+}
+
+bool type_is_any_string(const struct haste_value t)
+{
+	return type_equal(t, ty_string) or type_equal(t, ty_cstr) or type_equal(t, ty_untyped_string);
 }
 
 struct haste_value untyped_to_typed(struct haste_value type)

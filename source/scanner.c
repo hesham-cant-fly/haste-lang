@@ -254,79 +254,30 @@ static void scan_lexem(struct scanner *self)
 		return;
 	}
 
-	if (advance_if_eq(self, ';')) {
-		add_token(self, TK_SEMI_COLON);
-		return;
-	}
-
-	if (advance_if_eq(self, '[')) {
-		add_token(self, TK_OPEN_BRAKET);
-		return;
-	}
-
-	if (advance_if_eq(self, ']')) {
-		add_token(self, TK_CLOSE_BRAKET);
-		return;
-	}
-
-	if (advance_if_eq(self, '(')) {
-		add_token(self, TK_OPEN_PAREN);
-		return;
-	}
-
-	if (advance_if_eq(self, ')')) {
-		add_token(self, TK_CLOSE_PAREN);
-		return;
-	}
-
-	if (advance_if_eq(self, ':')) {
-		add_token(self, TK_COLON);
-		return;
-	}
-
-	if (advance_if_eq(self, '=')) {
-		add_token(self, TK_EQ);
-		return;
-	}
-
-	if (advance_if_eq(self, '+')) {
-		add_token(self, TK_PLUS);
-		return;
-	}
-
-	if (advance_if_eq(self, '-')) {
-		add_token(self, TK_MINUS);
-		return;
-	}
-
-	if (advance_if_eq(self, '*')) {
-		add_token(self, TK_STAR);
-		return;
-	}
-
-	if (advance_if_eq(self, '/')) {
-		add_token(self, TK_FSLASH);
-		return;
-	}
-
-	if (advance_if_eq(self, '{')) {
-		add_token(self, TK_OPEN_BRACE);
-		return;
-	}
-
-	if (advance_if_eq(self, '}')) {
-		add_token(self, TK_CLOSE_BRACE);
-		return;
-	}
-
-	if (advance_if_eq(self, ',')) {
-		add_token(self, TK_COMMA);
-		return;
-	}
-
-	if (advance_if_eq(self, '.')) {
-		add_token(self, TK_DOT);
-		return;
+	{
+		static const struct { char ch; enum token_kind kind; } single_char_tokens[] = {
+			{';', TK_SEMI_COLON},
+			{'[', TK_OPEN_BRAKET},
+			{']', TK_CLOSE_BRAKET},
+			{'(', TK_OPEN_PAREN},
+			{')', TK_CLOSE_PAREN},
+			{':', TK_COLON},
+			{'=', TK_EQ},
+			{'+', TK_PLUS},
+			{'-', TK_MINUS},
+			{'*', TK_STAR},
+			{'/', TK_FSLASH},
+			{'{', TK_OPEN_BRACE},
+			{'}', TK_CLOSE_BRACE},
+			{',', TK_COMMA},
+			{'.', TK_DOT},
+		};
+		for (size_t i = 0; i < sizeof(single_char_tokens)/sizeof(single_char_tokens[0]); i += 1) {
+			if (advance_if_eq(self, single_char_tokens[i].ch)) {
+				add_token(self, single_char_tokens[i].kind);
+				return;
+			}
+		}
 	}
 
 	if (advance_if_eq(self, '"')) {
