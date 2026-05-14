@@ -51,7 +51,7 @@ test: $(EXE)
 	@cd test && python3 ./run_tests.py
 
 test-clean:
-	rm -f test/*.got test/lexing/*.got test/errors/*.got test/integration/*.got
+	rm -f test/**/*.got test/**/*.tokens test/**/*.ll test/**/*.json
 
 clean: test-clean
 	rm -rdf $(OBJS) $(EXE) $(BUILD_DIR) TAGS

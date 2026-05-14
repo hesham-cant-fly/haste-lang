@@ -180,11 +180,43 @@ static LLVMValueRef llvm_value(struct codegen_context *ctx, struct haste_value v
 
 // ── Expression codegen ────────────────────────────────────────────
 
+static LLVMValueRef codegen_expr(struct codegen_context *ctx, const struct haste_ast_node *node);
+
+static LLVMValueRef codegen_cast(struct codegen_context *ctx, const struct haste_ast_node *node)
+{
+	LLVMValueRef val = codegen_expr(ctx, node->cast.expr);
+	LLVMTypeRef target_type = llvm_type(ctx, node->type);
+	LLVMTypeRef src_type = LLVMTypeOf(val);
+
+	if (LLVMGetTypeKind(src_type) == LLVMGetTypeKind(target_type))
+		return val;
+
+	if (LLVMGetTypeKind(src_type) == LLVMIntegerTypeKind
+		and LLVMGetTypeKind(target_type) == LLVMFloatTypeKind)
+		return LLVMBuildSIToFP(ctx->builder, val, target_type, "cast");
+
+	if (LLVMGetTypeKind(src_type) == LLVMFloatTypeKind
+		and LLVMGetTypeKind(target_type) == LLVMIntegerTypeKind)
+		return LLVMBuildFPToSI(ctx->builder, val, target_type, "cast");
+
+	if (LLVMGetTypeKind(src_type) == LLVMIntegerTypeKind
+		and LLVMGetTypeKind(target_type) == LLVMIntegerTypeKind)
+		return LLVMBuildIntCast2(ctx->builder, val, target_type, true, "cast");
+
+	if (LLVMGetTypeKind(src_type) == LLVMPointerTypeKind
+		and LLVMGetTypeKind(target_type) == LLVMPointerTypeKind)
+		return LLVMBuildBitCast(ctx->builder, val, target_type, "cast");
+
+	unreachable();
+}
+
 static LLVMValueRef codegen_expr(struct codegen_context *ctx, const struct haste_ast_node *node)
 {
 	switch (node->kind) {
 	case ND_VALUE:
 		return llvm_value(ctx, node->value);
+	case ND_CAST:
+		return codegen_cast(ctx, node);
 	default: unimplemented();
 	}
 }

@@ -190,8 +190,10 @@ static struct haste_ast_node *cast(struct parser *self)
 	struct token start = previous(self);
 	struct haste_ast_node *to = NULL;
 	if (match(self, TK_OPEN_BRAKET)) {
-		to = expr(self);
-		consume(self, TK_CLOSE_BRAKET, "Expected closing braket ']'.");
+		if (not match(self, TK_CLOSE_BRAKET)) {
+			to = expr(self);
+			consume(self, TK_CLOSE_BRAKET, "Expected closing braket ']'.");
+		}
 	}
 
 	struct haste_ast_node *child_expr = parse_precedence(self, PREC_UNARY);

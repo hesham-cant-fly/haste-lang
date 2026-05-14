@@ -1,0 +1,3 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/auto_cast_struct_mismatch.haste:3:14: Error: Cannot cast 'B' to 'A'
+    3 | const a: A = cast B{ x: 1 };
+                     ^ 

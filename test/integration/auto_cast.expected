@@ -1,0 +1,7 @@
+; ModuleID = ''
+source_filename = ""
+
+@a = constant float 0x401ACCCCC0000000
+@b = constant i32 6
+@c = constant float 4.200000e+01
+@d = constant float 6.000000e+00

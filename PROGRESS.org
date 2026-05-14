@@ -1,9 +1,49 @@
-#+TITLE: Haste Language — Implemented Features
-#+DATE: 2026-05-13
+#+TITLE: Haste Language — Overview
+#+DATE: 2026-05-14
+
+* Introduction
+
+This document is an overview of the Haste programming language. You are assumed to have basic knowledge of programming concepts such as variables, statements, and types.
+
+Haste is a compiled, statically-typed language with struct types, compile-time evaluation, and LLVM code generation. It is designed to be simple and expressive.
+
+* Hello, Haste!
+
+To begin, here is a simple Haste program:
+
+#+BEGIN_SRC haste
+const greeting: string = "hello";
+const year: int = 2026;
+#+END_SRC
+
+Save this to a =.haste= file and compile it with the Haste compiler:
+
+#+BEGIN_SRC text
+haste file.haste               # compile silently (no output on success)
+haste --llvm file.haste         # emit LLVM IR to file.ll
+haste --llvm --dump file.haste  # emit LLVM IR to stderr
+#+END_SRC
+
+The =--llvm= flag produces LLVM IR output. Without it, the compiler checks the program and exits silently.
+
+* Comments
+
+Comments can be anywhere outside of a string literal. Single-line comments begin with =//= and multi-line comments are enclosed in =/*= and =*/=.
+
+#+BEGIN_SRC haste
+// A single-line comment
+
+/* A multi-line
+   comment */
+#+END_SRC
+
+Multi-line comments do not nest.
 
 * Declarations
 
 ** =const= — Immutable binding
+
+A constant declaration introduces an immutable binding. The value may be given after = ==, or omitted if the type is specified — in that case the variable is initialized to the default for that type.
 
 #+BEGIN_SRC haste
 const name = value;
@@ -11,8 +51,22 @@ const name: type = value;
 const name: type;
 #+END_SRC
 
-- Without a value, the type must be specified; the default for that type is used
-- =const= with a =type= value creates a type alias: =const MyInt = int=
+#+BEGIN_SRC haste
+const a: int = 42;
+const b: float = 3.14;
+const c: string = "hello";
+const d: int;       // 0
+const e: float;     // 0.0
+#+END_SRC
+
+When =const= is paired with a =type= value, it creates a type alias:
+
+#+BEGIN_SRC haste
+const Number = int;
+const a: Number = 42;
+#+END_SRC
+
+All =const= declarations are evaluated at compile time when their values are literal or constant-foldable.
 
 ** =var= — Mutable binding
 
@@ -22,43 +76,42 @@ var name: type = value;
 var name: type;
 #+END_SRC
 
-- Same syntax as =const= (mutable, though only =const= is fully tested at global scope)
+=var= uses the same syntax as =const= but produces a mutable binding. At global scope, only =const= is currently supported.
 
-* Types
+** Untyped inference with =auto=
 
-** Primitive types
-
-| Type | Description | Default |
-|------+-------------+---------|
-| =int= | Signed 32-bit integer | =0= |
-| =float= | 32-bit float | =0.0= |
-| =string= | String slice =(data_ptr, length)= | empty string |
-| =cstr= | Null-terminated C string pointer | empty string |
-| =void= | No value | — |
-| =type= | The type of types | — |
-
-** Untyped literal types (no keyword — arise from literals)
-
-| Type | From | Behavior |
-|------+------+----------|
-| =untyped_int= | =42= | Coerces to =int= or =float= on assignment |
-| =untyped_float= | =3.14= | Coerces to =float= on assignment |
-| =untyped_string= | ="hello"= | Coerces to =string= or =cstr= on assignment |
-
-- =auto= in type position means "infer from the initializer"
-
-* Expressions
-
-** Literals
+Using =auto= in type position infers the type from the initializer:
 
 #+BEGIN_SRC haste
-42        // untyped_int
-3.14      // untyped_float
-"hello"   // untyped_string
-name      // resolved from scope
+const x: auto = 42;    // x is int
+const y: auto = 3.14;  // y is float
+const z: auto = "hi";  // z is string
 #+END_SRC
 
-** String escape sequences
+* Literals
+
+** Numeric literals
+
+Numerical literals are written similarly to most other programming languages. A number containing a dot is a floating-point literal. A leading zero does not produce an octal constant.
+
+#+BEGIN_SRC haste
+42        // untyped integer
+3.14      // untyped float
+0         // zero literal, assignable to any type
+#+END_SRC
+
+Untyped numeric literals implicitly convert to typed types on assignment.
+
+** String literals
+
+String literals are enclosed in double quotes. Special characters are escaped with a backslash.
+
+#+BEGIN_SRC haste
+"hello world"
+""
+#+END_SRC
+
+The following escape sequences are supported:
 
 | Sequence | Result |
 |----------+--------|
@@ -69,11 +122,99 @@ name      // resolved from scope
 | =\\= | backslash |
 | =\"= | double quote |
 
-** Grouping
+* Basic types
+
+** Primitive types
+
+| Type | Description | Default |
+|------+-------------+---------|
+| =int= | Signed 32-bit integer | =0= |
+| =float= | 32-bit float | =0.0= |
+| =string= | String slice (ptr, len) | empty string |
+| =cstr= | Null-terminated C string | empty string |
+| =void= | No value | — |
+| =type= | The type of types | — |
+
+** Untyped types
+
+Certain expressions have an "untyped" type. An untyped type can implicitly convert to a typed type.
+
+| Type | Example | Converts to |
+|------+---------+-------------|
+| =untyped_int= | =42= | =int=, =float= |
+| =untyped_float= | =3.14= | =float= |
+| =untyped_string= | ="hello"= | =string=, =cstr= |
+
+** Zero values
+
+Variables declared without an explicit initial value are given their zero value: =0= for =int=, =0.0= for =float=, and =""= (empty string) for =string= and =cstr=.
+
+* Type conversion
+
+The =cast= operator converts a value from one type to another:
 
 #+BEGIN_SRC haste
-(expression)
+const a: float = 3.14;
+const b: int = cast[int]a;           // 3
+const c: float = cast[float]42;      // 42.0
+
+const d: string = cast[string]"hello";
+const e: cstr = cast[cstr]"world";
+const f: string = cast[string]e;     // cstr → string
+const g: cstr = cast[cstr]d;         // string → cstr
 #+END_SRC
+
+The following conversions are allowed:
+
+| Source | Target |
+|--------+--------|
+| =untyped_int= | =int=, =float= |
+| =untyped_float= | =float=, =int= |
+| =int= | =float= |
+| =float= | =int= |
+| =untyped_string= | =string=, =cstr= |
+| =string= | =cstr= |
+| =cstr= | =string= |
+| =auto_struct= | =struct= (by name-matched fields) |
+
+** Automatic casting
+When the target type can be inferred from context (e.g., from a variable's type annotation or a struct field's declared type), the bracket syntax may be omitted:
+
+#+BEGIN_SRC haste
+const a: float = 6.7;
+const b: int = cast a;       // inferred from `b: int`
+const c: string = "world";
+const d: cstr = cast c;      // inferred from `d: cstr`
+const e: int = cast a + cast b; // inferred from `e: int`
+#+END_SRC
+
+The inferred target type propagates through the following contexts:
+- Variable declaration type annotation (=cast expr= inside =const x: T = ...= or =var x: T = ...=)
+- Struct field default value (=field: T = cast expr= inside a =struct= definition)
+- Struct literal field value (=field: cast expr= inside a =Type{...}= literal)
+
+you can also use =cast[auto]= and =cast[]= (with nothing inside)
+
+This also works with auto-struct literals, where the target struct type is inferred:
+
+#+BEGIN_SRC haste
+const Job = struct {
+    name: string;
+};
+const Person = struct {
+    name: string;
+    job: Job;
+};
+
+const me: Person = cast .{
+    name: "Hesham",
+    job: Job{ name: "Coder" },
+};
+#+END_SRC
+
+The auto-struct =.{...}= fields are matched by name to =Person='s fields, and the result is cast to =Person=.
+
+* Operators
 
 ** Unary operators
 
@@ -91,210 +232,117 @@ left * right
 left / right
 #+END_SRC
 
-** Type cast
-
-#+BEGIN_SRC haste
-cast[target_type] expression
-#+END_SRC
-
-* Type rules
-
-** Arithmetic
-
-- Typed + typed of different types → error (=int + float= is rejected)
-- Untyped + untyped → untyped result (=untyped_int + untyped_float → untyped_float=)
-- Typed + untyped → typed result (untyped coerces)
-- Division by zero → compile-time error
+When both operands are typed but of different types, the compiler rejects the expression — =int + float= is an error. If both operands are untyped, the result takes the wider untyped type: =untyped_int + untyped_float → untyped_float=. When one operand is typed and the other is untyped, the untyped value coerces to the typed type. Division by zero is caught at compile time.
 
 ** Assignment compatibility
 
 | Declared type | Accepts |
 |---------------+---------|
-| =int= | =int=, =untyped_int== |
+| =int= | =int=, =untyped_int= |
 | =float= | =float=, =untyped_int=, =untyped_float= |
 | =string= | =string=, =untyped_string= |
 | =cstr= | =cstr=, =untyped_string= |
 | =auto= | anything |
 
-** Allowed casts (=cast[Target]source=)
+* Struct types
 
-| Source | Target |
-|--------+--------|
-| =untyped_int= | =int=, =float= |
-| =untyped_float= | =float=, =int= |
-| =int= | =float= |
-| =float= | =int= |
-| =untyped_string= | =string=, =cstr= |
-| =string= | =cstr= |
-| =cstr= | =string= |
-
-* Comments
-
-#+BEGIN_SRC haste
-// Single-line
-
-/* Block */
-#+END_SRC
-
-* Compile-time evaluation
-
-- All =const= declarations with literal or constant-foldable values are evaluated at compile time
-- Arithmetic on literals is constant-folded
-- Forward references across top-level declarations are supported (hoisting)
-- Type aliases resolve at compile time
-- Recursive declarations (e.g. =const S = struct { x: S; };=) are detected at compile time.
-
-** Struct types
+A struct type groups several fields under a single name. Each field is declared as =name: type;= with an optional = = default value.
 
 #+BEGIN_SRC haste
 const Vec2 = struct {
     x: float;
-    y: float = 0;          // default value
+    y: float = 0;   // defaults to 0.0 when omitted
 };
 #+END_SRC
 
-- Fields are declared as =name: type;= with an optional == default= value
-- A struct type =is a type= value. =typeof(Vec2)= returns =type=
-- Struct types are **nominally typed**: each struct declaration creates a unique type, even if two declarations have identical fields
-  - =const S1 = struct { x: int; y: int; };= and =const S2 = struct { x: int; y: int; };= are /distinct types/ — =const a: S1 = S2{...}= is a type error
-- Struct type names appear in error messages and LLVM IR instead of generic =struct= labels
+A struct type is itself a =type= value — =typeof(Vec2)= returns =type=. Struct types are nominally typed, meaning each struct declaration creates a unique type. =S1 = struct { x: int; };= and =S2 = struct { x: int; };= are distinct types, so =const a: S1 = S2{...}= is a type error. Struct type names appear in error messages and LLVM IR instead of generic labels.
 
-** Auto-typed struct fields
+** Auto-typed fields
+
+A field type can be inferred from its default value using =auto=:
 
 #+BEGIN_SRC haste
 const Vec2 = struct {
-    x: auto = 6.0;     // infers x: float = 6.0
-    y: auto = 7.0;     // infers y: float = 7.0
+    x: auto = 6.0;   // infers x: float
+    y: auto = 7.0;   // infers y: float
 };
+#+END_SRC
 
+The =:= shorthand is equivalent:
+
+#+BEGIN_SRC haste
 const Point = struct {
-    x := 6.0;           // shorthand: same as x: auto = 6.0
-    y := 7.0;           // shorthand: same as y: auto = 7.0
+    x := 6.0;         // same as x: auto = 6.0
+    y := 7.0;         // same as y: auto = 7.0
 };
 #+END_SRC
 
-- =auto= type with an == default value infers the field type from the default
-  - =0= → =int=, =0.0= → =float=, ="hi"= → =string=
-- =:= shorthand syntax is sugar for =: auto ==
-- Auto-inferred fields are fully typed — they work with =Type{}=, =.{}=, and defaults
-- Fields declared as =name: auto;= (no default) are rejected: "Cannot infer type for field"
-  
-** Struct literals
+Inference follows the literal types — =0= becomes =int=, =0.0= becomes =float=, and ="hi"= becomes =string=. A field declared as =name: auto;= without a default value is rejected with "Cannot infer type for field".
+
+* Struct literals
+
+Struct values are created with brace syntax:
 
 #+BEGIN_SRC haste
-const pos = Vec2{ x: 0, y: 0 };          // named type literal
+const pos = Vec2{ x: 0, y: 0 };          // literal with explicit type
 const pos: Vec2 = .{ x: 1 };              // anonymous literal, type from annotation
-const pos: Vec2 = auto{ x: 1 };           // same as .{} with type annotation
-const pos = .{ x: 1, y: 2 };             // anonymous literal, creates struct from fields
-const pos = auto{ x: 1, y: 2 };          // same as .{} without type annotation
-const pos = Vec3{};                        // all defaults
-const pos: Vec3;                           // uninitialized → zero values
+const pos = .{ x: 1, y: 2 };             // anonymous, creates fresh struct type
+const pos = Vec2{};                        // all fields use defaults
+const pos: Vec2;                           // uninitialized → zero values
 #+END_SRC
 
-- =Type{ field: value, ... }= — literal with explicit type
-- =.{}= / =auto{}= with type annotation (=const x: T = .{...}=) — target type is injected before analysis, fields validated against target type
-- =.{}= / =auto{}= without type annotation — auto-struct literal; creates a fresh anonymous struct type with fields determined by the literal (see [[Auto struct types (=.{}= / =auto{}=)]])
-- Auto-struct literals also work nested inside typed struct literal fields:
-  - =Outer{ inner: .{ name: "x" } }= — =Inner= type is injected automatically onto the nested auto-struct
-  - =Outer{ inner: auto{ name: "x" } }= — same behavior
-- Empty =.{}= / =auto{}= creates an empty struct type
-- Omitting a field uses its declared default (or the base type's default)
-- =const x: StructType;= produces the zero value for all fields
+=Type{ field: value, ... }= is a literal with an explicit struct type. =.{}= with a type annotation (=const x: T = .{...}=) injects the target type before field analysis, so fields are validated against the target. =.{}= without a type annotation creates a fresh anonymous struct type. Empty =.{}= creates an empty struct type. Omitting a field uses its declared default value.
 
-** Auto struct types (=.{}= / =auto{}=)
+** Auto struct types
 
 #+BEGIN_SRC haste
-const Point = .{ x: 1, y: 2 };            // type: { x: int, y: int } (auto-struct)
-const Point = auto{ x: 1, y: 2 };         // same as .{}
-const empty = .{};                         // type: {} (empty auto-struct)
-const nested = .{ a: .{ b: "deep" } };   // type: { a: { b: string } }
-const copy = nested;                       // same auto-struct type as nested
-
-const Vec2 = struct {
-	x: float;
-	y: float;
-};
-
-const d = auto{
-	x: 1,
-	y: 2
-};
-
-const pos: Vec2 = d;
-
-// the `cast` operator also works
-const vel = cast[Vec2]d;
+const Point = .{ x: 1, y: 2 };           // type: { x: int, y: int }
+const empty = .{};                         // type: {}
+const nested = .{ a: .{ b: "deep" } };   // nested anonymous structs
+const copy = nested;                       // same type as nested
 #+END_SRC
 
-- Auto-struct literals (=.{}= or =auto{}=) assign each auto-struct literal a unique anonymous type (=HASTE_TY_AUTO_STRUCT=)
-- Nested auto-structs produce nested anonymous types
-- Auto-struct values can be copied (=const copy = original=), preserving type identity
-- When an auto-struct is assigned to a typed variable or used as a typed struct field value, the target type is injected before field analysis:
-  - =const a: Vec2 = .{ x: 1, y: 2 };= — the =Vec2= type is injected, fields validated against =Vec2=
-  - =Outer{ inner: .{ name: "x" } }= — =Inner= type is injected onto the nested auto-struct
-- Unannotated auto-struct literals create fresh types; they are /not/ compatible with any other struct type, even structurally identical ones
-- auto-struct can implicitly coerce to predefined struct types.
+Each auto-struct literal gets a unique anonymous type. Auto-struct values can be copied, preserving type identity. When assigned to a typed variable, the target type is injected before field analysis. Auto-structs can also implicitly coerce to predefined struct types.
+
+* Compile-time evaluation
+
+Haste evaluates =const= declarations at compile time whenever possible. Arithmetic on literal values is constant-folded, forward references across top-level declarations are supported through hoisting, and type aliases resolve at compile time.
+
+#+BEGIN_SRC haste
+const a = 10 + 20;   // 30, computed at compile time
+const b = a * 2;      // 60, depends on a
+#+END_SRC
+
+Forward references allow declarations to appear in any order:
+
+#+BEGIN_SRC haste
+const a = b + 1;     // 5.0
+const b = c * 2;     // 4.0
+const c: float = 2;
+#+END_SRC
+
+Recursive declarations such as =const S = struct { x: S; };= are detected and produce a compile-time error.
 
 * Examples
-
-** Constants with explicit types
 
 #+BEGIN_SRC haste
 const a: int = 42;
 const b: float = 3.14;
 const c: string = "hello";
 const d: cstr = "world";
-#+END_SRC
 
-** Compile-time arithmetic
+const x = 10 + 20;   // 30
+const y = 50 - 15;   // 35
+const z = 6 * 7;     // 42
 
-#+BEGIN_SRC haste
-const a = 10 + 20;   // 30
-const b = 50 - 15;   // 35 (untyped)
-const c = 6 * 7;     // 42
-const d = 100 / 4;   // 25
-#+END_SRC
+const m: float = 10 + 3.5;   // 13.5
+const n: float = 7.5 - 2;    // 5.5
 
-** Mixed untyped/typed arithmetic
+const p: int;       // 0
+const q: float;     // 0.0
+const r: string;    // ""
 
-#+BEGIN_SRC haste
-const a: float = 10 + 3.5;   // 13.5
-const b: float = 7.5 - 2;    // 5.5
-#+END_SRC
-
-** Type casts
-
-#+BEGIN_SRC haste
-const a: float = 3.14;
-const b: int = cast[int]a;           // 3
-const c: float = cast[float]42;      // 42.0
-const d: string = cast[string]"hello";
-const e: cstr = cast[cstr]"world";
-const f: string = cast[string]e;     // cstr → string
-const g: cstr = cast[cstr]d;         // string → cstr
-#+END_SRC
-
-** Default values
-
-#+BEGIN_SRC haste
-const a: int;       // 0
-const b: float;     // 0.0
-const c: string;    // ""
-const d: cstr;      // ""
-#+END_SRC
-
-** Type alias
-
-#+BEGIN_SRC haste
 const Number = int;
-const a: Number = 42;
-const b = cast[Number]3.14;   // 3
-#+END_SRC
-
-** Forward references
-
-#+BEGIN_SRC haste
-const a = b + 1;     // 5.0
-const b = c * 2;     // 4.0
-const c: float = 2;
+const s: Number = 42;
+const t = cast[Number]3.14;   // 3
 #+END_SRC

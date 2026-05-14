@@ -1,0 +1,19 @@
+const Job = struct {
+    name: string;
+};
+
+const Person = struct {
+    name: string;
+    job: Job;
+};
+
+const my_job: Job = cast Job{
+    name: "Engineer",
+};
+
+const me: Person = cast .{
+    name: "Hesham",
+    job: Job{
+        name: "Coder",
+    },
+};
