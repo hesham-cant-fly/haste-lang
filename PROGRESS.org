@@ -130,10 +130,36 @@ The following escape sequences are supported:
 |------+-------------+---------|
 | =int= | Signed 32-bit integer | =0= |
 | =float= | 32-bit float | =0.0= |
-| =string= | String slice (ptr, len) | empty string |
-| =cstr= | Null-terminated C string | empty string |
+| =usize= | Unsigned 64-bit size integer | =0= |
+| =string= | String (struct with ptr + len) | `{ ptr: "", len: 0 }` |
+| =cstr= | Null-terminated C string pointer | =NULL= |
 | =void= | No value | — |
 | =type= | The type of types | — |
+
+*** =string= internals
+
+=string= is not a primitive at the implementation level — it is a =struct= type defined at compile-time as:
+
+#+BEGIN_SRC haste
+struct { ptr: cstr; len: usize; }
+#+END_SRC
+
+- =ptr= points to the string data (a C-string pointer).
+- =len= is the byte length of the string (unsigned 64-bit).
+
+=string= is constructed during builtin initialization by the compiler itself. This means =string= participates in all struct machinery: member access, casting, and struct type comparison. Conversions between =string= and =cstr= copy or borrow the internal pointer accordingly.
+
+*** =usize=
+
+=usize= is an unsigned 64-bit integer type used for sizes, lengths, and indices. It is not implicitly convertible from/to =int= — explicit =cast= is required.
+
+#+BEGIN_SRC haste
+const a: usize = 42;         // typed literal
+const b: int = cast[int]a;   // usize → int (explicit)
+const c: usize = cast[usize]b;
+#+END_SRC
+
+=usize= is used as the type of =string.len= and appears in struct field contexts where a size is needed.
 
 ** Untyped types
 
@@ -141,7 +167,7 @@ Certain expressions have an "untyped" type. An untyped type can implicitly conve
 
 | Type | Example | Converts to |
 |------+---------+-------------|
-| =untyped_int= | =42= | =int=, =float= |
+| =untyped_int= | =42= | =int=, =float=, =usize= |
 | =untyped_float= | =3.14= | =float= |
 | =untyped_string= | ="hello"= | =string=, =cstr= |
 
@@ -239,6 +265,7 @@ When both operands are typed but of different types, the compiler rejects the ex
 | Declared type | Accepts |
 |---------------+---------|
 | =int= | =int=, =untyped_int= |
+| =usize= | =usize=, =untyped_int= |
 | =float= | =float=, =untyped_int=, =untyped_float= |
 | =string= | =string=, =untyped_string= |
 | =cstr= | =cstr=, =untyped_string= |

@@ -296,8 +296,8 @@ enum haste_builtin_type_id {
 
 struct type_pool {
 	struct Allocator allocator;
-	struct haste_struct_type *items;
-	size_t len, cap;
+	struct haste_struct_type **chunks;
+	size_t len, chunk_count;
 };
 
 extern struct type_pool g_type_pool;

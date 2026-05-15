@@ -7,7 +7,23 @@
 		assert(IS_TYPE(__VA_ARGS__) and "It should be a type. maybe you forgot to use `typeof()`?"); \
 	} while (0)
 
+#define TY_POOL_CHUNK 256
+#define ty_pool_get(pool, i) ((pool).chunks[(i) / TY_POOL_CHUNK][(i) % TY_POOL_CHUNK])
+
 struct type_pool g_type_pool = {0};
+
+static void type_pool_grow(void)
+{
+	size_t old_cc = g_type_pool.chunk_count;
+	size_t new_cc = old_cc == 0 ? 1 : old_cc * 2;
+	g_type_pool.chunks = xrecreate(g_type_pool.allocator,
+		old_cc * sizeof(struct haste_struct_type*),
+		new_cc * sizeof(struct haste_struct_type*),
+		g_type_pool.chunks);
+	for (size_t i = old_cc; i < new_cc; i++)
+		g_type_pool.chunks[i] = alloc(g_type_pool.allocator, sizeof(struct haste_struct_type) * TY_POOL_CHUNK);
+	g_type_pool.chunk_count = new_cc;
+}
 
 TypeID type_pool_add(struct haste_object_type *type)
 {
@@ -16,9 +32,13 @@ TypeID type_pool_add(struct haste_object_type *type)
 		tmp = *(struct haste_struct_type *)type;
 	else
 		tmp.base = *type;
-	arrpush(g_type_pool.allocator, g_type_pool, tmp);
-	TypeID id = (TypeID)(g_type_pool.len - 1);
-	g_type_pool.items[id].base.pool_id = id;
+	if (g_type_pool.len >= g_type_pool.chunk_count * TY_POOL_CHUNK)
+		type_pool_grow();
+	size_t idx = g_type_pool.len;
+	ty_pool_get(g_type_pool, idx) = tmp;
+	g_type_pool.len = idx + 1;
+	TypeID id = (TypeID)idx;
+	ty_pool_get(g_type_pool, id).base.pool_id = id;
 	type->pool_id = id;
 	return id;
 }
@@ -26,13 +46,13 @@ TypeID type_pool_add(struct haste_object_type *type)
 struct haste_object_type *type_pool_get(TypeID id)
 {
 	assert(id < g_type_pool.len);
-	return &g_type_pool.items[id].base;
+	return &ty_pool_get(g_type_pool, id).base;
 }
 
 void type_pool_set_name(TypeID id, const char *name)
 {
 	assert(id < g_type_pool.len);
-	g_type_pool.items[id].base.name = name;
+	ty_pool_get(g_type_pool, id).base.name = name;
 }
 
 static struct haste_object_type _ty_zero_data           = OBJ_TYPE(.pool_id = HASTE_TID_ZERO,           .kind = HASTE_TY_ZERO,                                  .name = "zero");
@@ -96,10 +116,6 @@ static Error eval(struct Allocator allocator, struct intern_table *table, const 
 void set_up_builtins(struct Allocator allocator, struct intern_table *table)
 {
 	g_type_pool.allocator = allocator;
-
-	// Pre-allocate pool capacity to prevent realloc from invalidating typeof() pointers
-	g_type_pool.items = alloc(allocator, 1024 * sizeof(struct haste_struct_type));
-	g_type_pool.cap = 1024;
 
 	type_pool_add(&_ty_zero_data);
 	type_pool_add(&_ty_unknown_data);
