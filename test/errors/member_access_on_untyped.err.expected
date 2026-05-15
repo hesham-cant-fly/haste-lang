@@ -1,0 +1,3 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/member_access_on_untyped.haste:1:15: Error: Cannot access field 'foo'. no such field inside 'untyped_int'
+    1 | const a = (1).foo;
+                      ^ 

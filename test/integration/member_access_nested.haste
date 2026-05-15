@@ -1,0 +1,5 @@
+const Inner = struct { name: string; };
+const Outer = struct { label: string; inner: Inner; };
+const o = Outer{ label: "hi", inner: .{ name: "world" } };
+const x = o.inner;
+const y = o.inner.name;

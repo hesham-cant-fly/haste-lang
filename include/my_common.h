@@ -26,7 +26,7 @@ extern "C" {
 #define discard (void)
 /** @def panic(fmt)
  *  @brief Print file:line and formatted message, then exit with code 69. */
-#define panic(__fmt) panic(__FILE__, __LINE__, (__fmt))
+#define panic(__fmt) __panic(__FILE__, __LINE__, (__fmt))
 /** @def unreachable()
  *  @brief Print file:line and abort — marks code paths that must never execute. */
 #define unreachable() __unreachable(__FILE__, __LINE__)

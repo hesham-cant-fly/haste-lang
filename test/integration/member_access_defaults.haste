@@ -1,0 +1,4 @@
+const S = struct { x: int = 42; y: float = 3.14; };
+const s = S{};
+const a = s.x;
+const b = s.y;

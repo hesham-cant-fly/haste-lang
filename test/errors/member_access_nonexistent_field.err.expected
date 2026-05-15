@@ -1,0 +1,3 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/member_access_nonexistent_field.haste:3:13: Error: Cannot access field 'z'. no such field inside 'Vec2'
+    3 | const a = v.z;
+                    ^ 

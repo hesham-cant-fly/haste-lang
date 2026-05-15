@@ -1,0 +1,2 @@
+const x: int = 5;
+const a = x.foo;

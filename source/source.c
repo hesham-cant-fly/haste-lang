@@ -126,7 +126,7 @@ source_file_id obtain_source_file_id(const char *base, const char *path)
 
 struct source_file get_source_file(const source_file_id id)
 {
-	assert(id < sources.len);
+	assert(id < (int32_t)sources.len);
 	return sources.items[id];
 }
 

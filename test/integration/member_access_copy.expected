@@ -1,0 +1,9 @@
+; ModuleID = 'test/integration/member_access_copy.haste'
+source_filename = "test/integration/member_access_copy.haste"
+
+%struct.type.Vec2.0 = type { i32, i32 }
+
+@v = constant %struct.type.Vec2.0 { i32 10, i32 20 }
+@w = constant %struct.type.Vec2.0 { i32 10, i32 20 }
+@a = constant i32 10
+@b = constant i32 20

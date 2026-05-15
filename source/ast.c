@@ -6,6 +6,7 @@ static const char *HASTE_AST_NODE_KIND[] =
 
 	[ND_BINARY]   = "binary",
 	[ND_UNARY]    = "unary",
+	[ND_ACCESS]   = "access",
 	[ND_PRIMARY]  = "primary",
 	[ND_GROUPING] = "grouping",
 
@@ -55,8 +56,11 @@ static int print_haste_ast_node(stream_t file, const struct haste_ast_node *node
 		printed_amount += sprint(file, "\"rhs\": ");
 		printed_amount += print_haste_ast_node(file, node->rhs);
 		break;
+	case ND_ACCESS:
+		printed_amount += sprint(file, "\"lhs\": {ast},\"rhs\": {token:##}", node->access.lhs, node->access.rhs);
+		break;
 	case ND_PRIMARY:
-		printed_amount += sprint(file, "\"token\": \"{span}\"", token_to_span(node->token));
+		printed_amount += sprint(file, "\"token\": {token:##}", node->token);
 		break;
 	case ND_GROUPING:
 		printed_amount += sprint(file, "\"body\": ");
@@ -101,7 +105,8 @@ static int print_haste_ast_node(stream_t file, const struct haste_ast_node *node
 		else printed_amount += sprint(file, "null");
 		printed_amount += sprint(file, ",");
 		printed_amount += sprint(file, "\"fields\": ");
-		printed_amount += print_haste_ast(file, node->struct_literal.fields);
+		if (node->struct_literal.fields == NULL) printed_amount += sprint(file, "[]");
+		else printed_amount += print_haste_ast(file, node->struct_literal.fields);
 		break;
 	case ND_STRUCT_LIT_FIELD:
 		printed_amount += sprint(file, "\"name\": \"{span}\",", token_to_span(node->struct_lit_field.name));
@@ -132,6 +137,10 @@ struct haste_ast_node *node_into_value(
 int print_haste_ast(stream_t file, const struct haste_ast_node *root)
 {
 	int printed_amount = 0;
+	if (root->next == NULL) {
+		printed_amount += print_haste_ast_node(file, root);
+		return printed_amount;
+	}
 	printed_amount += sprint(file, "[");
 	for (const struct haste_ast_node *current = root;
 		 current != NULL;

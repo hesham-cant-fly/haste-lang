@@ -71,7 +71,7 @@ struct span span_to_trimed(struct span span);
 //
 // source.c
 //
-typedef uint32_t source_file_id;
+typedef int32_t source_file_id;
 
 enum source_file_type {
 	SRC_HASTE,   // .haste
@@ -187,6 +187,7 @@ enum token_kind {
 	TK_KW_CONST,     // "const"
 	TK_KW_VAR,       // "var"
 	TK_KW_STRUCT,    // "struct"
+	TK_KW_USIZE,     // "usize"
 
 	TK_SEMI_COLON,   // ";"
 
@@ -257,15 +258,64 @@ bool is_ident2(uint32_t c);
 int display_width(const char *p, int len, source_file_id src);
 
 //
+// intern.c
+//
+struct intern_table {
+	struct Allocator arena;
+	struct Allocator allocator;
+	size_t cap, len;
+	struct intern_entry {
+		uint64_t hash;
+		const char *str;
+		size_t len;
+	} *entries;
+};
+
+//
+// type pool
+//
+typedef uint32_t TypeID;
+struct haste_object_type;
+struct haste_struct_type;
+
+enum haste_builtin_type_id {
+	HASTE_TID_ZERO,
+	HASTE_TID_UNKNOWN,
+	HASTE_TID_TYPE,
+	HASTE_TID_INT,
+	HASTE_TID_UNTYPED_INT,
+	HASTE_TID_FLOAT,
+	HASTE_TID_UNTYPED_FLOAT,
+	HASTE_TID_AUTO,
+	HASTE_TID_VOID,
+	HASTE_TID_UNTYPED_STRING,
+	HASTE_TID_CSTR,
+	HASTE_TID_USIZE,
+	HASTE_TID_BUILTIN_COUNT,
+};
+
+struct type_pool {
+	struct Allocator allocator;
+	struct haste_struct_type *items;
+	size_t len, cap;
+};
+
+extern struct type_pool g_type_pool;
+
+TypeID type_pool_add(struct haste_object_type *type);
+struct haste_object_type *type_pool_get(TypeID id);
+void type_pool_set_name(TypeID id, const char *name);
+
+//
 // value.c
 //
 #  define VAL_NONE                  ((struct haste_value) { .kind = HASTE_VL_NONE })
 #  define VAL_BAD                   ((struct haste_value) { .kind = HASTE_VL_BAD  })
 #  define VAL_ZERO                  ((struct haste_value) { .kind = HASTE_VL_ZERO })
 #  define VAL_UNINIT                ((struct haste_value) { .kind = HASTE_VL_UNINIT })
-#  define VAL_SCALAR(t, ...)        ((struct haste_value) { .kind = HASTE_VL_SCALAR, .type = (t), __VA_ARGS__ })
+#  define VAL_SCALAR(tid, ...)      ((struct haste_value) { .kind = HASTE_VL_SCALAR, .type_id = (tid), __VA_ARGS__ })
 #  define VAL_RUNTIME(...)          ((struct haste_value) { .kind = HASTE_VL_RUNTIME, .runtime = (__VA_ARGS__) })
-#  define VAL_OBJ(t, p)             ((struct haste_value) { .kind = HASTE_VL_OBJ, .type = (t), .obj = (struct haste_object*)(void*)(p) })
+#  define VAL_OBJ(tid, p)           ((struct haste_value) { .kind = HASTE_VL_OBJ, .type_id = (tid), .obj = (struct haste_object*)(void*)(p) })
 
 #  define OBJ_TYPE(...)             ((struct haste_object_type) { .base = { .kind = HASTE_OBJ_TYPE, }, __VA_ARGS__ })
 #  define OBJ_STRUCT_TYPE(...)      ((struct haste_struct_type) { .base = { .base.kind = HASTE_OBJ_TYPE, .kind = HASTE_TY_STRUCT }, __VA_ARGS__ })
@@ -302,7 +352,7 @@ struct haste_value {
 		HASTE_VL_RUNTIME,
 		HASTE_VL_OBJ,
 	} kind;
-	struct haste_object_type *type;
+	TypeID type_id;
 	bool is_explicitly_comptime : 1;
 
 	union {
@@ -341,6 +391,7 @@ struct haste_struct_object {
 
 struct haste_object_type {
 	struct haste_object base;
+	TypeID pool_id;
 	enum {
 		HASTE_TY_ZERO,
 		HASTE_TY_UNKNOWN,
@@ -354,6 +405,7 @@ struct haste_object_type {
 		HASTE_TY_UNTYPED_STRING,
 		HASTE_TY_STRING,
 		HASTE_TY_CSTR,
+		HASTE_TY_USIZE,
 		HASTE_TY_STRUCT,
 		HASTE_TY_AUTO_STRUCT,
 	} kind;
@@ -380,6 +432,9 @@ extern struct haste_value ty_void;
 extern struct haste_value ty_untyped_string;
 extern struct haste_value ty_string;
 extern struct haste_value ty_cstr;
+extern struct haste_value ty_usize;
+
+void set_up_builtins(struct Allocator allocator, struct intern_table *table);
 
 struct haste_value typeof(const struct haste_value value);
 
@@ -428,6 +483,8 @@ bool is_comptime_known(const struct haste_value v);
 
 ssize_t find_named_field(const struct haste_struct_type *st, const char *name);
 
+bool haste_is_default_empty_string(const struct haste_object *obj);
+
 int print_object(stream_t stream, const struct haste_object *obj, const struct haste_object *type);
 int print_value(stream_t stream, const struct haste_value value);
 
@@ -442,6 +499,7 @@ struct haste_ast_node {
 		/* Expresion */
 		ND_BINARY,   // lhs, rhs, op
 		ND_UNARY,    // rhs, op
+		ND_ACCESS,   // access
 		ND_PRIMARY,  // struct token token
 		ND_GROUPING, // struct haste_ast_node *body
 
@@ -469,6 +527,10 @@ struct haste_ast_node {
 			struct haste_ast_node *rhs;
 			struct token op;
 		};
+		struct {
+			struct haste_ast_node *lhs;
+			struct token rhs;
+		} access;
 
 		struct {                     // ND_CAST
 			struct haste_ast_node *to;
@@ -527,20 +589,6 @@ void f_vreport_at(const source_file_id src, const char *kind, const char *start,
 void f_report_at_token(const source_file_id src, const char *kind, struct token token, const char *fmt, ...);
 void f_vreport_at_token(const source_file_id src, const char *kind, struct token token, const char *fmt, va_list args);
 
-//
-// intern.c
-//
-struct intern_table {
-	struct Allocator arena;
-	struct Allocator allocator;
-	size_t cap, len;
-	struct intern_entry {
-		uint64_t hash;
-		const char *str;
-		size_t len;
-	} *entries;
-};
-
 struct intern_table init_intern_table(struct Allocator allocator, struct Allocator arena);
 void deinit_intern_table(struct intern_table *table);
 
@@ -556,10 +604,19 @@ Error scan_entire_file(
 	struct intern_table *table,
 	const source_file_id src,
 	struct token_list *out);
+Error scan_entire_string(
+	struct Allocator allocator,
+	struct intern_table *table,
+	const char *content,
+	struct token_list *out);
 
 //
 // parse.c
 //
+Error parse_expr(
+	struct Allocator allocator,
+	const struct token_list tokens,
+	struct haste_ast_node **out);
 Error parse(
 	struct Allocator allocator,
 	const struct token_list tokens,
@@ -575,11 +632,17 @@ Error hoist(struct Allocator allocator,
 //
 // analysis.c
 //
+
+Error analyze_one_node(
+	struct Allocator allocator,
+	struct Allocator arena_allocator,
+    struct intern_table *intern_table,
+	struct haste_ast_node *node,
+	struct haste_value *out);
 Error analyze(struct Allocator allocator,
               struct Allocator arena_allocator,
               struct intern_table *intern_table,
               const source_file_id src);
-
 //
 // codegen.c
 //

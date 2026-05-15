@@ -50,16 +50,14 @@ static LLVMTypeRef llvm_type(struct codegen_context *ctx, struct haste_value typ
 	if (type_equal(type, ty_int) or type_equal(type, ty_untyped_int) or type_equal(type, ty_zero))
 		return t_i32(ctx);
 
+	if (type_equal(type, ty_usize))
+		return t_i64(ctx);
+
 	if (type_equal(type, ty_float) or type_equal(type, ty_untyped_float))
 		return t_f32(ctx);
 
 	if (type_equal(type, ty_void))
 		return t_void(ctx);
-
-	if (type_equal(type, ty_string)) {
-		LLVMTypeRef members[] = { t_i8ptr(ctx), t_i64(ctx) };
-		return LLVMStructTypeInContext(ctx->llvm_ctx, members, 2, false);
-	}
 
 	if (type_equal(type, ty_untyped_string) or type_equal(type, ty_cstr))
 		return t_i8ptr(ctx);
@@ -67,9 +65,9 @@ static LLVMTypeRef llvm_type(struct codegen_context *ctx, struct haste_value typ
 	if (IS_STRUCT_TYPE(type) or IS_AUTO_STRUCT_TYPE(type)) {
 		struct haste_struct_type *st = (struct haste_struct_type*)AS_TYPE(type);
 
-		// Check cache
+		// Check cache (compare by pool_id, not pointer, since typeof() returns pool copies)
 		for (size_t i = 0; i < ctx->struct_types.len; i += 1) {
-			if (ctx->struct_types.items[i].haste_type == AS_TYPE(type))
+			if (ctx->struct_types.items[i].haste_type->pool_id == AS_TYPE(type)->pool_id)
 				return ctx->struct_types.items[i].llvm_type;
 		}
 
@@ -124,7 +122,10 @@ static LLVMValueRef llvm_value(struct codegen_context *ctx, struct haste_value v
 		return LLVMConstInt(t_i32(ctx), 0, true);
 	}
 	case HASTE_VL_SCALAR: {
-		if (value.type->kind == HASTE_TY_INT or value.type->kind == HASTE_TY_UNTYPED_INT)
+		int k = type_pool_get(value.type_id)->kind;
+		if (k == HASTE_TY_USIZE)
+			return LLVMConstInt(t_i64(ctx), value.integer, false);
+		if (k == HASTE_TY_INT or k == HASTE_TY_UNTYPED_INT)
 			return LLVMConstInt(t_i32(ctx), value.integer, true);
 		return LLVMConstReal(t_f32(ctx), value.floating);
 	}
@@ -132,15 +133,6 @@ static LLVMValueRef llvm_value(struct codegen_context *ctx, struct haste_value v
 		if (value.obj->kind == HASTE_OBJ_STRING) {
 			struct haste_string_object *s = (struct haste_string_object*)value.obj;
 			LLVMValueRef global = emit_string_global(ctx, s->data, s->len);
-
-			if (type_equal(typeof(value), ty_string)) {
-				LLVMValueRef fields[] = {
-					LLVMConstBitCast(global, t_i8ptr(ctx)),
-					LLVMConstInt(t_i64(ctx), s->len, false),
-				};
-				return LLVMConstStructInContext(ctx->llvm_ctx, fields, 2, false);
-			}
-
 			return LLVMConstBitCast(global, t_i8ptr(ctx));
 		}
 

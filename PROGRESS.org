@@ -338,6 +338,69 @@ const copy = nested;                       // same type as nested
 
 Each auto-struct literal gets a unique anonymous type. Auto-struct values can be copied, preserving type identity. When assigned to a typed variable, the target type is injected before field analysis. Auto-structs can also implicitly coerce to predefined struct types.
 
+* Member access
+
+Fields of a struct value are accessed with the dot (=.=) operator:
+
+#+BEGIN_SRC haste
+const Vec2 = struct {
+    x: int;
+    y: int;
+};
+const v = Vec2{ x: 10, y: 20 };
+const a = v.x;    // 10
+const b = v.y;    // 20
+#+END_SRC
+
+Member access works on any expression that produces a struct value — named structs, copied structs, and nested fields:
+
+#+BEGIN_SRC haste
+const Inner = struct { name: string; };
+const Outer = struct {
+    label: string;
+    inner: Inner;
+};
+const o = Outer{
+    label: "top",
+    inner: .{ name: "nested" },
+};
+
+const inner = o.inner;       // Inner{ name: "nested" }
+const name = o.inner.name;   // "nested"
+#+END_SRC
+
+Multiple levels of nesting are supported:
+
+#+BEGIN_SRC haste
+const A = struct { v: int; };
+const B = struct { a: A; };
+const C = struct { b: B; };
+const c = C{ b: .{ a: .{ v: 7 } } };
+const x = c.b.a.v;    // 7
+#+END_SRC
+
+Struct field access also works on auto-struct (=.{...}=) values:
+
+#+BEGIN_SRC haste
+const s = .{ a: 1, b: 2 };
+const x = s.a;    // 1
+const y = s.b;    // 2
+#+END_SRC
+
+Accessing a non-existent field is a compile-time error:
+
+#+BEGIN_SRC haste
+const v = Vec2{ x: 1, y: 2 };
+const a = v.z;    // Error: Cannot access field 'z'. no such field inside 'Vec2'
+#+END_SRC
+
+Accessing a field on a non-struct type is also a compile-time error:
+
+#+BEGIN_SRC haste
+const x: int = 5;
+const a = x.foo;  // Error: Cannot access field 'foo'. no such field inside 'int'
+#+END_SRC
+
 * Compile-time evaluation
 
 Haste evaluates =const= declarations at compile time whenever possible. Arithmetic on literal values is constant-folded, forward references across top-level declarations are supported through hoisting, and type aliases resolve at compile time.

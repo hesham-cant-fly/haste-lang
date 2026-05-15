@@ -1,0 +1,5 @@
+const A = struct { v: int; };
+const B = struct { a: A; };
+const C = struct { b: B; };
+const c = C{ b: .{ a: .{ v: 7 } } };
+const x = c.b.a.v;

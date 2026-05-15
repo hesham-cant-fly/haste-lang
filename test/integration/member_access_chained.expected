@@ -1,0 +1,9 @@
+; ModuleID = 'test/integration/member_access_chained.haste'
+source_filename = "test/integration/member_access_chained.haste"
+
+%struct.type.C.0 = type { %struct.type.B.1 }
+%struct.type.B.1 = type { %struct.type.A.2 }
+%struct.type.A.2 = type { i32 }
+
+@c = constant %struct.type.C.0 { %struct.type.B.1 { %struct.type.A.2 { i32 7 } } }
+@x = constant i32 7

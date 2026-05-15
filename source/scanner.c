@@ -6,7 +6,7 @@ struct scanner {
 	struct intern_table *table;
 	struct token_list tokens;
 	source_file_id src;
-	const char *start, *current;
+	const char *start, *current, *end;
 	uint32_t line, current_line;
 	bool has_error, ended;
 };
@@ -101,7 +101,7 @@ static uint32_t advance_if_eq(struct scanner *self, uint32_t ch)
 
 static bool matches(struct scanner *self, char *str)
 {
-	const size_t remaining = get_source_file_end(self->src) - self->current;
+	const size_t remaining = self->end - self->current;
 	const size_t str_len = strlen(str);
 	if (str_len > remaining) return false;
 
@@ -140,7 +140,7 @@ static struct token *add_token(struct scanner *self, enum token_kind kind)
 static void report_error(struct scanner *self, const char *at, const char *restrict const fmt, ...)
 {
 	va_list args; va_start(args, fmt);
-	f_vreport_at(self->src, ANSI_CODE_RED "Error", at, fmt, args);
+	if (self->src >= 0) f_vreport_at(self->src, ANSI_CODE_RED "Error", at, fmt, args);
 	va_end(args);
 	self->has_error = true;
 }
@@ -234,6 +234,7 @@ static void scan_lexem(struct scanner *self)
 		{"const",  TK_KW_CONST},
 		{"var",    TK_KW_VAR},
 		{"struct", TK_KW_STRUCT},
+		{"usize",  TK_KW_USIZE},
 	};
 	for (size_t i=0; i<sizeof(keywords)/sizeof(keywords[0]); i += 1) {
 		const char *saved_current = self->current;
@@ -317,6 +318,7 @@ Error scan_entire_file(
 		.src = src,
 		.start = content,
 		.current = content,
+		.end = get_source_file_end(src),
 		.line = 1,
 		.current_line = 1,
 	};
@@ -329,6 +331,38 @@ Error scan_entire_file(
 
 	struct token *token = add_token(&scanner, TK_EOF);
 	token->len = 0;
+
+	*out = scanner.tokens;
+
+	return OK;
+}
+
+Error scan_entire_string(
+	struct Allocator allocator,
+	struct intern_table *table,
+	const char *content,
+	struct token_list *out)
+{
+	struct scanner scanner = {
+		.allocator = allocator,
+		.tokens = {0},
+		.src = -1,
+		.table = table,
+		.start = content,
+		.current = content,
+		.end = content + strlen(content),
+		.line = 1,
+		.current_line = 1,
+	};
+
+	start_scanning(&scanner);
+	if (scanner.has_error) {
+		arrfree(allocator, scanner.tokens);
+		return ERROR;
+	}
+
+	struct token *tok = add_token(&scanner, TK_EOF);
+	tok->len = 0;
 
 	*out = scanner.tokens;
 

@@ -31,6 +31,8 @@ static stream_t open_dump_stream(const struct options *opts, const char *ext, ch
 	return out;
 }
 
+
+
 static void close_dump_stream(const struct options *opts, stream_t out)
 {
 	if (!opts->do_dump)
@@ -56,6 +58,9 @@ static int custom_format_token(stream_t stream, struct modifier_stream mod, va_l
 {
 	struct token token = va_arg(args, struct token);
 	if (match_modifier(&mod, '#')) {
+		if (match_modifier(&mod, '#')) {
+			return sprint(stream, "{span:#}", token_to_span(token));
+		}
 		return print_token(stream, token);
 	}
 	return sprint(stream, "{span}", token_to_span(token));
@@ -72,7 +77,7 @@ static int custom_format_object(stream_t stream, struct modifier_stream mod, va_
 {
 	discard mod;
 	struct haste_value object = va_arg(args, struct haste_value);
-	return print_object(stream, object.obj, (struct haste_object*)(object.type));
+	return print_object(stream, object.obj, (struct haste_object*)type_pool_get(object.type_id));
 }
 
 static int custom_format_ast(stream_t stream, struct modifier_stream mod, va_list args)
@@ -99,7 +104,6 @@ int main(int argc, char *argv[argc])
 	srand(time(NULL));
 	setlocale(LC_ALL, "C.UTF-8");
 
-
 	struct Allocator c_allocator = get_c_allocator();
 	set_default_allocator(c_allocator);
 
@@ -109,6 +113,11 @@ int main(int argc, char *argv[argc])
 	struct Allocator allocator = arena_get_allocator(&arena);
 
 	struct intern_table intern_table = init_intern_table(c_allocator, allocator);
+	set_up_builtins(c_allocator, &intern_table);
+
+	// Sub-arena for analysis allocations (struct types, objects, strings)
+	struct Arena analysis_arena = Arena(c_allocator);
+	struct Allocator analysis_alloc = arena_get_allocator(&analysis_arena);
 
 	enum { PHASE_LEX, PHASE_PARSE, PHASE_HOIST, PHASE_ANALYZE, PHASE_CODEGEN, PHASE_COUNT };
 	struct timer timers[PHASE_COUNT] = {0};
@@ -150,6 +159,7 @@ int main(int argc, char *argv[argc])
 	}
 
 	arrfree(c_allocator, tokens);
+	tokens = (struct token_list){0};
 
 	timer_start(&timers[PHASE_HOIST]);
 	err = hoist(c_allocator, &intern_table, src);
@@ -172,9 +182,10 @@ int main(int argc, char *argv[argc])
 	}
 
 	timer_start(&timers[PHASE_ANALYZE]);
-	err = analyze(c_allocator, allocator, &intern_table, src);
+	err = analyze(analysis_alloc, allocator, &intern_table, src);
 	timer_stop(&timers[PHASE_ANALYZE]);
 	if (err) {
+		arena_free(&analysis_arena);
 		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 1;
@@ -183,9 +194,10 @@ int main(int argc, char *argv[argc])
 	if (options.dump_sema) {
 		char path_buf[4096];
 		stream_t out = open_dump_stream(&options, ".json", path_buf, sizeof(path_buf));
-		if (!out.data) { deinit_intern_table(&intern_table); arena_free(&arena); return 1; }
+		if (!out.data) { arena_free(&analysis_arena); deinit_intern_table(&intern_table); arena_free(&arena); return 1; }
 		sprintln(out, "{ast}", get_source_file_ast(src));
 		close_dump_stream(&options, out);
+		arena_free(&analysis_arena);
 		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 0;
@@ -215,6 +227,7 @@ int main(int argc, char *argv[argc])
 	}
 		if (options.do_measure)
 			print_timing_report(timers, phase_names, PHASE_COUNT);
+		arena_free(&analysis_arena);
 		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 0;
@@ -231,6 +244,29 @@ int main(int argc, char *argv[argc])
 
 	if (options.do_measure)
 		print_timing_report(timers, phase_names, PHASE_COUNT);
+
+	arena_free(&analysis_arena);
+
+	// Free ty_string's struct type
+	do {
+		struct haste_object *obj = ty_string.obj;
+		if (obj != NULL and obj->kind == HASTE_OBJ_TYPE) {
+			struct haste_object_type *ot = OAS_TYPE(obj);
+			if (ot->kind == HASTE_TY_STRUCT or ot->kind == HASTE_TY_AUTO_STRUCT) {
+				struct haste_struct_type *st = OAS_STRUCT_TYPE(obj);
+				destroy(c_allocator, st->fields);
+				destroy(c_allocator, st);
+			}
+		}
+	} while (0);
+
+	// Cleanup source files
+	for (size_t i = 0; i < sources.len; i++) {
+		destroy(sources.allocator, sources.items[i].path);
+		destroy(sources.allocator, sources.items[i].content);
+		hmfree(sources.allocator, sources.items[i].declarations);
+	}
+	marrfree(sources);
 
 	deinit_intern_table(&intern_table);
 	arena_free(&arena);

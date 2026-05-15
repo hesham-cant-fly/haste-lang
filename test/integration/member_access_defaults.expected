@@ -1,0 +1,8 @@
+; ModuleID = 'test/integration/member_access_defaults.haste'
+source_filename = "test/integration/member_access_defaults.haste"
+
+%struct.type.S.0 = type { i32, float }
+
+@s = constant %struct.type.S.0 { i32 42, float 0x40091EB860000000 }
+@a = constant i32 42
+@b = constant float 0x40091EB860000000

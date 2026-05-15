@@ -13,6 +13,7 @@ enum precedence {
 	PREC_ASSIGNMENT, // = (unimplemented)
 	PREC_TERM,       // + -
 	PREC_FACTOR,     // * /
+	PREC_ACCESS,     // .
 	PREC_UNARY,      // - + cast
 	PREC_PRIMARY    
 };
@@ -72,7 +73,7 @@ static struct token previous(const struct parser *self)
 static void report_error_at(struct parser *self, struct token token, const char *restrict fmt, ...)
 {
 	va_list args; va_start(args, fmt);
-	f_vreport_at_token(self->src, "Error", token, fmt, args);
+	if (self->src >= 0) f_vreport_at_token(self->src, "Error", token, fmt, args);
 	va_end(args);
 	self->has_error = true;
 	exit(1);
@@ -82,7 +83,7 @@ static void report_error(struct parser *self, const char *restrict fmt, ...)
 {
 	struct token token = ended(self) then get_pre_eof(self) otherwise peek(self);
 	va_list args; va_start(args, fmt);
-	f_vreport_at_token(self->src, "Error", token, fmt, args);
+	if (self->src >= 0) f_vreport_at_token(self->src, "Error", token, fmt, args);
 	va_end(args);
 	self->has_error = true;
 	exit(1);
@@ -91,7 +92,7 @@ static void report_error(struct parser *self, const char *restrict fmt, ...)
 static void vreport_error(struct parser *self, const char *restrict fmt, va_list args)
 {
 	struct token token = peek(self);
-	f_vreport_at_token(self->src, "Error", token, fmt, args);
+	if (self->src >= 0) f_vreport_at_token(self->src, "Error", token, fmt, args);
 	self->has_error = true;
 	exit(1);
 }
@@ -169,6 +170,24 @@ struct haste_ast_node *binary(struct parser *self, struct haste_ast_node *lhs)
 		.lhs = lhs,
 		.rhs = rhs,
 		.op = op);
+}
+
+struct haste_ast_node *field_access(struct parser *self, struct haste_ast_node *lhs)
+{
+	struct token start = lhs->start;
+	struct token token = peek(self);
+	if (not _match(self, TK_IDENT)) {
+		report_error(self, "Expected a name. got '{token}' instead.", token);
+	}
+
+	return create(self->allocator,
+		struct haste_ast_node,
+		.kind = ND_ACCESS,
+		.start = start,
+		.access = {
+			.lhs = lhs,
+			.rhs = token,
+		});
 }
 
 static struct haste_ast_node *unary(struct parser *self)
@@ -314,7 +333,7 @@ static struct haste_ast_node *struct_literal_infix(struct parser *self, struct h
 		});
 }
 
-static struct haste_ast_node *anon_struct_prefix(struct parser *self)
+static struct haste_ast_node *auto_struct_prefix(struct parser *self)
 {
 	consume(self, TK_OPEN_BRACE, "Expected '{' after '.'.");
 	return struct_literal_infix(self, NULL);
@@ -323,27 +342,28 @@ static struct haste_ast_node *anon_struct_prefix(struct parser *self)
 struct parser_rule get_rule_from_kind(enum token_kind kind)
 {
 	switch (kind) {
-	case TK_OPEN_PAREN: return (struct parser_rule){ grouping, NULL,   PREC_PRIMARY, false };
-	case TK_PLUS:       return (struct parser_rule){ unary,    binary, PREC_TERM,    false };
-	case TK_MINUS:      return (struct parser_rule){ unary,    binary, PREC_TERM,    false };
-	case TK_STAR:       return (struct parser_rule){ NULL,     binary, PREC_FACTOR,  false };
-	case TK_FSLASH:     return (struct parser_rule){ NULL,     binary, PREC_FACTOR,  false };
-	case TK_INT:        return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
-	case TK_FLOAT:      return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
-	case TK_STR:        return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
-	case TK_IDENT:      return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
-	case TK_KW_STRING:  return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
-	case TK_KW_CSTR:    return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
-	case TK_KW_INT:     return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
-	case TK_KW_FLOAT:   return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
-	case TK_KW_VOID:    return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
-	case TK_KW_AUTO:    return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
-	case TK_KW_TYPE:    return (struct parser_rule){ primary,  NULL,   PREC_PRIMARY, false };
-	case TK_KW_STRUCT:  return (struct parser_rule){ struct_type_prefix, NULL, PREC_PRIMARY, false };
-	case TK_KW_CAST:    return (struct parser_rule){ cast,     NULL,   PREC_UNARY,   false };
-	case TK_OPEN_BRACE: return (struct parser_rule){ NULL,     struct_literal_infix, PREC_PRIMARY, false };
-	case TK_DOT:        return (struct parser_rule){ anon_struct_prefix, NULL, PREC_PRIMARY, false };
-	default:            return (struct parser_rule){ NULL,     NULL,   PREC_NONE,    false };
+	case TK_OPEN_PAREN: return (struct parser_rule){ grouping,           NULL,                 PREC_PRIMARY, false };
+	case TK_PLUS:       return (struct parser_rule){ unary,              binary,               PREC_TERM,    false };
+	case TK_MINUS:      return (struct parser_rule){ unary,              binary,               PREC_TERM,    false };
+	case TK_STAR:       return (struct parser_rule){ NULL,               binary,               PREC_FACTOR,  false };
+	case TK_FSLASH:     return (struct parser_rule){ NULL,               binary,               PREC_FACTOR,  false };
+	case TK_INT:        return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_FLOAT:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_STR:        return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_IDENT:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_STRING:  return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_CSTR:    return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_INT:     return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_FLOAT:   return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_VOID:    return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_AUTO:    return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_TYPE:    return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_STRUCT:  return (struct parser_rule){ struct_type_prefix, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_USIZE:   return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_CAST:    return (struct parser_rule){ cast,               NULL,                 PREC_UNARY,   false };
+	case TK_OPEN_BRACE: return (struct parser_rule){ NULL,               struct_literal_infix, PREC_PRIMARY, false };
+	case TK_DOT:        return (struct parser_rule){ auto_struct_prefix, field_access,         PREC_PRIMARY, false };
+	default:            return (struct parser_rule){ NULL,               NULL,                 PREC_NONE,    false };
 	}
 }
 
@@ -441,6 +461,22 @@ static struct haste_ast_node *decl(struct parser *self, const bool error_on_unex
 		"expected either 'const', 'var' or 'func'.",
 		token);
 	exit(0);
+}
+
+Error parse_expr(
+	struct Allocator allocator,
+	const struct token_list tokens,
+	struct haste_ast_node **out)
+{
+	struct parser parser = {
+		.allocator = allocator,
+		.src = -1,
+		.tokens = tokens,
+	};
+
+	*out = expr(&parser);
+
+	return parser.has_error then ERROR otherwise OK;
 }
 
 Error parse(struct Allocator allocator, const struct token_list tokens, const source_file_id src)

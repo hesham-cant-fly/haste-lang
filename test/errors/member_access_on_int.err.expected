@@ -1,0 +1,3 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/member_access_on_int.haste:2:13: Error: Cannot access field 'foo'. no such field inside 'int'
+    2 | const a = x.foo;
+                    ^ 
