@@ -1,4 +1,5 @@
 #include "haste.h"
+#include "my_common.h"
 #include "my_stream.h"
 #include "my_termcolor.h"
 
@@ -196,13 +197,21 @@ static struct haste_value token_to_value(struct analyzer *self, struct token tok
 		return VAL_SCALAR(AS_TYPEID(ty_untyped_float), .floating = token.fval);
 	case TK_KW_INT_BITS:
 		if (token.ival > STANDARD_BITWIDTH_LIMIT) {
-			report_error(self, token, "Bit width bigger than {d} is not supported", STANDARD_BITWIDTH_LIMIT);
+			run_at_percent (1.0f) {
+				report_error(self, token, "Amigo! u mama is too big.");
+			} else {
+				report_error(self, token, "Bit width bigger than {d} is not supported", STANDARD_BITWIDTH_LIMIT);
+			}
 			return VAL_BAD;
 		}
 		return type_get_int(token.ival, true);
 	case TK_KW_UINT_BITS:
 		if (token.ival > STANDARD_BITWIDTH_LIMIT) {
-			report_error(self, token, "Bit width bigger than {d} is not supported", STANDARD_BITWIDTH_LIMIT);
+			run_at_percent (1.0f) {
+				report_error(self, token, "Amigo! u mama is too big.");
+			} else {
+				report_error(self, token, "Bit width bigger than {d} is not supported", STANDARD_BITWIDTH_LIMIT);
+			}
 			return VAL_BAD;
 		}
 		return type_get_int(token.ival, false);
