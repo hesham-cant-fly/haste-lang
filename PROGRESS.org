@@ -129,6 +129,9 @@ The following escape sequences are supported:
 | Type | Description | Default |
 |------+-------------+---------|
 | =int= | Signed 32-bit integer | =0= |
+| =uint= | Unsigned 32-bit integer | =0= |
+| =intN= | Signed N-bit integer (e.g., =int8=, =int17=). 1 <= N <= 128 | =0= |
+| =uintN= | Unsigned N-bit integer (e.g., =uint8=). 1 <= N <= 128 | =0= |
 | =float= | 32-bit float | =0.0= |
 | =usize= | Unsigned 64-bit size integer | =0= |
 | =string= | String (struct with ptr + len) | `{ ptr: "", len: 0 }` |
@@ -160,6 +163,19 @@ const c: usize = cast[usize]b;
 #+END_SRC
 
 =usize= is used as the type of =string.len= and appears in struct field contexts where a size is needed.
+
+*** Variable Bit-Width Integers
+
+Haste supports dynamic bit-width integer types using the =intN= and =uintN= syntax, where =N= is any integer between 1 and 128 (inclusive):
+
+#+BEGIN_SRC haste
+const byte: uint8 = 255;
+const odd_bits: int17 = 42;
+const huge: int128 = 0;
+#+END_SRC
+
+- Bit-widths must fall strictly within the range `1 <= N <= 128`. Types like =int0= or =int256= will trigger a compile-time bounds error.
+- Arithmetic and casting between arbitrary bit-widths behaves identically to standard =int= properties, seamlessly expanding or truncating integers primarily through explicit =cast[TargetType]= operations.
 
 ** Untyped types
 
@@ -264,7 +280,8 @@ When both operands are typed but of different types, the compiler rejects the ex
 
 | Declared type | Accepts |
 |---------------+---------|
-| =int= | =int=, =untyped_int= |
+| =int=, =uint= | =int=, =uint=, =untyped_int= |
+| =intN=, =uintN= | Matching integer type, =untyped_int= |
 | =usize= | =usize=, =untyped_int= |
 | =float= | =float=, =untyped_int=, =untyped_float= |
 | =string= | =string=, =untyped_string= |
