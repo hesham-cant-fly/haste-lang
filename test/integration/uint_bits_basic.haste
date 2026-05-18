@@ -1,0 +1,4 @@
+const a: uint8 = 42;
+const b: uint16 = 1000;
+const c: uint32 = 100000;
+const d: uint64 = 9999999;

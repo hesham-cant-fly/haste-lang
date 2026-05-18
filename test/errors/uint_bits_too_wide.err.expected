@@ -1,0 +1,3 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/uint_bits_too_wide.haste:1:10: Error: Bit width bigger than 128 is not supported
+    1 | const a: uint256 = 1;
+                 ^ 

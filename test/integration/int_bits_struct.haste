@@ -1,0 +1,5 @@
+const Vec2 = struct {
+	x: int16;
+	y: int16;
+};
+const v = Vec2{ x: 10, y: 20 };

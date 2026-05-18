@@ -1,0 +1,4 @@
+const a: int32 = 42;
+const b: int64 = cast[int64]a;
+const c: int8 = cast[int8]a;
+const d: uint16 = cast[uint16]a;

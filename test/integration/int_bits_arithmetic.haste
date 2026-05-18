@@ -1,0 +1,4 @@
+const a: int16 = 10 + 20;
+const b: int16 = 50 - 15;
+const c: int16 = 6 * 7;
+const d: int16 = 84 / 2;

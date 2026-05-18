@@ -1,0 +1,3 @@
+const a: int8;
+const b: uint16;
+const c: int64 = 0;
