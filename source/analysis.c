@@ -196,6 +196,10 @@ static struct haste_value token_to_value(struct analyzer *self, struct token tok
 	case TK_FLOAT:
 		return VAL_SCALAR(AS_TYPEID(ty_untyped_float), .floating = token.fval);
 	case TK_KW_INT_BITS:
+		if (token.ival == 0) {
+			report_error(self, token, "Bit width must be greater than 0");
+			return VAL_BAD;
+		}
 		if (token.ival > STANDARD_BITWIDTH_LIMIT) {
 			run_at_percent (1.0f) {
 				report_error(self, token, "Amigo! u mama is too big.");
@@ -206,6 +210,10 @@ static struct haste_value token_to_value(struct analyzer *self, struct token tok
 		}
 		return type_get_int(token.ival, true);
 	case TK_KW_UINT_BITS:
+		if (token.ival == 0) {
+			report_error(self, token, "Bit width must be greater than 0");
+			return VAL_BAD;
+		}
 		if (token.ival > STANDARD_BITWIDTH_LIMIT) {
 			run_at_percent (1.0f) {
 				report_error(self, token, "Amigo! u mama is too big.");
@@ -519,7 +527,7 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 
 	if (not type_equal(typeof(type), ty_type)) {
 		report_error(self, node->variable.type,
-			"Expected a {value} got '{value}' instead.", ty_auto, typeof(type));
+			"Expected a {value} got '{value}' instead.", ty_type, typeof(type));
 		emit_error_symbol(self, target_scope, name, is_constant, node);
 	}
 

@@ -8,10 +8,10 @@
 		assert(IS_TYPE(__VA_ARGS__) and "It should be a type. maybe you forgot to use `typeof()`?"); \
 	} while (0)
 
-/* #define MAX_DYN_INT_TYPES 32 */
+
 
 #define TY_POOL_CHUNK 256
-#define ty_pool_get(pool, i) ((pool).chunks[(i) / TY_POOL_CHUNK][(i) % TY_POOL_CHUNK])
+#define ty_pool_get(pool, i) ((pool).chunks.items[(i) / TY_POOL_CHUNK][(i) % TY_POOL_CHUNK])
 
 static struct haste_object_type *ensure_reserved_type(TypeID id)
 {
@@ -39,33 +39,26 @@ struct type_pool g_type_pool = {0};
 
 static void type_pool_grow(void)
 {
-	size_t old_cc = g_type_pool.chunk_count;
-	size_t new_cc = old_cc == 0 ? 1 : old_cc * 2;
-	g_type_pool.chunks = xrecreate(g_type_pool.allocator,
-		old_cc * sizeof(struct haste_struct_type*),
-		new_cc * sizeof(struct haste_struct_type*),
-		g_type_pool.chunks);
-	for (size_t i = old_cc; i < new_cc; i++)
-		g_type_pool.chunks[i] = alloc(g_type_pool.allocator, sizeof(struct haste_struct_type) * TY_POOL_CHUNK);
-	g_type_pool.chunk_count = new_cc;
+	void *chunk = alloc(g_type_pool.allocator, sizeof(struct haste_struct_type) * TY_POOL_CHUNK);
+	arrpush(g_type_pool.allocator, g_type_pool.chunks, chunk);
 }
 
 TypeID type_pool_add(struct haste_object_type *type)
 {
-	struct haste_struct_type tmp = {0};
-	if (type->kind == HASTE_TY_STRUCT or type->kind == HASTE_TY_AUTO_STRUCT) {
-		tmp = *(struct haste_struct_type *)type;
-	} else {
-		tmp.base = *type;
-	}
-	if (g_type_pool.len >= g_type_pool.chunk_count * TY_POOL_CHUNK) {
+	if (g_type_pool.len >= g_type_pool.chunks.len * TY_POOL_CHUNK) {
 		type_pool_grow();
 	}
-	size_t idx = g_type_pool.len;
-	ty_pool_get(g_type_pool, idx) = tmp;
-	g_type_pool.len = idx + 1;
-	TypeID id = (TypeID)idx;
-	ty_pool_get(g_type_pool, id).base.pool_id = id;
+	TypeID id = (TypeID)(g_type_pool.len++);
+	struct haste_struct_type *slot = &ty_pool_get(g_type_pool, id);
+
+	if (type->kind == HASTE_TY_STRUCT or type->kind == HASTE_TY_AUTO_STRUCT) {
+		*slot = *(struct haste_struct_type *)type;
+	} else {
+		memset(slot, 0, sizeof(*slot));
+		slot->base = *type;
+	}
+
+	slot->base.pool_id = id;
 	type->pool_id = id;
 	return id;
 }
@@ -150,34 +143,31 @@ struct haste_value type_get_int(uint16_t bits, bool is_signed)
 void set_up_builtins(struct Allocator allocator, struct intern_table *table)
 {
 	g_type_pool.allocator = allocator;
-	while (g_type_pool.chunk_count < HASTE_TID_TOTAL_RESERVED / TY_POOL_CHUNK) {
+	while (g_type_pool.chunks.len * TY_POOL_CHUNK <= HASTE_TID_TOTAL_RESERVED) {
 		type_pool_grow();
 	}
 
 	g_type_pool.len = HASTE_TID_TOTAL_RESERVED + 1;
 
-	ty_type = VAL_OBJ(type_pool_add(&_ty_type_data), &_ty_type_data);
-	type_pool_add(&_ty_zero_data);
-	ty_zero = VAL_OBJ(AS_TYPEID(ty_type), &_ty_zero_data);
+	TypeID tid_type = type_pool_add(&_ty_type_data);
+	ty_type = VAL_OBJ(tid_type, type_pool_get(tid_type));
 
-	type_pool_add(&_ty_unknown_data);
-	ty_unknown = VAL_OBJ(AS_TYPEID(ty_type), &_ty_unknown_data);
-	type_pool_add(&_ty_untyped_int_data);
-	ty_untyped_int = VAL_OBJ(AS_TYPEID(ty_type), &_ty_untyped_int_data);
-	type_pool_add(&_ty_float_data);
-	ty_float = VAL_OBJ(AS_TYPEID(ty_type), &_ty_float_data);
-	type_pool_add(&_ty_untyped_float_data);
-	ty_untyped_float = VAL_OBJ(AS_TYPEID(ty_type), &_ty_untyped_float_data);
-	type_pool_add(&_ty_auto_data);
-	ty_auto = VAL_OBJ(AS_TYPEID(ty_type), &_ty_auto_data);
-	type_pool_add(&_ty_void_data);
-	ty_void = VAL_OBJ(AS_TYPEID(ty_type), &_ty_void_data);
-	type_pool_add(&_ty_untyped_string_data);
-	ty_untyped_string = VAL_OBJ(AS_TYPEID(ty_type), &_ty_untyped_string_data);
-	type_pool_add(&_ty_cstr_data);
-	ty_cstr = VAL_OBJ(AS_TYPEID(ty_type), &_ty_cstr_data);
-	type_pool_add(&_ty_usize_data);
-	ty_usize = VAL_OBJ(AS_TYPEID(ty_type), &_ty_usize_data);
+#define REGISTER_BUILTIN(val, data) \
+	do { \
+		TypeID tid = type_pool_add(&(data)); \
+		(val) = VAL_OBJ(AS_TYPEID(ty_type), type_pool_get(tid)); \
+	} while (0)
+
+	REGISTER_BUILTIN(ty_zero, _ty_zero_data);
+	REGISTER_BUILTIN(ty_unknown, _ty_unknown_data);
+	REGISTER_BUILTIN(ty_untyped_int, _ty_untyped_int_data);
+	REGISTER_BUILTIN(ty_float, _ty_float_data);
+	REGISTER_BUILTIN(ty_untyped_float, _ty_untyped_float_data);
+	REGISTER_BUILTIN(ty_auto, _ty_auto_data);
+	REGISTER_BUILTIN(ty_void, _ty_void_data);
+	REGISTER_BUILTIN(ty_untyped_string, _ty_untyped_string_data);
+	REGISTER_BUILTIN(ty_cstr, _ty_cstr_data);
+	REGISTER_BUILTIN(ty_usize, _ty_usize_data);
 
 	Error err = eval(
 		allocator,
@@ -278,7 +268,6 @@ static struct haste_value arith_int(enum arith_op op, struct haste_value lhs, st
 		break;
 	}
 
-	// TODO: make it work with the new type system of integers
 	if (type_equal(typeof(lhs), typeof(rhs)))
 		return VAL_SCALAR(lhs.type_id, .integer = res);
 
@@ -533,7 +522,7 @@ bool value_equal(struct haste_value a, struct haste_value b)
 	}
 }
 
-bool type_equal_struct(const struct haste_object_type *t1, const struct haste_object_type *t2);
+
 
 bool type_equal(const struct haste_value v1,
                 const struct haste_value v2)
@@ -545,29 +534,10 @@ bool type_equal(const struct haste_value v1,
 	const struct haste_object_type *t2 = AS_TYPE(v2);
 
 	return t1->pool_id == t2->pool_id;
-	// if (t1 == t2) return true;
-	// if (t1->kind != t2->kind) return false;
-
-	// if (t1->kind == HASTE_TY_STRUCT)       return t1 == t2;
-	// if (t1->kind == HASTE_TY_AUTO_STRUCT) return type_equal_struct(t1, t2);
-
-	// return t1->size == t2->size and t1->align == t2->align;
 }
 
-bool type_equal_struct(const struct haste_object_type *t1, const struct haste_object_type *t2)
-{
-	const struct haste_struct_type *st1 = (const struct haste_struct_type *)t1;
-	const struct haste_struct_type *st2 = (const struct haste_struct_type *)t2;
+    
 
-	if (st1->field_count != st2->field_count) return false;
-
-	for (size_t i = 0; i < st1->field_count; i += 1) {
-		if (strcmp(st1->fields[i].name, st2->fields[i].name) != 0) return false;
-		if (not type_equal(st1->fields[i].type, st2->fields[i].type)) return false;
-	}
-
-	return true;
-}
 
 uint64_t type_hash(const struct haste_value t)
 {

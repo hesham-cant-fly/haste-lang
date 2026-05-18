@@ -283,8 +283,11 @@ struct haste_struct_type;
 
 struct type_pool {
 	struct Allocator allocator;
-	struct haste_struct_type **chunks;
-	size_t len, chunk_count;
+	struct {
+		size_t len, cap;
+		struct haste_struct_type **items;
+	} chunks;
+	size_t len;
 };
 
 #define STANDARD_BITWIDTH_LIMIT       128

@@ -164,8 +164,12 @@ static void *temp_allocate_virt(void *data, size_t alignment, size_t size)
 	return (void*)aligned;
 }
 
-#define MAX(a, b) (a) > (b) ? (a) : (b)
-#define MIN(a, b) (a) < (b) ? (a) : (b)
+#ifndef MAX
+#  define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
+#ifndef MIN
+#  define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
 
 static void *temp_reallocate_virt(void *data, size_t old_size, void *ptr, size_t alignment, size_t new_size)
 {

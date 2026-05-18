@@ -83,9 +83,9 @@ struct Allocator arena_get_allocator(struct Arena *arena)
 static struct ArenaBlock *arena_append_block(struct Arena *self, size_t min_size)
 {
 	size_t block_size = (ARENA_REGION_DEFAULT_CAPACITY > min_size ? ARENA_REGION_DEFAULT_CAPACITY : min_size) + sizeof(struct ArenaBlock);
-	if (min_size + sizeof(struct ArenaBlock) > block_size) {
-		block_size = min_size + sizeof(struct ArenaBlock);
-	}
+	// if (min_size + sizeof(struct ArenaBlock) > block_size) {
+	// 	block_size = min_size + sizeof(struct ArenaBlock);
+	// }
 
 	struct ArenaBlock* new_block = align_alloc(
 		self->child_allocator,
@@ -142,36 +142,40 @@ static struct ArenaBlock *find_owner(struct Arena *self, void *ptr)
 
 	return NULL;
 }
-
 static void *arena_allocate_virt(void *data, size_t alignment, size_t size)
 {
-	struct Arena *self = data;
+    struct Arena *self = data;
 
-	if (self->end == NULL) {
-		assert(self->begin == NULL);
-		arena_append_block(self, size);
-	}
+    assert((alignment & (alignment - 1)) == 0 && "Alignment must be a power of 2");
 
-	struct ArenaBlock *blk = self->end;
+    if (self->end == NULL) {
+        assert(self->begin == NULL);
+        arena_append_block(self, size);
+    }
 
-	uintptr_t curr = (uintptr_t)blk->current;
-	uintptr_t aligned = (curr + alignment - 1) & ~(alignment - 1);
-	size_t padding = aligned - curr;
+    struct ArenaBlock *blk = self->end;
 
-	if (block_available_size(blk) < size + padding) {
-		blk = arena_append_block(self, size);
+    uintptr_t curr = (uintptr_t)blk->current;
+    uintptr_t aligned = (curr + alignment - 1) & ~(alignment - 1);
+    size_t padding = aligned - curr;
 
-		curr = (uintptr_t)blk->current;
-		aligned = (curr + alignment - 1) & ~(alignment - 1);
-		padding = aligned - curr;
-	}
+    if (block_available_size(blk) < size + padding) {
+        blk = arena_append_block(self, size + alignment);
 
-	blk->current = (void*)(aligned + size);
-	return (void*)aligned;
+        curr = (uintptr_t)blk->current;
+        aligned = (curr + alignment - 1) & ~(alignment - 1);
+    }
+
+    blk->current = (void*)(aligned + size);
+    return (void*)aligned;
 }
 
-#define MAX(a, b) (a) > (b) ? (a) : (b)
-#define MIN(a, b) (a) < (b) ? (a) : (b)
+#ifndef MAX
+#  define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
+#ifndef MIN
+#  define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
 
 static void *arena_reallocate_virt(void *data, size_t old_size, void *ptr, size_t alignment, size_t new_size)
 {
