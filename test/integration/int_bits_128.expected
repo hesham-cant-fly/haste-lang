@@ -2,4 +2,4 @@
 source_filename = "test/integration/int_bits_128.haste"
 
 @a = constant i128 42
-@b = constant i128 0.000000e+00
+@b = constant i128 99

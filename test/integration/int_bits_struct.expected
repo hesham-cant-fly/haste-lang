@@ -3,4 +3,4 @@ source_filename = "test/integration/int_bits_struct.haste"
 
 %struct.type.Vec2.0 = type { i16, i16 }
 
-@v = constant %struct.type.Vec2.0 { i32 10, i32 20 }
+@v = constant %struct.type.Vec2.0 { i16 10, i16 20 }

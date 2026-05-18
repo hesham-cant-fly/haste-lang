@@ -130,9 +130,13 @@ static LLVMValueRef llvm_value(struct codegen_context *ctx, struct haste_value v
 		int k = type_pool_get(value.type_id)->kind;
 		if (k == HASTE_TY_USIZE)
 			return LLVMConstInt(t_i64(ctx), value.integer, false);
-		if (k == HASTE_TY_INT or k == HASTE_TY_UNTYPED_INT)
-			return LLVMConstInt(t_i32(ctx), value.integer, true);
-		return LLVMConstReal(t_f32(ctx), value.floating);
+		if (k == HASTE_TY_INT or k == HASTE_TY_UNTYPED_INT or k == HASTE_TY_UINT) {
+			LLVMTypeRef int_type = llvm_type(ctx, typeof(value));
+			return LLVMConstInt(int_type, value.integer, k != HASTE_TY_UINT);
+		}
+		if (k == HASTE_TY_FLOAT or k == HASTE_TY_UNTYPED_FLOAT)
+			return LLVMConstReal(t_f32(ctx), value.floating);
+		unreachable();
 	}
 	case HASTE_VL_OBJ: {
 		if (value.obj->kind == HASTE_OBJ_STRING) {
