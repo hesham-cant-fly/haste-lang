@@ -1,6 +1,5 @@
 #include "haste.h"
 #include "llvm-c/Core.h"
-#include <signal.h>
 
 struct type_map_entry {
 	struct haste_object_type *haste_type;

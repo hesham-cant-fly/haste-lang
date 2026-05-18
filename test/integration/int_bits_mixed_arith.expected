@@ -1,0 +1,7 @@
+; ModuleID = 'test/integration/int_bits_mixed_arith.haste'
+source_filename = "test/integration/int_bits_mixed_arith.haste"
+
+@a = constant i16 30
+@b = constant i16 30
+@c = constant i8 50
+@d = constant i32 42

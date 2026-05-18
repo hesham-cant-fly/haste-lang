@@ -1,0 +1,3 @@
+const a: uint = 42;
+const b: uint = 0;
+const c: uint;

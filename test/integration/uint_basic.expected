@@ -1,0 +1,6 @@
+; ModuleID = 'test/integration/uint_basic.haste'
+source_filename = "test/integration/uint_basic.haste"
+
+@a = constant i32 42
+@b = constant i32 0
+@c = constant i32 0

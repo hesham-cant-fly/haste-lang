@@ -1,0 +1,8 @@
+; ModuleID = 'test/integration/int_bits_sign_cast.haste'
+source_filename = "test/integration/int_bits_sign_cast.haste"
+
+@a = constant i32 42
+@b = constant i8 42
+@c = constant i16 42
+@d = constant i8 42
+@e = constant i32 42

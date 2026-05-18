@@ -349,9 +349,6 @@ static struct haste_value construct_from_raw(struct haste_value to, RawNumber ra
 	if (type_is_float(to))
 		return VAL_SCALAR(AS_TYPEID(to), .floating = raw.as_float);
 
-	if (HASTE_TID_IS_RESERVED(AS_TYPE(to)->pool_id))
-		return VAL_SCALAR(AS_TYPE(to)->pool_id, .integer = raw.as_int);
-
 	unreachable();
 }
 
@@ -704,8 +701,7 @@ bool type_is_integer(const struct haste_value t)
 		or type_equal(t, ty_usize)
 		or obj->kind == HASTE_TY_INT
 		or obj->kind == HASTE_TY_UINT
-		or obj->kind == HASTE_TY_UNTYPED_INT
-		or obj->kind == HASTE_TY_UINT;
+		or obj->kind == HASTE_TY_UNTYPED_INT;
 }
 
 bool type_is_float(const struct haste_value t)

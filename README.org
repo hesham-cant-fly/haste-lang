@@ -42,3 +42,8 @@ The idea of treating types as values is borrowed from Zig. I find this model ide
 This turtle was the first pixel art I made back in 2020, so I decided to make it Haste’s mascot. It’s special to me because it marks where it all started.
 This turtle was my first ever pixel art I have done in 2020. thats why I want it to be the mascot as my first pixel art.
 [[file:img/turbo.png]]
+
+
+* Also it has more PRs/ISSUES than JAI
+[[file:img/sloppy_issue.png]]
+(its an AI slop)

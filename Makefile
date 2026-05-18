@@ -50,7 +50,7 @@ run: $(all)
 test: $(EXE)
 	@cd test && python3 ./run_tests.py
 
-test-clean:
+clean-test:
 	rm -f test/**/*.got test/**/*.tokens test/**/*.ll test/**/*.json
 
 clean: test-clean

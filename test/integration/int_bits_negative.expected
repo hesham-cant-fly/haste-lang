@@ -1,0 +1,7 @@
+; ModuleID = 'test/integration/int_bits_negative.haste'
+source_filename = "test/integration/int_bits_negative.haste"
+
+@a = constant i8 -1
+@b = constant i16 -32000
+@c = constant i32 -100000
+@d = constant i64 -9999999
