@@ -1,4 +1,5 @@
 #include "haste.h"
+#include "my_stream.h"
 #include "my_termcolor.h"
 
 #define IS_NODE_ANALYZED(...) (__VA_ARGS__)->type.kind != 0
@@ -39,7 +40,10 @@ static struct haste_value analyze_node(struct analyzer *self, struct haste_ast_n
 
 static void _vreport(struct analyzer *self, struct token token, const char *kind, bool set_error, const char *restrict fmt, va_list args)
 {
-	f_vreport_at_token(self->src, kind, token, fmt, args);
+	if (self->src != -1) f_vreport_at_token(self->src, kind, token, fmt, args);
+	else {
+		eprintln(fmt, args);
+	}
 	if (set_error) self->had_error = true;
 }
 
@@ -172,26 +176,39 @@ static struct haste_string_object *make_string_obj(struct Allocator allocator, c
 	return obj;
 }
 
-static struct haste_value token_to_value(struct token token, struct Allocator arena)
+static struct haste_value token_to_value(struct analyzer *self, struct token token)
 {
 	switch (token.kind) {
 	case TK_IDENT:    unimplemented();
 	case TK_STR: {
 		size_t len = strlen(token.str);
-		struct haste_string_object *obj = make_string_obj(arena, (char *)token.str, len);
+		struct haste_string_object *obj = make_string_obj(self->arena_allocator, (char *)token.str, len);
 		return (struct haste_value){
 			.kind = HASTE_VL_OBJ,
-			.type_id = HASTE_TID_UNTYPED_STRING,
+			.type_id = AS_TYPEID(ty_untyped_string),
 			.obj = &obj->base,
 		};
 	}
 	case TK_INT:
 		if (token.ival == 0) return VAL_ZERO;
-		return VAL_SCALAR(HASTE_TID_UNTYPED_INT, .integer = token.ival);
+		return VAL_SCALAR(AS_TYPEID(ty_untyped_int), .integer = token.ival);
 	case TK_FLOAT:
-		return VAL_SCALAR(HASTE_TID_UNTYPED_FLOAT, .floating = token.fval);
+		return VAL_SCALAR(AS_TYPEID(ty_untyped_float), .floating = token.fval);
+	case TK_KW_INT_BITS:
+		if (token.ival > STANDARD_BITWIDTH_LIMIT) {
+			report_error(self, token, "Bit width bigger than {d} is not supported", STANDARD_BITWIDTH_LIMIT);
+			return VAL_BAD;
+		}
+		return type_get_int(token.ival, true);
+	case TK_KW_UINT_BITS:
+		if (token.ival > STANDARD_BITWIDTH_LIMIT) {
+			report_error(self, token, "Bit width bigger than {d} is not supported", STANDARD_BITWIDTH_LIMIT);
+			return VAL_BAD;
+		}
+		return type_get_int(token.ival, false);
 	case TK_KW_STRING: return ty_string;
 	case TK_KW_CSTR:   return ty_cstr;
+	case TK_KW_UINT:   return ty_uint;
 	case TK_KW_INT:    return ty_int;
 	case TK_KW_FLOAT:  return ty_float;
 	case TK_KW_USIZE:  return ty_usize;
@@ -429,7 +446,7 @@ static struct haste_value analyze_primary(struct analyzer *self, struct haste_as
 		}
 		value = symbol->value;
 	} else {
-		value = token_to_value(node->token, self->allocator);
+		value = token_to_value(self, node->token);
 	}
 
 	node->type = typeof(value);
@@ -516,9 +533,9 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 			emit_error_symbol(self, target_scope, name, is_constant, node);
 	}
 
-	if (type_equal(type, ty_auto))
+	if (type_equal(type, ty_auto)) {
 		type = typeof(value);
-	else if (not type_can_assign(type, typeof(value))) {
+	} else if (not type_can_assign(type, typeof(value))) {
 		report_error(self, node->variable.name,
 			"cannot assign a value of type '{value}' to '{value}'.", typeof(value), type);
 		emit_error_symbol(self, target_scope, name, is_constant, node);
@@ -552,7 +569,7 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 	node->variable.value = node_into_value(self->arena_allocator, node->variable.value, value);
 
 	run_at_percent (0.67) {
-		if (value_equal(value, VAL_SCALAR(HASTE_TID_UNTYPED_INT, .integer = 67))) {
+		if (value_equal(value, VAL_SCALAR(AS_TYPEID(ty_untyped_int), .integer = 67))) {
 			report_note(self, node->variable.value,
 				"THE FORBIDDEN {value} NUMBER IS NOT ALLOWED.", value);
 		}
@@ -592,7 +609,7 @@ static struct haste_value analyze_struct_type(struct analyzer *self, struct hast
 	type_pool_add(&st->base);
 	struct haste_value result = {
 		.kind = HASTE_VL_OBJ,
-		.type_id = HASTE_TID_TYPE,
+		.type_id = AS_TYPEID(ty_type),
 		.obj = &st->base.base,
 	};
 	node = node_into_value(self->arena_allocator, node, result);

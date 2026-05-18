@@ -256,7 +256,7 @@ static int format_string(stream_t stream, struct modifier_stream mod, va_list ar
 
 	struct standard_format_info fmt_info = parse_format_info(&mod, args);
 	const int width = fmt_info.width;
-	const int input_len = fmt_info.len ? fmt_info.len : strlen(str);
+	const int input_len = fmt_info.has_len ? fmt_info.len : (int)strlen(str);
 	const char *const padding_char = fmt_info.zero_padded ? "0" : " ";
 	if (fmt_info.alternate_form) {
 		int len = 0;

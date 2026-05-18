@@ -62,6 +62,11 @@ static LLVMTypeRef llvm_type(struct codegen_context *ctx, struct haste_value typ
 	if (type_equal(type, ty_untyped_string) or type_equal(type, ty_cstr))
 		return t_i8ptr(ctx);
 
+	struct haste_object_type *tp = AS_TYPE(type);
+	if (tp->kind == HASTE_TY_INT or tp->kind == HASTE_TY_UINT) {
+		return LLVMIntTypeInContext(ctx->llvm_ctx, tp->bit_size);
+	}
+
 	if (IS_STRUCT_TYPE(type) or IS_AUTO_STRUCT_TYPE(type)) {
 		struct haste_struct_type *st = (struct haste_struct_type*)AS_TYPE(type);
 

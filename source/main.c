@@ -31,8 +31,6 @@ static stream_t open_dump_stream(const struct options *opts, const char *ext, ch
 	return out;
 }
 
-
-
 static void close_dump_stream(const struct options *opts, stream_t out)
 {
 	if (!opts->do_dump)

@@ -1,5 +1,6 @@
 #include "haste.h"
 #include "my_common.h"
+#include <assert.h>
 #include <signal.h>
 
 #define ASSERT_IS_TYPE(...) \
@@ -7,8 +8,32 @@
 		assert(IS_TYPE(__VA_ARGS__) and "It should be a type. maybe you forgot to use `typeof()`?"); \
 	} while (0)
 
+/* #define MAX_DYN_INT_TYPES 32 */
+
 #define TY_POOL_CHUNK 256
 #define ty_pool_get(pool, i) ((pool).chunks[(i) / TY_POOL_CHUNK][(i) % TY_POOL_CHUNK])
+
+static struct haste_object_type *ensure_reserved_type(TypeID id)
+{
+	if (id > HASTE_TID_TOTAL_RESERVED) return NULL;
+
+	bool is_signed = id < HASTE_TID_RESERVED_UINT_BASE;
+	uint16_t bits = is_signed
+		? (uint16_t)(id - HASTE_TID_RESERVED_INT_BASE)
+		: (uint16_t)(id - HASTE_TID_RESERVED_UINT_BASE);
+	size_t bytes = (bits + 7) / 8;
+
+	struct haste_object_type type = OBJ_TYPE(
+		.pool_id = id,
+		.kind = is_signed ? HASTE_TY_INT : HASTE_TY_UINT,
+		.bit_size = bits,
+		.size = bytes,
+		.align = bytes < 8 ? bytes : 8,
+	);
+
+	*type_pool_get(id) = type;
+	return type_pool_get(id);
+}
 
 struct type_pool g_type_pool = {0};
 
@@ -28,12 +53,14 @@ static void type_pool_grow(void)
 TypeID type_pool_add(struct haste_object_type *type)
 {
 	struct haste_struct_type tmp = {0};
-	if (type->kind == HASTE_TY_STRUCT or type->kind == HASTE_TY_AUTO_STRUCT)
+	if (type->kind == HASTE_TY_STRUCT or type->kind == HASTE_TY_AUTO_STRUCT) {
 		tmp = *(struct haste_struct_type *)type;
-	else
+	} else {
 		tmp.base = *type;
-	if (g_type_pool.len >= g_type_pool.chunk_count * TY_POOL_CHUNK)
+	}
+	if (g_type_pool.len >= g_type_pool.chunk_count * TY_POOL_CHUNK) {
 		type_pool_grow();
+	}
 	size_t idx = g_type_pool.len;
 	ty_pool_get(g_type_pool, idx) = tmp;
 	g_type_pool.len = idx + 1;
@@ -51,36 +78,37 @@ struct haste_object_type *type_pool_get(TypeID id)
 
 void type_pool_set_name(TypeID id, const char *name)
 {
+	if (HASTE_TID_IS_RESERVED(id)) return;
 	assert(id < g_type_pool.len);
 	ty_pool_get(g_type_pool, id).base.name = name;
 }
 
-static struct haste_object_type _ty_zero_data           = OBJ_TYPE(.pool_id = HASTE_TID_ZERO,           .kind = HASTE_TY_ZERO,                                  .name = "zero");
-static struct haste_object_type _ty_unknown_data        = OBJ_TYPE(.pool_id = HASTE_TID_UNKNOWN,        .kind = HASTE_TY_UNKNOWN,                               .name = "uninit");
-static struct haste_object_type _ty_type_data           = OBJ_TYPE(.pool_id = HASTE_TID_TYPE,           .kind = HASTE_TY_TYPE,          .size = 8, .align = 8,  .name = "type");
-static struct haste_object_type _ty_int_data            = OBJ_TYPE(.pool_id = HASTE_TID_INT,            .kind = HASTE_TY_INT,           .size = 4, .align = 4,  .name = "int");
-static struct haste_object_type _ty_untyped_int_data    = OBJ_TYPE(.pool_id = HASTE_TID_UNTYPED_INT,    .kind = HASTE_TY_UNTYPED_INT,   .size = 4, .align = 4,  .name = "untyped_int");
-static struct haste_object_type _ty_float_data          = OBJ_TYPE(.pool_id = HASTE_TID_FLOAT,          .kind = HASTE_TY_FLOAT,         .size = 4, .align = 4,  .name = "float");
-static struct haste_object_type _ty_untyped_float_data  = OBJ_TYPE(.pool_id = HASTE_TID_UNTYPED_FLOAT,  .kind = HASTE_TY_UNTYPED_FLOAT, .size = 4, .align = 4,  .name = "untyped_float");
-static struct haste_object_type _ty_auto_data           = OBJ_TYPE(.pool_id = HASTE_TID_AUTO,           .kind = HASTE_TY_AUTO,                                  .name = "auto");
-static struct haste_object_type _ty_void_data           = OBJ_TYPE(.pool_id = HASTE_TID_VOID,           .kind = HASTE_TY_VOID,                                  .name = "void");
-static struct haste_object_type _ty_untyped_string_data = OBJ_TYPE(.pool_id = HASTE_TID_UNTYPED_STRING, .kind = HASTE_TY_UNTYPED_STRING, .size = 8, .align = 8, .name = "untyped_string");
-static struct haste_object_type _ty_cstr_data           = OBJ_TYPE(.pool_id = HASTE_TID_CSTR,           .kind = HASTE_TY_CSTR, .size = 8, .align = 4,           .name = "cstr");
-static struct haste_object_type _ty_usize_data          = OBJ_TYPE(.pool_id = HASTE_TID_USIZE,          .kind = HASTE_TY_USIZE, .size = 8, .align = 8,          .name = "usize");
+static struct haste_object_type _ty_zero_data           = OBJ_TYPE(.kind = HASTE_TY_ZERO,                                  .name = "zero");
+static struct haste_object_type _ty_unknown_data        = OBJ_TYPE(.kind = HASTE_TY_UNKNOWN,                               .name = "uninit");
+static struct haste_object_type _ty_type_data           = OBJ_TYPE(.kind = HASTE_TY_TYPE,          .size = 8, .align = 8,  .name = "type");
+static struct haste_object_type _ty_untyped_int_data    = OBJ_TYPE(.kind = HASTE_TY_UNTYPED_INT,   .size = 4, .align = 4,  .name = "untyped_int");
+static struct haste_object_type _ty_float_data          = OBJ_TYPE(.kind = HASTE_TY_FLOAT,         .size = 4, .align = 4,  .name = "float");
+static struct haste_object_type _ty_untyped_float_data  = OBJ_TYPE(.kind = HASTE_TY_UNTYPED_FLOAT, .size = 4, .align = 4,  .name = "untyped_float");
+static struct haste_object_type _ty_auto_data           = OBJ_TYPE(.kind = HASTE_TY_AUTO,                                  .name = "auto");
+static struct haste_object_type _ty_void_data           = OBJ_TYPE(.kind = HASTE_TY_VOID,                                  .name = "void");
+static struct haste_object_type _ty_untyped_string_data = OBJ_TYPE(.kind = HASTE_TY_UNTYPED_STRING, .size = 8, .align = 8, .name = "untyped_string");
+static struct haste_object_type _ty_cstr_data           = OBJ_TYPE(.kind = HASTE_TY_CSTR, .size = 8, .align = 4,           .name = "cstr");
+static struct haste_object_type _ty_usize_data          = OBJ_TYPE(.kind = HASTE_TY_USIZE, .size = 8, .align = 8,          .name = "usize");
 
-struct haste_value ty_zero           = VAL_OBJ(HASTE_TID_TYPE, &_ty_zero_data);
-struct haste_value ty_unknown        = { .kind = HASTE_VL_OBJ, .type_id = HASTE_TID_TYPE, .obj = (struct haste_object*)&_ty_unknown_data };
-struct haste_value ty_type           = { .kind = HASTE_VL_OBJ, .type_id = HASTE_TID_TYPE, .obj = (struct haste_object*)&_ty_type_data };
-struct haste_value ty_int            = { .kind = HASTE_VL_OBJ, .type_id = HASTE_TID_TYPE, .obj = (struct haste_object*)&_ty_int_data };
-struct haste_value ty_untyped_int    = { .kind = HASTE_VL_OBJ, .type_id = HASTE_TID_TYPE, .obj = (struct haste_object*)&_ty_untyped_int_data };
-struct haste_value ty_float          = { .kind = HASTE_VL_OBJ, .type_id = HASTE_TID_TYPE, .obj = (struct haste_object*)&_ty_float_data };
-struct haste_value ty_untyped_float  = { .kind = HASTE_VL_OBJ, .type_id = HASTE_TID_TYPE, .obj = (struct haste_object*)&_ty_untyped_float_data };
-struct haste_value ty_auto           = { .kind = HASTE_VL_OBJ, .type_id = HASTE_TID_TYPE, .obj = (struct haste_object*)&_ty_auto_data };
-struct haste_value ty_void           = { .kind = HASTE_VL_OBJ, .type_id = HASTE_TID_TYPE, .obj = (struct haste_object*)&_ty_void_data };
-struct haste_value ty_untyped_string = VAL_OBJ(HASTE_TID_TYPE, &_ty_untyped_string_data);
+struct haste_value ty_int            = {0};
+struct haste_value ty_uint           = {0};
+struct haste_value ty_zero           = {0};
+struct haste_value ty_unknown        = {0};
+struct haste_value ty_type           = {0};
+struct haste_value ty_untyped_int    = {0};
+struct haste_value ty_float          = {0};
+struct haste_value ty_untyped_float  = {0};
+struct haste_value ty_auto           = {0};
+struct haste_value ty_void           = {0};
+struct haste_value ty_untyped_string = {0};
 struct haste_value ty_string         = {0};
-struct haste_value ty_cstr           = VAL_OBJ(HASTE_TID_TYPE, &_ty_cstr_data);
-struct haste_value ty_usize          = VAL_OBJ(HASTE_TID_TYPE, &_ty_usize_data);
+struct haste_value ty_cstr           = {0};
+struct haste_value ty_usize          = {0};
 
 static Error eval(struct Allocator allocator, struct intern_table *table, const char *input, struct haste_value *out)
 {
@@ -113,32 +141,67 @@ static Error eval(struct Allocator allocator, struct intern_table *table, const 
 	return OK;
 }
 
+struct haste_value type_get_int(uint16_t bits, bool is_signed)
+{
+	TypeID base = is_signed ? HASTE_TID_RESERVED_INT_BASE : HASTE_TID_RESERVED_UINT_BASE;
+	return VAL_OBJ(AS_TYPEID(ty_type), ensure_reserved_type(base + bits));
+}
+
 void set_up_builtins(struct Allocator allocator, struct intern_table *table)
 {
 	g_type_pool.allocator = allocator;
+	while (g_type_pool.chunk_count < HASTE_TID_TOTAL_RESERVED / TY_POOL_CHUNK) {
+		type_pool_grow();
+	}
 
+	g_type_pool.len = HASTE_TID_TOTAL_RESERVED + 1;
+
+	ty_type = VAL_OBJ(type_pool_add(&_ty_type_data), &_ty_type_data);
 	type_pool_add(&_ty_zero_data);
+	ty_zero = VAL_OBJ(AS_TYPEID(ty_type), &_ty_zero_data);
+
 	type_pool_add(&_ty_unknown_data);
-	type_pool_add(&_ty_type_data);
-	type_pool_add(&_ty_int_data);
+	ty_unknown = VAL_OBJ(AS_TYPEID(ty_type), &_ty_unknown_data);
 	type_pool_add(&_ty_untyped_int_data);
+	ty_untyped_int = VAL_OBJ(AS_TYPEID(ty_type), &_ty_untyped_int_data);
 	type_pool_add(&_ty_float_data);
+	ty_float = VAL_OBJ(AS_TYPEID(ty_type), &_ty_float_data);
 	type_pool_add(&_ty_untyped_float_data);
+	ty_untyped_float = VAL_OBJ(AS_TYPEID(ty_type), &_ty_untyped_float_data);
 	type_pool_add(&_ty_auto_data);
+	ty_auto = VAL_OBJ(AS_TYPEID(ty_type), &_ty_auto_data);
 	type_pool_add(&_ty_void_data);
+	ty_void = VAL_OBJ(AS_TYPEID(ty_type), &_ty_void_data);
 	type_pool_add(&_ty_untyped_string_data);
+	ty_untyped_string = VAL_OBJ(AS_TYPEID(ty_type), &_ty_untyped_string_data);
 	type_pool_add(&_ty_cstr_data);
+	ty_cstr = VAL_OBJ(AS_TYPEID(ty_type), &_ty_cstr_data);
 	type_pool_add(&_ty_usize_data);
+	ty_usize = VAL_OBJ(AS_TYPEID(ty_type), &_ty_usize_data);
 
 	Error err = eval(
 		allocator,
 		table,
 		"struct { ptr: cstr; len: usize; }",
-		// this is out arg
 		&ty_string);
 	if (err) panic("Cannot Initialize a built-in string.");
 	AS_TYPE(ty_string)->name = "string";
-	type_pool_add(AS_TYPE(ty_string));
+
+	err = eval(
+		allocator,
+		table,
+		"int32",
+		&ty_int);
+	if (err) panic("Cannot Initialize the int type");
+	AS_TYPE(ty_int)->name = "int";
+
+	err = eval(
+		allocator,
+		table,
+		"uint32",
+		&ty_uint);
+	if (err) panic("Cannot Initialize the uint type");
+	AS_TYPE(ty_uint)->name = "uint";
 }
 
 enum arith_op {
@@ -150,12 +213,14 @@ enum arith_op {
 
 static bool value_is_any_int(struct haste_value v)
 {
-	return IS_SCALAR(v) and (v.type_id == HASTE_TID_INT or v.type_id == HASTE_TID_UNTYPED_INT or v.type_id == HASTE_TID_USIZE);
+	const struct haste_value tp = typeof(v);
+	return IS_SCALAR(v) and type_is_integer(tp);
 }
 
 static bool value_is_any_float(struct haste_value v)
 {
-	return IS_SCALAR(v) and (v.type_id == HASTE_TID_FLOAT or v.type_id == HASTE_TID_UNTYPED_FLOAT);
+	const struct haste_value tp = typeof(v);
+	return IS_SCALAR(v) and type_is_float(tp);
 }
 
 static struct haste_value arith_float(enum arith_op op, struct haste_value lhs, struct haste_value rhs)
@@ -174,10 +239,10 @@ static struct haste_value arith_float(enum arith_op op, struct haste_value lhs, 
 		break;
 	}
 
-	if (lhs.type_id == HASTE_TID_FLOAT or rhs.type_id == HASTE_TID_FLOAT)
-		return VAL_SCALAR(HASTE_TID_FLOAT, .floating = res);
+	if (typeof(lhs).kind == HASTE_TY_FLOAT or typeof(rhs).kind == HASTE_TY_UNTYPED_FLOAT)
+		return VAL_SCALAR(AS_TYPEID(ty_float), .floating = res);
 
-	return VAL_SCALAR(HASTE_TID_UNTYPED_FLOAT, .floating = res);
+	return VAL_SCALAR(AS_TYPEID(ty_untyped_float), .floating = res);
 }
 
 static struct haste_value arith_int(enum arith_op op, struct haste_value lhs, struct haste_value rhs)
@@ -213,10 +278,11 @@ static struct haste_value arith_int(enum arith_op op, struct haste_value lhs, st
 		break;
 	}
 
-	if (lhs.type_id == HASTE_TID_INT or rhs.type_id == HASTE_TID_INT)
-		return VAL_SCALAR(HASTE_TID_INT, .integer = res);
+	// TODO: make it work with the new type system of integers
+	if (type_equal(typeof(lhs), typeof(rhs)))
+		return VAL_SCALAR(lhs.type_id, .integer = res);
 
-	return VAL_SCALAR(HASTE_TID_UNTYPED_INT, .integer = res);
+	return VAL_SCALAR(AS_TYPEID(ty_untyped_int), .integer = res);
 }
 
 static struct haste_value value_do_arith(
@@ -224,8 +290,8 @@ static struct haste_value value_do_arith(
 	struct haste_value lhs,
 	struct haste_value rhs)
 {
-	if (IS_ZERO(lhs)) lhs = VAL_SCALAR(HASTE_TID_UNTYPED_INT, .integer = 0);
-	if (IS_ZERO(rhs)) rhs = VAL_SCALAR(HASTE_TID_UNTYPED_INT, .integer = 0);
+	if (IS_ZERO(lhs)) lhs = VAL_SCALAR(AS_TYPEID(ty_untyped_int), .integer = 0);
+	if (IS_ZERO(rhs)) rhs = VAL_SCALAR(AS_TYPEID(ty_untyped_int), .integer = 0);
 
 	if (not (value_is_any_int(lhs) or value_is_any_float(lhs))) return VAL_BAD;
 	if (not (value_is_any_int(rhs) or value_is_any_float(rhs))) return VAL_BAD;
@@ -275,14 +341,16 @@ static RawNumber extract_raw(struct haste_value value)
 
 static struct haste_value construct_from_raw(struct haste_value to, RawNumber raw)
 {
-	if (type_equal(to, ty_int))
-		return VAL_SCALAR(HASTE_TID_INT, .integer = raw.as_int);
+	ASSERT_IS_TYPE(to);
 
-	if (type_equal(to, ty_usize))
-		return VAL_SCALAR(HASTE_TID_USIZE, .integer = raw.as_int);
+	if (type_is_integer(to))
+		return VAL_SCALAR(AS_TYPEID(to), .integer = raw.as_int);
 
-	if (type_equal(to, ty_float))
-		return VAL_SCALAR(HASTE_TID_FLOAT, .floating = raw.as_float);
+	if (type_is_float(to))
+		return VAL_SCALAR(AS_TYPEID(to), .floating = raw.as_float);
+
+	if (HASTE_TID_IS_RESERVED(AS_TYPE(to)->pool_id))
+		return VAL_SCALAR(AS_TYPE(to)->pool_id, .integer = raw.as_int);
 
 	unreachable();
 }
@@ -310,11 +378,16 @@ struct haste_value zero_for_type(struct Allocator alloc, struct haste_value to)
 
 struct haste_value default_for_type(struct Allocator alloc, struct haste_value type)
 {
-	if (type_equal(type, ty_int))   return VAL_SCALAR(HASTE_TID_INT, .integer = 0);
-	if (type_equal(type, ty_usize)) return VAL_SCALAR(HASTE_TID_USIZE, .integer = 0);
-	if (type_equal(type, ty_float)) return VAL_SCALAR(HASTE_TID_FLOAT, .floating = 0.0f);
+	ASSERT_IS_TYPE(type);
+
+	if (type_is_integer(type)) return VAL_SCALAR(AS_TYPEID(type), .integer = 0);
+	if (type_is_float(type))   return VAL_SCALAR(AS_TYPEID(type), .floating = 0.0f);
 	if (type_equal(type, ty_cstr))
-		return (struct haste_value){ .kind = HASTE_VL_OBJ, .type_id = HASTE_TID_CSTR, .obj = &_default_empty_string.base };
+		return (struct haste_value){
+			.kind = HASTE_VL_OBJ,
+			.type_id = AS_TYPEID(type),
+			.obj = &_default_empty_string.base
+		};
 	if (IS_STRUCT_TYPE(type)) {
 		struct haste_struct_type *st = AS_STRUCT_TYPE(type);
 		struct haste_struct_object *so = create(alloc, struct haste_struct_object,
@@ -360,7 +433,7 @@ struct haste_value value_cast(struct Allocator alloc, const struct haste_value t
 			.base = { .kind = HASTE_OBJ_STRUCT });
 		so->fields = alloc(alloc, sizeof(struct haste_value) * st->field_count);
 		so->fields[0] = value_cast(alloc, st->fields[0].type, value);
-		so->fields[1] = VAL_SCALAR(HASTE_TID_USIZE, .integer = (int64_t)s->len);
+		so->fields[1] = VAL_SCALAR(AS_TYPEID(ty_usize), .integer = (int64_t)s->len);
 		return VAL_OBJ(AS_TYPE(to)->pool_id, so);
 	}
 
@@ -416,7 +489,7 @@ struct haste_value typeof(const struct haste_value value)
 	case HASTE_VL_RUNTIME: return value.runtime->type;
 	case HASTE_VL_SCALAR:
 	case HASTE_VL_OBJ:
-		return VAL_OBJ(HASTE_TID_TYPE, type_pool_get(value.type_id));
+		return VAL_OBJ(AS_TYPEID(ty_type), type_pool_get(value.type_id));
 	}
 	unreachable();
 }
@@ -427,7 +500,7 @@ bool object_equal(struct haste_object *a, struct haste_object *b)
 	if (a->kind != b->kind) return false;
 	switch (a->kind) {
 	case HASTE_OBJ_TYPE:
-		return type_equal(VAL_OBJ(HASTE_TID_TYPE, a), VAL_OBJ(HASTE_TID_TYPE, b));
+		return type_equal(VAL_OBJ(AS_TYPEID(ty_type), a), VAL_OBJ(AS_TYPEID(ty_type), b));
 	case HASTE_OBJ_STRING: {
 		struct haste_string_object *sa = (struct haste_string_object*)a;
 		struct haste_string_object *sb = (struct haste_string_object*)b;
@@ -446,7 +519,7 @@ bool value_equal(struct haste_value a, struct haste_value b)
 	case HASTE_VL_BAD:           return false;
 	case HASTE_VL_UNINIT:        return b.kind == HASTE_VL_UNINIT;
 	case HASTE_VL_ZERO:
-		return b.kind == HASTE_VL_ZERO or value_equal(b, VAL_SCALAR(HASTE_TID_UNTYPED_INT, .integer = 0));
+		return b.kind == HASTE_VL_ZERO or value_equal(b, VAL_SCALAR(AS_TYPEID(ty_untyped_int), .integer = 0));
 	case HASTE_VL_SCALAR:
 		if (not IS_SCALAR(b)) return false;
 		if (value_is_any_float(a) or value_is_any_float(b)) {
@@ -547,6 +620,8 @@ bool type_can_assign(const struct haste_value assignable,
 	if (type_equal(assignable, ty_int))   return type_equal(value, ty_unknown) or type_is_integer(value);
 	if (type_equal(assignable, ty_usize)) return type_equal(value, ty_unknown) or type_is_integer(value);
 	if (type_equal(assignable, ty_float)) return type_equal(value, ty_unknown) or type_is_untyped_number(value);
+	if (AS_TYPE(assignable)->kind == HASTE_TY_INT or AS_TYPE(assignable)->kind == HASTE_TY_UINT)
+		return type_equal(value, ty_unknown) or type_is_integer(value);
 	if (type_is_any_string(assignable))
 		return type_is_any_string(value) or type_equal(value, ty_unknown);
 
@@ -585,6 +660,8 @@ bool type_can_cast(const struct haste_value to,
 	if (type_equal(from, ty_zero))    return true;
 	if (type_is_number(to))           return type_is_number(from) or type_equal(from, ty_usize);
 	if (type_equal(to, ty_usize))      return type_is_number(from);
+	if (AS_TYPE(to)->kind == HASTE_TY_INT or AS_TYPE(to)->kind == HASTE_TY_UINT)
+		return type_is_integer(from);
 	if (type_is_any_string(to))
 		return type_is_any_string(from) or type_equal(from, ty_unknown);
 
@@ -612,6 +689,7 @@ struct haste_value untyped_to_typed(struct haste_value type)
 	if (type_equal(type, ty_untyped_float))  return ty_float;
 	if (type_equal(type, ty_untyped_string)) return ty_string;
 	if (type_equal(type, ty_zero))           return ty_int;
+	if (HASTE_TID_IS_RESERVED(AS_TYPE(type)->pool_id)) return type;
 
 	return type;
 }
@@ -620,19 +698,21 @@ bool type_is_integer(const struct haste_value t)
 {
 	ASSERT_IS_TYPE(t);
 
-	const struct haste_object *obj = AS_OBJ(t);
+	const struct haste_object_type *obj = AS_TYPE(t);
 	return type_equal(t, ty_int)
 		or type_equal(t, ty_untyped_int)
 		or type_equal(t, ty_usize)
 		or obj->kind == HASTE_TY_INT
-		or obj->kind == HASTE_TY_UNTYPED_INT;
+		or obj->kind == HASTE_TY_UINT
+		or obj->kind == HASTE_TY_UNTYPED_INT
+		or obj->kind == HASTE_TY_UINT;
 }
 
 bool type_is_float(const struct haste_value t)
 {
 	ASSERT_IS_TYPE(t);
 
-	const struct haste_object *obj = AS_OBJ(t);
+	const struct haste_object_type *obj = AS_TYPE(t);
 	return type_equal(t, ty_float)
 		or type_equal(t, ty_untyped_float)
 		or obj->kind == HASTE_TY_FLOAT
@@ -674,7 +754,15 @@ int print_object(stream_t stream, const struct haste_object *obj, const struct h
 	switch (obj->kind) {
 	case HASTE_OBJ_TYPE: {
 		struct haste_object_type *type = OAS_TYPE(obj);
-		printed_amount += sprint(stream, "{s}", type->name then type->name otherwise "auto_struct");
+		if (type->name) {
+			printed_amount += sprint(stream, "{s}", type->name);
+		} else if (type->kind == HASTE_TY_INT or type->kind == HASTE_TY_UINT) {
+			char buf[32];
+			snprintf(buf, sizeof(buf), "%sint%zu", type->kind == HASTE_TY_UINT ? "u" : "", type->bit_size);
+			printed_amount += sprint(stream, "{s}", buf);
+		} else {
+			printed_amount += sprint(stream, "auto_struct");
+		}
 	} break;
 	case HASTE_OBJ_STRING: {
 		struct haste_string_object *s = (struct haste_string_object*)obj;

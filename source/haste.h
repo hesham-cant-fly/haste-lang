@@ -178,7 +178,10 @@ enum token_kind {
 	TK_IDENT = 1,    // names
 	TK_KW_STRING,    // "string"
 	TK_KW_CSTR,      // "cstr"
+	TK_KW_INT_BITS,  // "int[0-9]+
+	TK_KW_UINT_BITS, // "uint[0-9]+
 	TK_KW_INT,       // "int"
+	TK_KW_UINT,      // "uint"
 	TK_KW_FLOAT,     // "float"
 	TK_KW_VOID,      // "void"
 	TK_KW_AUTO,      // "auto"
@@ -278,33 +281,24 @@ typedef uint32_t TypeID;
 struct haste_object_type;
 struct haste_struct_type;
 
-enum haste_builtin_type_id {
-	HASTE_TID_ZERO,
-	HASTE_TID_UNKNOWN,
-	HASTE_TID_TYPE,
-	HASTE_TID_INT,
-	HASTE_TID_UNTYPED_INT,
-	HASTE_TID_FLOAT,
-	HASTE_TID_UNTYPED_FLOAT,
-	HASTE_TID_AUTO,
-	HASTE_TID_VOID,
-	HASTE_TID_UNTYPED_STRING,
-	HASTE_TID_CSTR,
-	HASTE_TID_USIZE,
-	HASTE_TID_BUILTIN_COUNT,
-};
-
 struct type_pool {
 	struct Allocator allocator;
 	struct haste_struct_type **chunks;
 	size_t len, chunk_count;
 };
 
+#define STANDARD_BITWIDTH_LIMIT       128
+#define HASTE_TID_RESERVED_INT_BASE   0
+#define HASTE_TID_RESERVED_UINT_BASE  129
+#define HASTE_TID_TOTAL_RESERVED      HASTE_TID_RESERVED_UINT_BASE + 129
+#define HASTE_TID_IS_RESERVED(id)     ((id) <= HASTE_TID_TOTAL_RESERVED)
+
 extern struct type_pool g_type_pool;
 
 TypeID type_pool_add(struct haste_object_type *type);
 struct haste_object_type *type_pool_get(TypeID id);
 void type_pool_set_name(TypeID id, const char *name);
+struct haste_value type_get_int(uint16_t bits, bool is_signed);
 
 //
 // value.c
@@ -336,6 +330,7 @@ void type_pool_set_name(TypeID id, const char *name);
 
 #  define AS_OBJ(v)                 ((v).obj)
 #  define AS_TYPE(v)                ((OAS_TYPE(AS_OBJ(v))))
+#  define AS_TYPEID(v)              ((OAS_TYPE(AS_OBJ(v)))->pool_id)
 #  define AS_STRUCT(v)              ((OAS_STRUCT(AS_OBJ(v))))
 #  define AS_STRUCT_TYPE(v)         ((OAS_STRUCT_TYPE(AS_OBJ(v))))
 #  define OAS_TYPE(v)               ((struct haste_object_type *)(v))
@@ -406,12 +401,14 @@ struct haste_object_type {
 		HASTE_TY_STRING,
 		HASTE_TY_CSTR,
 		HASTE_TY_USIZE,
+		HASTE_TY_UINT,
 		HASTE_TY_STRUCT,
 		HASTE_TY_AUTO_STRUCT,
 	} kind;
 	const char *name;
 	size_t size;
 	size_t align;
+	size_t bit_size;
 };
 
 struct haste_struct_type {
@@ -423,6 +420,7 @@ struct haste_struct_type {
 extern struct haste_value ty_zero;
 extern struct haste_value ty_unknown;
 extern struct haste_value ty_type;
+extern struct haste_value ty_uint;
 extern struct haste_value ty_int;
 extern struct haste_value ty_untyped_int;
 extern struct haste_value ty_float;

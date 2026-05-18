@@ -1,5 +1,7 @@
 #include "haste.h"
+#include "my_stream.h"
 #include "my_termcolor.h"
+#include <string.h>
 
 struct scanner {
 	struct Allocator allocator;
@@ -40,7 +42,8 @@ static const char *decode_string(struct scanner *self, const char *start, size_t
 	return result;
 }
 
-static void populate_token_value(struct scanner *self, struct token *tok) {
+static void populate_token_value(struct scanner *self, struct token *tok)
+{
     switch (tok->kind) {
 	case TK_INT: {
 		char *buf = tsprint("{s:*}", tok->start, (int)tok->len);
@@ -50,9 +53,32 @@ static void populate_token_value(struct scanner *self, struct token *tok) {
 		char *buf = tsprint("{s:*}", tok->start, (int)tok->len);
 		tok->fval = strtold(buf, NULL);
 	} break;
-	case TK_IDENT: {
+	case TK_IDENT:
+		if (tok->len > 3 and strncmp(tok->start, "int", 3) == 0) {
+			const char *rest = tok->start + 3;
+			size_t rest_len = tok->len - 3;
+			bool all_digits = true;
+			for (size_t i = 0; i < rest_len; i++)
+				if (not is_digit((unsigned char)rest[i])) { all_digits = false; break; }
+			if (all_digits) {
+				tok->kind = TK_KW_INT_BITS;
+				tok->ival = strtoll(rest, NULL, 10);
+				break;
+			}
+		} else if (tok->len > 4 and strncmp(tok->start, "uint", 4) == 0) {
+			const char *rest = tok->start + 4;
+			size_t rest_len = tok->len - 4;
+			bool all_digits = true;
+			for (size_t i = 0; i < rest_len; i++)
+				if (not is_digit((unsigned char)rest[i])) { all_digits = false; break; }
+			if (all_digits) {
+				tok->kind = TK_KW_UINT_BITS;
+				tok->ival = strtoll(rest, NULL, 10);
+				break;
+			}
+		}
 		tok->ident = intern_str(self->table, tok->start, tok->len);
-	} break;
+		break;
 	case TK_STR: {
 		tok->str = decode_string(self, tok->start + 1, tok->len - 2);
 	} break;
@@ -184,6 +210,46 @@ static void skip_whitespace(struct scanner *self)
 	}
 }
 
+static void scan_identifiers(struct scanner *self)
+{
+	const struct { const char *str; enum token_kind kind; } keywords[] = {
+		{"string", TK_KW_STRING},
+		{"cstr",   TK_KW_CSTR},
+		{"uint",   TK_KW_UINT},
+		{"int",    TK_KW_INT},
+		{"float",  TK_KW_FLOAT},
+		{"void",   TK_KW_VOID},
+		{"auto",   TK_KW_AUTO},
+		{"type",   TK_KW_TYPE},
+		{"cast",   TK_KW_CAST},
+		{"const",  TK_KW_CONST},
+		{"var",    TK_KW_VAR},
+		{"struct", TK_KW_STRUCT},
+		{"usize",  TK_KW_USIZE},
+		{0}
+	};
+
+	const char *start = self->start;
+	const char *current = self->current;
+	advance(self);
+	while (not ended(self) and is_ident2(peek(self))) {
+		advance(self);
+		current = self->current;
+	}
+
+	const size_t lexem_len = (uintptr_t)current - (uintptr_t)start;
+	for (size_t i=0; keywords[i].str; i+=1) {
+		size_t len = strlen(keywords[i].str);
+		if (lexem_len != len) continue;
+		if (strncmp(start, keywords[i].str, len) == 0) {
+			add_token(self, keywords[i].kind);
+			return;
+		}
+	}
+
+	add_token(self, TK_IDENT);
+}
+
 static void scan_lexem(struct scanner *self)
 {
 	// skip single line comment
@@ -221,41 +287,9 @@ static void scan_lexem(struct scanner *self)
 		return;
 	}
 
-	// NOTE: No need for an optimization
-	const struct { const char *str; enum token_kind kind; } keywords[] = {
-		{"string", TK_KW_STRING},
-		{"cstr",   TK_KW_CSTR},
-		{"int",    TK_KW_INT},
-		{"float",  TK_KW_FLOAT},
-		{"void",   TK_KW_VOID},
-		{"auto",   TK_KW_AUTO},
-		{"type",   TK_KW_TYPE},
-		{"cast",   TK_KW_CAST},
-		{"const",  TK_KW_CONST},
-		{"var",    TK_KW_VAR},
-		{"struct", TK_KW_STRUCT},
-		{"usize",  TK_KW_USIZE},
-	};
-	for (size_t i=0; i<sizeof(keywords)/sizeof(keywords[0]); i += 1) {
-		const char *saved_current = self->current;
-		const bool saved_ended = self->ended;
-		if (matches(self, (char*)keywords[i].str)) {
-			const uint32_t next = decode_utf8(NULL, self->current, self->src);
-			if (not is_ident2(next)) {
-				add_token(self, keywords[i].kind);
-				return;
-			}
-			self->current = saved_current;
-			self->ended = saved_ended;
-		}
-	}
-
 	// identifiers
 	if (not ended(self) and is_ident1(peek(self))) {
-		advance(self);
-		while (not ended(self) and is_ident2(peek(self)))
-			advance(self);
-		add_token(self, TK_IDENT);
+		scan_identifiers(self);
 		return;
 	}
 
@@ -329,6 +363,7 @@ Error scan_entire_file(
 		return ERROR;
 	}
 
+	scanner.start = scanner.current;
 	struct token *token = add_token(&scanner, TK_EOF);
 	token->len = 0;
 
@@ -361,6 +396,7 @@ Error scan_entire_string(
 		return ERROR;
 	}
 
+	scanner.start = scanner.current;
 	struct token *tok = add_token(&scanner, TK_EOF);
 	tok->len = 0;
 

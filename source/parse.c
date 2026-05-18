@@ -342,28 +342,31 @@ static struct haste_ast_node *auto_struct_prefix(struct parser *self)
 struct parser_rule get_rule_from_kind(enum token_kind kind)
 {
 	switch (kind) {
-	case TK_OPEN_PAREN: return (struct parser_rule){ grouping,           NULL,                 PREC_PRIMARY, false };
-	case TK_PLUS:       return (struct parser_rule){ unary,              binary,               PREC_TERM,    false };
-	case TK_MINUS:      return (struct parser_rule){ unary,              binary,               PREC_TERM,    false };
-	case TK_STAR:       return (struct parser_rule){ NULL,               binary,               PREC_FACTOR,  false };
-	case TK_FSLASH:     return (struct parser_rule){ NULL,               binary,               PREC_FACTOR,  false };
-	case TK_INT:        return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_FLOAT:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_STR:        return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_IDENT:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_STRING:  return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_CSTR:    return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_INT:     return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_FLOAT:   return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_VOID:    return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_AUTO:    return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_TYPE:    return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_STRUCT:  return (struct parser_rule){ struct_type_prefix, NULL,                 PREC_PRIMARY, false };
-	case TK_KW_USIZE:   return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_CAST:    return (struct parser_rule){ cast,               NULL,                 PREC_UNARY,   false };
-	case TK_OPEN_BRACE: return (struct parser_rule){ NULL,               struct_literal_infix, PREC_PRIMARY, false };
-	case TK_DOT:        return (struct parser_rule){ auto_struct_prefix, field_access,         PREC_PRIMARY, false };
-	default:            return (struct parser_rule){ NULL,               NULL,                 PREC_NONE,    false };
+	case TK_OPEN_PAREN:   return (struct parser_rule){ grouping,           NULL,                 PREC_PRIMARY, false };
+	case TK_PLUS:         return (struct parser_rule){ unary,              binary,               PREC_TERM,    false };
+	case TK_MINUS:        return (struct parser_rule){ unary,              binary,               PREC_TERM,    false };
+	case TK_STAR:         return (struct parser_rule){ NULL,               binary,               PREC_FACTOR,  false };
+	case TK_FSLASH:       return (struct parser_rule){ NULL,               binary,               PREC_FACTOR,  false };
+	case TK_INT:          return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_FLOAT:        return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_STR:          return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_IDENT:        return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_STRING:    return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_CSTR:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_INT:       return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_UINT:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_INT_BITS:  return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_UINT_BITS: return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_FLOAT:     return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_VOID:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_AUTO:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_TYPE:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_STRUCT:    return (struct parser_rule){ struct_type_prefix, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_USIZE:     return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_CAST:      return (struct parser_rule){ cast,               NULL,                 PREC_UNARY,   false };
+	case TK_OPEN_BRACE:   return (struct parser_rule){ NULL,               struct_literal_infix, PREC_PRIMARY, false };
+	case TK_DOT:          return (struct parser_rule){ auto_struct_prefix, field_access,         PREC_PRIMARY, false };
+	default:              return (struct parser_rule){ NULL,               NULL,                 PREC_NONE,    false };
 	}
 }
 
