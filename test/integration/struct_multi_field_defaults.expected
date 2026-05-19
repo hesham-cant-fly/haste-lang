@@ -1,0 +1,6 @@
+; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/struct_multi_field_defaults.haste'
+source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/struct_multi_field_defaults.haste"
+
+%struct.type.Vec3.0 = type { float, float, float }
+
+@v = constant %struct.type.Vec3.0 { float 1.250000e+00, float 1.250000e+00, float 1.250000e+00 }

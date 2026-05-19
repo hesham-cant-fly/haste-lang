@@ -1,3 +1,0 @@
-const odd_bits: int17 = 42;
-const casted: int17 = cast[int17](5);
-const auto_field_odd = struct { x: int17; } { x: 12 };

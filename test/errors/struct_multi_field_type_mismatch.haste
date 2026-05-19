@@ -1,0 +1,10 @@
+// test/errors/struct_multi_field_type_mismatch.haste
+const Vector = struct {
+	velocity, acceleration, rotation: float;
+};
+
+const v: Vector = Vector{
+	velocity: 1.0,
+	acceleration: "fast", // should throw type mismatch
+	rotation: 3.14,
+};

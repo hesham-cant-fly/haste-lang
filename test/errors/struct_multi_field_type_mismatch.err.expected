@@ -1,0 +1,6 @@
+home/hesham/Documents/Projects/haste-lang/test/errors/struct_multi_field_type_mismatch.haste:8:1: Error: Cannot assign a value of type 'untyped_string' to a value of type 'float'
+    8 | acceleration: "fast", // should throw type mismatch
+        ^ 
+home/hesham/Documents/Projects/haste-lang/test/errors/struct_multi_field_type_mismatch.haste:6:19: Error: Forgot to set a value for `acceleration`.
+    6 | const v: Vector = Vector{
+                          ^ 

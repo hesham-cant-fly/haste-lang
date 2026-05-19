@@ -1,0 +1,6 @@
+// Validating that struct defaults correctly duplicate logic across comma-separated bounds
+const Vec3 = struct {
+    x, y, z: float = 1.25;
+};
+
+const v: Vec3 = Vec3{};
