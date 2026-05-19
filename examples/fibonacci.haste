@@ -1,9 +1,11 @@
-func fib(x: int): int = {
-	if x <= 1 then return 1;
+func fib(x: int): int do
+	if x <= 1 then
+		return 1;
+	end
 	return fib(x - 1) + fib(x - 2);
-};
+end
 
-func main() = {
+func main() do
 	const result = fib(10);
 	@println(result);
-};
+end
