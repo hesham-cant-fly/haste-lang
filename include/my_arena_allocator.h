@@ -142,6 +142,7 @@ static struct ArenaBlock *find_owner(struct Arena *self, void *ptr)
 
 	return NULL;
 }
+
 static void *arena_allocate_virt(void *data, size_t alignment, size_t size)
 {
     struct Arena *self = data;
@@ -181,6 +182,8 @@ static void *arena_reallocate_virt(void *data, size_t old_size, void *ptr, size_
 {
 	(void)old_size;
 	struct Arena *const self = data;
+
+	if (ptr == NULL) return arena_allocate_virt(self, alignment, new_size);
 
 	struct ArenaBlock *const target = find_owner(self, ptr);
 	if (target == NULL) return NULL; // ERROR: the pointer is nowhere to be allocated in the arena

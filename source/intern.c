@@ -75,8 +75,8 @@ const char *intern_str(struct intern_table *table, const char *start, size_t len
 			// println("INTERN_PUT: {s:#*}", start, (int)len);
 			return copy;
 		}
-		if (e->hash == h && e->len == len &&
-		    memcmp(e->str, start, len) == 0) {
+		if (e->str == start || (e->hash == h && e->len == len &&
+		    memcmp(e->str, start, len) == 0)) {
 			// println("INTERN_GET: {s:#*}", start, (int)len);
 			return e->str;
 		}

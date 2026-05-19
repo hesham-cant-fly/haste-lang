@@ -1,4 +1,5 @@
 #include "haste.h"
+#include "my_stream.h"
 
 static const char *HASTE_AST_NODE_KIND[] =
 {
@@ -90,7 +91,14 @@ static int print_haste_ast_node(stream_t file, const struct haste_ast_node *node
 		printed_amount += print_haste_ast(file, node->struct_type.fields);
 		break;
 	case ND_STRUCT_FIELD:
-		printed_amount += sprint(file, "\"name\": \"{span}\",", token_to_span(node->struct_field.name));
+		printed_amount += sprint(file, "\"names\": [");
+		for (size_t i=0; i < node->struct_field.name_count; i += 1) {
+			printed_amount += sprint(file, "{token:##}", node->struct_field.names[i]);
+			if (i != (node->struct_field.name_count - 1)) {
+				printed_amount += sprint(file, ",");
+			}
+		}
+		printed_amount += sprint(file, "],");
 		printed_amount += sprint(file, "\"type\": ");
 		if (node->struct_field.type) printed_amount += print_haste_ast_node(file, node->struct_field.type);
 		else printed_amount += sprint(file, "null");

@@ -1,0 +1,10 @@
+// Validating that multiple names for a single field type generate fully separate fields
+const Point = struct {
+	x, y, z: int32;
+};
+
+const p: Point = Point{
+	x: 1,
+	y: 2,
+	z: 3,
+};

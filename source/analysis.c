@@ -267,10 +267,10 @@ static ssize_t find_struct_field(struct haste_struct_type *st, struct token name
 
 // Returns true on error. Fills `*out` with the field info on success.
 static bool read_struct_field(struct analyzer *self,
-	struct haste_ast_node *field, struct haste_struct_field *out)
+							  const char *name,
+							  struct haste_ast_node *field,
+							  struct haste_struct_field *out)
 {
-	const char *name = intern_token(self->intern_table, field->struct_field.name);
-
 	struct haste_value field_type = ty_auto;
 	if (field->struct_field.type != NULL)
 		field_type = analyze_node(self, field->struct_field.type, (struct haste_value){0});
@@ -278,7 +278,7 @@ static bool read_struct_field(struct analyzer *self,
 	if (IS_BAD(field_type) or not type_equal(typeof(field_type), ty_type)) {
 		if (not IS_BAD(field_type))
 			report_error(self, field->struct_field.type,
-				"expected a type for field, got '{value}' instead.", typeof(field_type));
+						 "expected a type for field, got '{value}' instead.", typeof(field_type));
 		out->type = VAL_BAD;
 		return true;
 	}
@@ -295,8 +295,8 @@ static bool read_struct_field(struct analyzer *self,
 			}
 		} else {
 			report_error(self, field->struct_field.default_value,
-				"Cannot set the default value of type '{value}' to '{value}'",
-				typeof(default_value), field_type);
+						 "Cannot set the default value of type '{value}' to '{value}'",
+						 typeof(default_value), field_type);
 			default_value = VAL_BAD;
 			return true;
 		}
@@ -304,8 +304,8 @@ static bool read_struct_field(struct analyzer *self,
 	}
 
 	if (type_equal(field_type, ty_auto) and not has_default) {
-		report_error(self, field->struct_field.name,
-			"Cannot infer type for field '{s}' without a default value.", name);
+		report_error(self, field,
+					 "Cannot infer type for field '{s}' without a default value.", name);
 		return true;
 	}
 
@@ -605,7 +605,7 @@ static struct haste_value analyze_struct_type(struct analyzer *self, struct hast
 
 	st->field_count = 0;
 	leach (struct haste_ast_node, field, node->struct_type.fields)
-		st->field_count += 1;
+		st->field_count += field->struct_field.name_count;
 
 	st->fields = alloc(self->allocator,
 		sizeof(struct haste_struct_field) * SAFE_COUNT(st->field_count));
@@ -613,11 +613,15 @@ static struct haste_value analyze_struct_type(struct analyzer *self, struct hast
 	bool has_error = false;
 	size_t i = 0;
 	leach (struct haste_ast_node, field, node->struct_type.fields) {
-		struct haste_struct_field sf;
-		if (read_struct_field(self, field, &sf)) {
-			has_error = true;
-		} else {
-			st->fields[i++] = sf;
+		for (size_t j=0; j < field->struct_field.name_count; j += 1) {
+			const char *name = intern_token(self->intern_table, field->struct_field.names[j]);
+			struct haste_struct_field sf = {0};
+
+			if (read_struct_field(self, name, field, &sf)) {
+				has_error = true;
+			} else {
+				st->fields[i++] = sf;
+			}
 		}
 	}
 

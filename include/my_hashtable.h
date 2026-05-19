@@ -221,7 +221,8 @@ void _hm_put_impl(
         char **cur_key = (char **)cur_item;
 
         /* key exists → replace */
-        if (strcmp(*cur_key, key) == 0) {
+        if (*cur_key == key ||
+			strcmp(*cur_key, key) == 0) {
             memcpy(cur_item, item, item_size);
             return;
         }
@@ -273,7 +274,8 @@ void *_hm_get_impl(void *items, size_t item_size, const char *key)
         void *item = (char *)items + idx * item_size;
         char **item_key = (char **)item;
 
-        if (strcmp(*item_key, key) == 0)
+        if (*item_key == key ||
+			strcmp(*item_key, key) == 0)
             return item;
 
         pos = (pos + 1) % cap;
@@ -304,7 +306,8 @@ void _hm_del_impl(void *items, size_t *len, size_t item_size, const char *key)
         void *item = (char *)items + idx * item_size;
         char **item_key = (char **)item;
 
-        if (strcmp(*item_key, key) == 0) {
+        if (*item_key == key ||
+			strcmp(*item_key, key) == 0) {
             break;
         }
 

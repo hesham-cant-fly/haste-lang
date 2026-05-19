@@ -219,7 +219,7 @@ enum token_kind {
 };
 
 struct token {
-	enum token_kind kind;
+	enum token_kind kind : 8;
 	const char *start;
 	uint32_t len;
 	uint32_t line;
@@ -349,9 +349,9 @@ struct haste_value {
 		HASTE_VL_SCALAR,
 		HASTE_VL_RUNTIME,
 		HASTE_VL_OBJ,
-	} kind;
-	TypeID type_id;
+	} kind : 7;
 	bool is_explicitly_comptime : 1;
+	TypeID type_id;
 
 	union {
 		int64_t integer;
@@ -366,7 +366,7 @@ struct haste_object {
 		HASTE_OBJ_TYPE,
 		HASTE_OBJ_STRING,
 		HASTE_OBJ_STRUCT,
-	} kind;
+	} kind : 8;
 };
 
 struct haste_string_object {
@@ -407,7 +407,12 @@ struct haste_object_type {
 		HASTE_TY_UINT,
 		HASTE_TY_STRUCT,
 		HASTE_TY_AUTO_STRUCT,
-	} kind;
+	} kind : 8;
+	bool is_integer    : 1;
+	bool is_float      : 1;
+	bool is_unsigned   : 1;
+	bool is_string     : 1;
+	bool is_untyped    : 1;
 	const char *name;
 	size_t size;
 	size_t align;
@@ -514,7 +519,7 @@ struct haste_ast_node {
 
 		/* Statements */
 		ND_VAR_DECL, // struct { ... } variable
-	} kind;
+	} kind : 8;
 	struct haste_value type;
 	struct haste_ast_node *next;
 	struct token start;
@@ -543,7 +548,8 @@ struct haste_ast_node {
 		} struct_type;
 
 		struct {                     // ND_STRUCT_FIELD
-			struct token name;
+			size_t name_count;
+			struct token *names;
 			struct haste_ast_node *type;
 			struct haste_ast_node *default_value;
 		} struct_field;

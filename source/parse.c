@@ -1,4 +1,5 @@
 #include "haste.h"
+#include "my_array.h"
 
 struct parser {
 	struct Allocator allocator;
@@ -261,7 +262,12 @@ static struct haste_ast_node *struct_type_prefix(struct parser *self)
 	struct haste_ast_node head = {0};
 	struct haste_ast_node *current = &head;
 	while (not check(self, TK_CLOSE_BRACE) and not ended(self)) {
-		struct token name = consume(self, TK_IDENT, "Expected field name.");
+		struct token_list names = {0};
+		arrpush(self->allocator, names, consume(self, TK_IDENT, "Expected field name."));
+		while (match(self, TK_COMMA)) {
+			arrpush(self->allocator, names, consume(self, TK_IDENT, "Expected field name."));
+		}
+
 		consume(self, TK_COLON, "Expected ':' after field name.");
 		struct haste_ast_node *type = NULL;
 		struct haste_ast_node *default_value = NULL;
@@ -277,9 +283,10 @@ static struct haste_ast_node *struct_type_prefix(struct parser *self)
 			self->allocator,
 			struct haste_ast_node,
 			.kind = ND_STRUCT_FIELD,
-			.start = name,
+			.start = names.items[0],
 			.struct_field = {
-				.name = name,
+				.name_count = names.len,
+				.names = names.items,
 				.type = type,
 				.default_value = default_value,
 			});
