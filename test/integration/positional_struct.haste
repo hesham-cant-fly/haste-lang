@@ -1,0 +1,31 @@
+const Vec2 = struct {
+    x: float;
+    y: float = 0;
+};
+
+const pos = Vec2{ 1.0, 2.0 };
+const pos_partial = Vec2{ 3.0 };
+
+const Vec3 = struct {
+    x, y, z: float = 1.0;
+};
+
+const pos2 = Vec3{ 2.0, 3.0, 4.0 };
+const pos3 = Vec3{ 5.0 }; // x=5.0, y=1.0, z=1.0
+
+const Mixed = struct {
+    a: int;
+    b: int = 10;
+    c: int;
+};
+
+const m1 = Mixed{ 1, 2, 3 };
+const m2 = Mixed{ 4, c: 5 }; // a=4, b=10, c=5
+const m3 = Mixed{ a: 6, 7, 8 }; // a=6, b=7, c=8
+
+const Nested = struct {
+    v: Vec2;
+    id: int;
+};
+
+const n1 = Nested{ .{ 1.0, 2.0 }, 42 };

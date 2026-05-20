@@ -362,6 +362,24 @@ const pos: Vec2 = .{ x: 1 };              // anonymous literal, type from annota
 const pos = .{ x: 1, y: 2 };             // anonymous, creates fresh struct type
 #+END_SRC
 
+** Positional struct initialization
+Struct fields can also be initialized positionally, omitting the field names. The values are assigned to fields in the order they were declared in the struct definition.
+
+#+BEGIN_SRC haste
+const Vec2 = struct { x, y: float; };
+const pos = Vec2{ 1.0, 2.0 };             // x=1.0, y=2.0
+#+END_SRC
+
+Positional initialization can be mixed with named initialization. Positional values always fill the next available field (the one following the previously initialized field, or the first field if no others have been initialized yet).
+
+#+BEGIN_SRC haste
+const Vec3 = struct { x, y, z: float; };
+const pos = Vec3{ 1.0, z: 3.0 };          // x=1.0, y=default, z=3.0
+const pos2 = Vec3{ x: 1.0, 2.0, 3.0 };    // x=1.0, y=2.0, z=3.0
+#+END_SRC
+
+If a field is omitted and has a default value, that default value is used. If it doesn't have a default value, it must be provided either positionally or by name, otherwise a compile-time error occurs.
+
 =Type{ field: value, ... }= is a literal with an explicit struct type. =.{}= with a type annotation (=const x: T = .{...}=) injects the target type before field analysis, so fields are validated against the target. =.{}= without a type annotation creates a fresh anonymous struct type. Empty =.{}= creates an empty struct type. Omitting a field uses its declared default value.
 
 Now lets suppose we have a struct =Foo= defined as below. as you can see, field =a= has a default value of =1=. but =b= is not.
