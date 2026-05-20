@@ -1,6 +1,8 @@
 #+TITLE: Haste Language — Overview
 #+DATE: 2026-05-14
 
+* Table Of Content :TOC:
+
 * Introduction
 
 This document is an overview of the Haste programming language. You are assumed to have basic knowledge of programming concepts such as variables, statements, and types.
@@ -301,6 +303,23 @@ const Vec2 = struct {
 
 A struct type is itself a =type= value — =typeof(Vec2)= returns =type=. Struct types are nominally typed, meaning each struct declaration creates a unique type. =S1 = struct { x: int; };= and =S2 = struct { x: int; };= are distinct types, so =const a: S1 = S2{...}= is a type error. Struct type names appear in error messages and LLVM IR instead of generic labels.
 
+** Multi-name shorthand
+Instead of defining each field on a different line like this
+#+begin_src haste
+const Vec3 = struct {
+	x: float = 1;
+	y: float = 1;
+	z: float = 1;
+};
+#+end_src
+
+You can use the short hand syntax instead
+#+begin_src haste
+const Vec3 = struct {
+	x, y, z: float = 1;
+};
+#+end_src
+
 ** Auto-typed fields
 
 A field type can be inferred from its default value using =auto=:
@@ -323,8 +342,18 @@ const Point = struct {
 
 Inference follows the literal types — =0= becomes =int=, =0.0= becomes =float=, and ="hi"= becomes =string=. A field declared as =name: auto;= without a default value is rejected with "Cannot infer type for field".
 
-* Struct literals
+that also works with the multi-name shorthand
+#+begin_src haste
+const Point = struct {
+	x, y: auto = 6.7;
+};
 
+const Point2 = struct {
+	x, y := 6.7;
+};
+#+end_src
+
+* Struct literals
 Struct values are created with brace syntax:
 
 #+BEGIN_SRC haste
@@ -370,9 +399,7 @@ const a = 0;
 const foo4: Foo = cast a;
 #+end_src
 
-
 ** Auto struct types
-
 #+BEGIN_SRC haste
 const Point = .{ x: 1, y: 2 };           // type: { x: int, y: int }
 const empty = .{};                         // type: {}
@@ -383,7 +410,6 @@ const copy = nested;                       // same type as nested
 Each auto-struct literal gets a unique anonymous type. Auto-struct values can be copied, preserving type identity. When assigned to a typed variable, the target type is injected before field analysis. Auto-structs can also implicitly coerce to predefined struct types.
 
 * Member access
-
 Fields of a struct value are accessed with the dot (=.=) operator:
 
 #+BEGIN_SRC haste
@@ -446,7 +472,6 @@ const a = x.foo;  // Error: Cannot access field 'foo'. no such field inside 'int
 #+END_SRC
 
 * Compile-time evaluation
-
 Haste evaluates =const= declarations at compile time whenever possible. Arithmetic on literal values is constant-folded, forward references across top-level declarations are supported through hoisting, and type aliases resolve at compile time.
 
 #+BEGIN_SRC haste
@@ -465,7 +490,6 @@ const c: float = 2;
 Recursive declarations such as =const S = struct { x: S; };= are detected and produce a compile-time error.
 
 * Examples
-
 #+BEGIN_SRC haste
 const a: int = 42;
 const b: float = 3.14;
