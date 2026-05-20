@@ -655,6 +655,11 @@ static struct haste_value analyze_automatic_struct_literal(struct analyzer *self
 
 	size_t i = 0;
 	leach (struct haste_ast_node, lit_field, node->struct_literal.fields) {
+		if (lit_field->struct_lit_field.name.kind == 0) {
+			report_error(self, lit_field->struct_lit_field.value,
+				"Automatic struct literals must use named fields.");
+			return VAL_BAD;
+		}
 		struct haste_value fv = analyze_node(self, lit_field->struct_lit_field.value, expected_type);
 		if (IS_BAD(fv)) return VAL_BAD;
 		st->fields[i] = (struct haste_struct_field){
@@ -717,13 +722,26 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 		}
 	}
 
+	size_t positional_idx = 0;
 	leach (struct haste_ast_node, lit_field, node->struct_literal.fields) {
-		ssize_t idx = find_struct_field(st, lit_field->struct_lit_field.name);
-		if (idx < 0) {
-			report_error(self, lit_field,
-				"Unknown field '{token}'.", lit_field->struct_lit_field.name);
-			has_error = true;
-			continue;
+		ssize_t idx = -1;
+		if (lit_field->struct_lit_field.name.kind == 0) {
+			if (positional_idx >= st->field_count) {
+				report_error(self, lit_field->struct_lit_field.value,
+					"Too many positional fields for struct '{value}'.", struct_type);
+				has_error = true;
+				continue;
+			}
+			idx = positional_idx++;
+		} else {
+			idx = find_struct_field(st, lit_field->struct_lit_field.name);
+			if (idx < 0) {
+				report_error(self, lit_field,
+					"Unknown field '{token}'.", lit_field->struct_lit_field.name);
+				has_error = true;
+				continue;
+			}
+			positional_idx = idx + 1;
 		}
 
 		inject_struct_type(self, lit_field->struct_lit_field.value, st->fields[idx].type);

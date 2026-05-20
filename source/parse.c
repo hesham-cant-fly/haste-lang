@@ -58,6 +58,12 @@ static struct token peek(const struct parser *self)
 	return self->tokens.items[self->current];
 }
 
+static struct token peek_next(const struct parser *self)
+{
+	if (self->current + 1 >= self->tokens.len) return get_eof(self);
+	return self->tokens.items[self->current + 1];
+}
+
 static struct token advance(struct parser *self)
 {
 	if (ended(self)) return (struct token){0};
@@ -309,9 +315,17 @@ static struct haste_ast_node *struct_literal_infix(struct parser *self, struct h
 	struct haste_ast_node *current = &head;
 
 	while (not check(self, TK_CLOSE_BRACE) and not ended(self)) {
-		struct token name = consume(self, TK_IDENT, "Expected field name.");
-		consume(self, TK_COLON, "Expected ':' after field name.");
-		struct haste_ast_node *value = expr(self);
+		struct token name = {0};
+		struct haste_ast_node *value = NULL;
+
+		if (peek(self).kind == TK_IDENT and peek_next(self).kind == TK_COLON) {
+			name = consume(self, TK_IDENT, "Expected field name.");
+			consume(self, TK_COLON, "Expected ':' after field name.");
+			value = expr(self);
+		} else {
+			value = expr(self);
+		}
+
 		if (check(self, TK_COMMA)) advance(self);
 		else if (not check(self, TK_CLOSE_BRACE))
 			consume(self, TK_COMMA, "Expected ',' or '}' after field value.");
