@@ -509,8 +509,14 @@ static struct haste_value analyze_cast(struct analyzer *self, struct haste_ast_n
 
 	struct haste_value value = analyze_node(self, node->cast.expr, (struct haste_value){0});
 	if (not type_can_cast(to, typeof(value))) {
-		report_error(self, node,
-			"Cannot cast '{value}' to '{value}'", typeof(value), to);
+		run_at_percent (1) {
+			report_error(self, node,
+						 "This cat cannot purr like a {value}. "
+						 "(if you don't get the easter egg its because I sometimes mispell 'cast' to 'cat')", to);
+		} else {
+			report_error(self, node,
+						 "Cannot cast '{value}' to '{value}'", typeof(value), to);
+		}
 		return VAL_BAD;
 	}
 

@@ -1,6 +1,7 @@
 #include "haste.h"
 #include "my_array.h"
 #include "my_stream.h"
+#include <string.h>
 
 struct parser {
 	struct Allocator allocator;
@@ -435,7 +436,16 @@ static struct haste_ast_node *parse_precedence(struct parser *self, enum precede
 		struct token tok = advance(self);
 		ParseInfixFn infix_rule = get_rule(tok).infix;
 		if (infix_rule == NULL) {
-			report_error_at(self, tok, "`{token}` is not a valid operator.", tok);
+			run_at_percent (20) {
+				if (strncmp(left->token.start, "cat", left->token.len) == 0) {
+					report_error_at(self, tok,
+									"meow! sorry, but purrs of a cat not gonna write useful software :(.", tok);
+				} else {
+					report_error_at(self, tok, "`{token}` is not a valid operator.", tok);
+				}
+			} else {
+				report_error_at(self, tok, "`{token}` is not a valid operator.", tok);
+			}
 		}
 
 		left = infix_rule(self, left);
