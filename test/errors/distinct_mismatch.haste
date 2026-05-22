@@ -1,0 +1,3 @@
+const ID = distinct int;
+const x: int = 10;
+const y: ID = x;

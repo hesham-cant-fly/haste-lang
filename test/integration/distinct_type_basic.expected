@@ -1,0 +1,5 @@
+; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/distinct_type_basic.haste'
+source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/distinct_type_basic.haste"
+
+@a = constant i32 42
+@b = constant float 0x40091EB860000000

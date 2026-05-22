@@ -1,0 +1,4 @@
+const Distance = distinct int;
+const Time = distinct int;
+const d = cast[Distance] 100;
+const t = cast[Time] d; 

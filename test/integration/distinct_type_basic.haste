@@ -1,0 +1,4 @@
+const MyInt = distinct int;
+const a: MyInt = 42;
+const my_float = distinct float;
+const b: my_float = cast[my_float] 3.14;

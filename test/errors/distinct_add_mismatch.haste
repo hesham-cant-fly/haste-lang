@@ -1,0 +1,5 @@
+const Apple = distinct int;
+const Orange = distinct int;
+const a = cast[Apple] 5;
+const o = cast[Orange] 10;
+const fruit_salad = a + o;

@@ -290,6 +290,26 @@ When both operands are typed but of different types, the compiler rejects the ex
 | =cstr= | =cstr=, =untyped_string= |
 | =auto= | anything |
 
+
+* =distinct=
+=distinct= is a keyword that allows for creating a new type based on a former type but its distinct.
+
+#+begin_src haste
+const Foo = distinct int;
+const Bar = distinct int;
+
+const a: Foo = 0;
+const b: Bar = 0;
+// even tho Foo and Bar are just int under the hood. they are distinct
+// so assigning `a` to `c` will result in a compile time error
+const c: Bar = a; // ERROR
+
+// addition between distinct type is not allowed
+const d = a + b;
+
+const e: Foo = cast b;
+#+end_src
+
 * Struct types
 
 A struct type groups several fields under a single name. Each field is declared as =name: type;= with an optional = = default value.

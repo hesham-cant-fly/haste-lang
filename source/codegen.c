@@ -1,5 +1,4 @@
 #include "haste.h"
-#include "my_stream.h"
 #include "llvm-c/Core.h"
 
 struct type_map_entry {
@@ -47,27 +46,19 @@ static LLVMTypeRef llvm_type(struct codegen_context *ctx, struct haste_value typ
 {
 	assert(IS_TYPE(type));
 
-	if (type_equal(type, ty_int) or type_equal(type, ty_untyped_int) or type_equal(type, ty_zero))
-		return t_i32(ctx);
-
-	if (type_equal(type, ty_usize))
-		return t_i64(ctx);
-
-	if (type_equal(type, ty_float) or type_equal(type, ty_untyped_float))
-		return t_f32(ctx);
-
-	if (type_equal(type, ty_void))
-		return t_void(ctx);
-
-	if (type_equal(type, ty_untyped_string) or type_equal(type, ty_cstr))
-		return t_i8ptr(ctx);
-
 	struct haste_type_info *tp = AS_TYPE_INFO(type);
+
+	if (tp->kind == HASTE_TY_UNTYPED_INT or tp->kind == HASTE_TY_ZERO) return t_i32(ctx);
+	if (tp->kind == HASTE_TY_USIZE) return t_i64(ctx);
+	if (tp->kind == HASTE_TY_FLOAT or tp->kind == HASTE_TY_UNTYPED_FLOAT) return t_f32(ctx);
+	if (tp->kind == HASTE_TY_VOID) return t_void(ctx);
+	if (tp->kind == HASTE_TY_UNTYPED_STRING or tp->kind == HASTE_TY_CSTR or tp->kind == HASTE_TY_STRING) return t_i8ptr(ctx);
+
 	if (tp->kind == HASTE_TY_INT or tp->kind == HASTE_TY_UINT) {
 		return LLVMIntTypeInContext(ctx->llvm_ctx, tp->bit_size);
 	}
 
-	if (IS_STRUCT_TYPE(type) or IS_AUTO_STRUCT_TYPE(type)) {
+	if (tp->kind == HASTE_TY_STRUCT or tp->kind == HASTE_TY_AUTO_STRUCT) {
 		struct haste_type_info *type_info = AS_TYPE_INFO(type);
 		struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(type);
 
