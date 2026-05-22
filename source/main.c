@@ -75,7 +75,7 @@ static int custom_format_object(stream_t stream, struct modifier_stream mod, va_
 {
 	discard mod;
 	struct haste_value object = va_arg(args, struct haste_value);
-	return print_object(stream, object.obj, (struct haste_object*)type_pool_get(object.type_id));
+	return print_object(stream, object.obj, typeof(object));
 }
 
 static int custom_format_ast(stream_t stream, struct modifier_stream mod, va_list args)
@@ -244,19 +244,6 @@ int main(int argc, char *argv[argc])
 		print_timing_report(timers, phase_names, PHASE_COUNT);
 
 	arena_free(&analysis_arena);
-
-	// Free ty_string's struct type
-	do {
-		struct haste_object *obj = ty_string.obj;
-		if (obj != NULL and obj->kind == HASTE_OBJ_TYPE) {
-			struct haste_object_type *ot = OAS_TYPE(obj);
-			if (ot->kind == HASTE_TY_STRUCT or ot->kind == HASTE_TY_AUTO_STRUCT) {
-				struct haste_struct_type *st = OAS_STRUCT_TYPE(obj);
-				destroy(c_allocator, st->fields);
-				destroy(c_allocator, st);
-			}
-		}
-	} while (0);
 
 	// Cleanup source files
 	for (size_t i = 0; i < sources.len; i++) {

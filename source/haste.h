@@ -11,6 +11,7 @@
 #include "my_array.h"
 #include "my_managed_array.h"
 #include "my_stream.h"
+#include <stdint.h>
 
 #define SAFE_COUNT(n) ((n) > 0 ? (n) : (size_t)1)
 #include <stdarg.h>
@@ -278,28 +279,28 @@ struct intern_table {
 // type pool
 //
 typedef uint32_t TypeID;
-struct haste_object_type;
+struct haste_type_info;
 struct haste_struct_type;
 
 struct type_pool {
 	struct Allocator allocator;
 	struct {
 		size_t len, cap;
-		struct haste_struct_type **items;
+		struct haste_type_info **items;
 	} chunks;
-	size_t len;
+	uint32_t len;
 };
 
 #define STANDARD_BITWIDTH_LIMIT       128
 #define HASTE_TID_RESERVED_INT_BASE   0
 #define HASTE_TID_RESERVED_UINT_BASE  129
-#define HASTE_TID_TOTAL_RESERVED      HASTE_TID_RESERVED_UINT_BASE + 129
+#define HASTE_TID_TOTAL_RESERVED      ( HASTE_TID_RESERVED_UINT_BASE + 129 )
 #define HASTE_TID_IS_RESERVED(id)     ((id) <= HASTE_TID_TOTAL_RESERVED)
 
 extern struct type_pool g_type_pool;
 
-TypeID type_pool_add(struct haste_object_type *type);
-struct haste_object_type *type_pool_get(TypeID id);
+TypeID type_pool_add(struct haste_type_info type);
+struct haste_type_info *type_pool_get(TypeID id);
 void type_pool_set_name(TypeID id, const char *name);
 struct haste_value type_get_int(uint16_t bits, bool is_signed);
 
@@ -312,11 +313,13 @@ struct haste_value type_get_int(uint16_t bits, bool is_signed);
 #  define VAL_UNINIT                ((struct haste_value) { .kind = HASTE_VL_UNINIT })
 #  define VAL_SCALAR(tid, ...)      ((struct haste_value) { .kind = HASTE_VL_SCALAR, .type_id = (tid), __VA_ARGS__ })
 #  define VAL_RUNTIME(...)          ((struct haste_value) { .kind = HASTE_VL_RUNTIME, .runtime = (__VA_ARGS__) })
+#  define VAL_TYPE(...)             ((struct haste_value) { .kind = HASTE_VL_TYPE, .type_id = AS_TYPEID(ty_type), .type = (__VA_ARGS__) })
 #  define VAL_OBJ(tid, p)           ((struct haste_value) { .kind = HASTE_VL_OBJ, .type_id = (tid), .obj = (struct haste_object*)(void*)(p) })
 
-#  define OBJ_TYPE(...)             ((struct haste_object_type) { .base = { .kind = HASTE_OBJ_TYPE, }, __VA_ARGS__ })
-#  define OBJ_STRUCT_TYPE(...)      ((struct haste_struct_type) { .base = { .base.kind = HASTE_OBJ_TYPE, .kind = HASTE_TY_STRUCT }, __VA_ARGS__ })
-#  define OBJ_AUTO_STRUCT_TYPE(...) ((struct haste_struct_type) { .base = { .base.kind = HASTE_OBJ_TYPE, .kind = HASTE_TY_AUTO_STRUCT }, __VA_ARGS__ })
+#  define TYPE_INFO(...)             ((struct haste_type_info) { __VA_ARGS__ })
+#  define STRUCT_TYPE_INFO(...)      ((struct haste_struct_type_info) { .kind = HASTE_TY_STRUCT, __VA_ARGS__ })
+#  define AUTO_STRUCT_TYPE_INFO(...) ((struct haste_struct_type_info) { .kind = HASTE_TY_AUTO_STRUCT, __VA_ARGS__ })
+
 #  define OBJ_STRUCT(...)           ((struct haste_struct_object) { .base = OBJ_TYPE(HASTE_TY_STRUCT), __VA_ARGS__ })
 
 #  define IS_NONE(...)              ((__VA_ARGS__).kind == HASTE_VL_NONE)
@@ -325,37 +328,42 @@ struct haste_value type_get_int(uint16_t bits, bool is_signed);
 #  define IS_UNINIT(...)            ((__VA_ARGS__).kind == HASTE_VL_UNINIT)
 #  define IS_SCALAR(...)            ((__VA_ARGS__).kind == HASTE_VL_SCALAR)
 #  define IS_RUNTIME(...)           ((__VA_ARGS__).kind == HASTE_VL_RUNTIME)
+#  define IS_TYPE(...)              ((__VA_ARGS__).kind == HASTE_VL_TYPE)
+
+#  define IS_STRUCT_TYPE(...)       ((IS_TYPE(__VA_ARGS__)) and (AS_TYPE_INFO(__VA_ARGS__)->kind == HASTE_TY_STRUCT))
+#  define IS_AUTO_STRUCT_TYPE(...)  ((IS_TYPE(__VA_ARGS__)) and (AS_TYPE_INFO(__VA_ARGS__)->kind == HASTE_TY_AUTO_STRUCT))
+
 #  define IS_OBJ(...)               ((__VA_ARGS__).kind == HASTE_VL_OBJ)
-#  define IS_TYPE(...)              ((IS_OBJ(__VA_ARGS__) and ((__VA_ARGS__).obj->kind == HASTE_OBJ_TYPE)))
-#  define IS_STRUCT_TYPE(...)       ((IS_TYPE(__VA_ARGS__)) and (AS_TYPE(__VA_ARGS__)->kind == HASTE_TY_STRUCT))
-#  define IS_AUTO_STRUCT_TYPE(...)  ((IS_TYPE(__VA_ARGS__)) and (AS_TYPE(__VA_ARGS__)->kind == HASTE_TY_AUTO_STRUCT))
 #  define IS_STRUCT(...)            ((IS_OBJ(__VA_ARGS__)) and ((__VA_ARGS__).obj->kind == HASTE_OBJ_STRUCT))
 
 #  define AS_OBJ(v)                 ((v).obj)
-#  define AS_TYPE(v)                ((OAS_TYPE(AS_OBJ(v))))
-#  define AS_TYPEID(v)              ((OAS_TYPE(AS_OBJ(v)))->pool_id)
+#  define AS_TYPEID(v)              ((v).type)
+#  define AS_TYPE_INFO(v)           ((type_pool_get(AS_TYPEID(v))))
+#  define AS_STRUCT_TYPE_INFO(v)    ((&AS_TYPE_INFO(v)->structure))
+
 #  define AS_STRUCT(v)              ((OAS_STRUCT(AS_OBJ(v))))
-#  define AS_STRUCT_TYPE(v)         ((OAS_STRUCT_TYPE(AS_OBJ(v))))
-#  define OAS_TYPE(v)               ((struct haste_object_type *)(v))
-#  define OAS_STRUCT_TYPE(v)        ((struct haste_struct_type *)(v))
 #  define OAS_STRUCT(v)             ((struct haste_struct_object *)(v))
 
+enum haste_value_kind {
+	HASTE_VL_NONE, // unset value
+	HASTE_VL_BAD,
+	HASTE_VL_ZERO,
+	HASTE_VL_UNINIT,
+	HASTE_VL_SCALAR,
+	HASTE_VL_RUNTIME,
+	HASTE_VL_TYPE,
+	HASTE_VL_OBJ,
+};
+
 struct haste_value {
-	enum haste_value_kind {
-		HASTE_VL_NONE, // unset value
-		HASTE_VL_BAD,
-		HASTE_VL_ZERO,
-		HASTE_VL_UNINIT,
-		HASTE_VL_SCALAR,
-		HASTE_VL_RUNTIME,
-		HASTE_VL_OBJ,
-	} kind : 7;
+	enum haste_value_kind kind : 7;
 	bool is_explicitly_comptime : 1;
 	TypeID type_id;
 
 	union {
 		int64_t integer;
 		double floating;
+		TypeID type;
 		struct haste_ast_node *runtime;
 		struct haste_object *obj;
 	};
@@ -363,7 +371,6 @@ struct haste_value {
 
 struct haste_object {
 	enum {
-		HASTE_OBJ_TYPE,
 		HASTE_OBJ_STRING,
 		HASTE_OBJ_STRUCT,
 	} kind : 8;
@@ -387,8 +394,7 @@ struct haste_struct_object {
 	struct haste_value *fields;
 };
 
-struct haste_object_type {
-	struct haste_object base;
+struct haste_type_info {
 	TypeID pool_id;
 	enum {
 		HASTE_TY_ZERO,
@@ -407,22 +413,24 @@ struct haste_object_type {
 		HASTE_TY_UINT,
 		HASTE_TY_STRUCT,
 		HASTE_TY_AUTO_STRUCT,
-	} kind : 8;
-	bool is_integer    : 1;
-	bool is_float      : 1;
-	bool is_unsigned   : 1;
-	bool is_string     : 1;
-	bool is_untyped    : 1;
+	} kind;
+	bool is_integer;
+	bool is_float;
+	bool is_unsigned;
+	bool is_string;
+	bool is_untyped;
+
 	const char *name;
 	size_t size;
 	size_t align;
 	size_t bit_size;
-};
 
-struct haste_struct_type {
-	struct haste_object_type base;
-	size_t field_count;
-	struct haste_struct_field *fields;
+	union {
+		struct haste_struct_type_info {
+			size_t field_count;
+			struct haste_struct_field *fields;
+		} structure;
+	};
 };
 
 extern struct haste_value ty_zero;
@@ -483,15 +491,15 @@ bool type_is_untyped(const struct haste_value t);
 bool type_is_untyped_number(const struct haste_value t);
 bool type_is_any_string(const struct haste_value t);
 
-bool type_equal_struct(const struct haste_object_type *t1, const struct haste_object_type *t2);
+bool type_equal_struct(const struct haste_type_info *t1, const struct haste_type_info *t2);
 uint64_t type_hash(const struct haste_value t);
 bool is_comptime_known(const struct haste_value v);
 
-ssize_t find_named_field(const struct haste_struct_type *st, const char *name);
+ssize_t find_named_field(const struct haste_value tp, const char *name);
 
 bool haste_is_default_empty_string(const struct haste_object *obj);
 
-int print_object(stream_t stream, const struct haste_object *obj, const struct haste_object *type);
+int print_object(stream_t stream, const struct haste_object *obj, struct haste_value type);
 int print_value(stream_t stream, const struct haste_value value);
 
 //
@@ -574,12 +582,6 @@ struct haste_ast_node {
 		} variable;
 	};
 };
-
-#define node_transform(node_, kind_, ...) \
-	do { \
-		(node_)->kind = (kind_); \
-		(node_) ->__VA_ARGS__; \
-	} while (0)
 
 struct haste_ast_node * node_into_value(
 	struct Allocator allocator,

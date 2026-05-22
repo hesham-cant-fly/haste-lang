@@ -1,4 +1,5 @@
 #include "haste.h"
+#include "my_allocator.h"
 #include "my_common.h"
 #include "my_stream.h"
 #include "my_termcolor.h"
@@ -201,7 +202,7 @@ static struct haste_value token_to_value(struct analyzer *self, struct token tok
 			return VAL_BAD;
 		}
 		if (token.ival > STANDARD_BITWIDTH_LIMIT) {
-			run_at_percent (1.0f) {
+			run_at_percent (20.0f) {
 				report_error(self, token, "Amigo! u mama is too big.");
 			} else {
 				report_error(self, token, "Bit width bigger than {d} is not supported", STANDARD_BITWIDTH_LIMIT);
@@ -215,7 +216,7 @@ static struct haste_value token_to_value(struct analyzer *self, struct token tok
 			return VAL_BAD;
 		}
 		if (token.ival > STANDARD_BITWIDTH_LIMIT) {
-			run_at_percent (1.0f) {
+			run_at_percent (20.0f) {
 				report_error(self, token, "Amigo! u mama is too big.");
 			} else {
 				report_error(self, token, "Bit width bigger than {d} is not supported", STANDARD_BITWIDTH_LIMIT);
@@ -252,12 +253,12 @@ static void inject_struct_type(struct analyzer *self, struct haste_ast_node *lit
 			or lit->struct_literal.type_expr->token.kind != TK_KW_AUTO))
 		return;
 	struct haste_ast_node *ty_node = create(self->arena_allocator,
-		struct haste_ast_node, .type = typeof(field_type));
+											struct haste_ast_node, .start = lit->start);
 	ty_node = node_into_value(self->arena_allocator, ty_node, field_type);
 	lit->struct_literal.type_expr = ty_node;
 }
 
-static ssize_t find_struct_field(struct haste_struct_type *st, struct token name)
+static ssize_t find_struct_field(struct haste_struct_type_info *st, struct token name)
 {
 	for (size_t i = 0; i < st->field_count; i += 1)
 		if (field_name_matches(st->fields[i], name))
@@ -335,8 +336,7 @@ static struct haste_value analyze_binary(struct analyzer *self, struct haste_ast
 
 	if (IS_BAD(value)) return VAL_BAD;
 
-	node->type = typeof(value);
-	node_transform(node, ND_VALUE, value = value);
+	node = node_into_value(self->arena_allocator, node, value);
 	return value;
 }
 
@@ -385,7 +385,7 @@ static struct haste_value analyze_unary(struct analyzer *self, struct haste_ast_
 	switch (node->op.kind) {
 	case TK_MINUS:
 		if (IS_ZERO(value)) {
-			value = VAL_SCALAR(AS_TYPE(typeof(value))->pool_id, .integer = 0);
+			value = VAL_SCALAR(AS_TYPEID(typeof(value)), .integer = 0);
 		} else if (IS_SCALAR(value)) {
 			if (type_is_integer(typeof(value)))
 				value.integer = -value.integer;
@@ -421,7 +421,7 @@ static struct haste_value access_field(
 {
 	struct haste_value lhs_type = typeof(lhs);
 	if (IS_STRUCT_TYPE(lhs_type) or IS_AUTO_STRUCT_TYPE(lhs_type)) {
-		struct haste_struct_type *st = AS_STRUCT_TYPE(lhs_type);
+		struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(lhs_type);
 		const ssize_t id = find_struct_field(st, token);
 		if (id < 0) return VAL_BAD;
 
@@ -521,8 +521,9 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 	struct haste_value type = ty_auto;
 	if (node->variable.type != NULL) {
 		type = analyze_node(self, node->variable.type, (struct haste_value){0});
-		if (IS_BAD(type))
+		if (IS_BAD(type)) {
 			emit_error_symbol(self, target_scope, name, is_constant, node);
+		}
 	}
 
 	if (not type_equal(typeof(type), ty_type)) {
@@ -539,8 +540,9 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 
 		if (struct_decl != NULL) struct_decl->analyzing = true;
 
-		if (not type_equal(type, ty_auto))
+		if (not type_equal(type, ty_auto)) {
 			inject_struct_type(self, node->variable.value, type);
+		}
 
 		value = analyze_node(self, node->variable.value, type);
 
@@ -563,8 +565,7 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 		value = value_cast(self->allocator, type, value);
 
 	if (IS_STRUCT_TYPE(value)) {
-		AS_TYPE(value)->name = name;
-		type_pool_set_name(AS_TYPE(value)->pool_id, name);
+		type_pool_set_name(AS_TYPEID(value), name);
 	}
 
 	const bool is_explicitly_comptime = node->variable.is_explicitly_comptime
@@ -600,12 +601,13 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 static struct haste_value analyze_struct_type(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
 {
 	discard expected_type;
-	struct haste_struct_type *st = create(self->allocator, struct haste_struct_type,
-		.base = { .base = { .kind = HASTE_OBJ_TYPE }, .kind = HASTE_TY_STRUCT });
+	struct haste_type_info type_info = { .kind = HASTE_TY_STRUCT };
+	struct haste_struct_type_info *st = &type_info.structure;
 
 	st->field_count = 0;
-	leach (struct haste_ast_node, field, node->struct_type.fields)
+	leach (struct haste_ast_node, field, node->struct_type.fields) {
 		st->field_count += field->struct_field.name_count;
+	}
 
 	st->fields = alloc(self->allocator,
 		sizeof(struct haste_struct_field) * SAFE_COUNT(st->field_count));
@@ -627,24 +629,22 @@ static struct haste_value analyze_struct_type(struct analyzer *self, struct hast
 
 	if (has_error) return VAL_BAD;
 
-	type_pool_add(&st->base);
-	struct haste_value result = {
-		.kind = HASTE_VL_OBJ,
-		.type_id = AS_TYPEID(ty_type),
-		.obj = &st->base.base,
-	};
+	struct haste_value result = VAL_TYPE(type_pool_add(type_info));
 	node = node_into_value(self->arena_allocator, node, result);
 	return result;
 }
 
 static struct haste_value analyze_automatic_struct_literal(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
 {
-	struct haste_struct_type *st = create(self->allocator, struct haste_struct_type,
-		.base = { .base.kind = HASTE_OBJ_TYPE, .kind = HASTE_TY_AUTO_STRUCT });
+	struct haste_type_info type_info = {
+		.kind = HASTE_TY_AUTO_STRUCT,
+	};
+	struct haste_struct_type_info *st = &type_info.structure;
 
 	st->field_count = 0;
-	leach (struct haste_ast_node, f, node->struct_literal.fields)
+	leach (struct haste_ast_node, f, node->struct_literal.fields) {
 		st->field_count += 1;
+	}
 
 	const size_t alloc_size = SAFE_COUNT(st->field_count);
 	st->fields = alloc(self->allocator, sizeof(struct haste_struct_field) * alloc_size);
@@ -672,14 +672,8 @@ static struct haste_value analyze_automatic_struct_literal(struct analyzer *self
 		i += 1;
 	}
 
-	type_pool_add(&st->base);
-	struct haste_value result = {
-		.kind = HASTE_VL_OBJ,
-		.type_id = st->base.pool_id,
-		.obj = &so->base,
-	};
-	node->type = typeof(result);
-	node_transform(node, ND_VALUE, value = result);
+	struct haste_value result = VAL_OBJ(type_pool_add(type_info), so);
+	node = node_into_value(self->arena_allocator, node, result);
 	return result;
 }
 
@@ -704,7 +698,7 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 		return VAL_BAD;
 	}
 
-	struct haste_struct_type *st = AS_STRUCT_TYPE(struct_type);
+	struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(struct_type);
 
 	struct haste_struct_object *so = create(self->allocator, struct haste_struct_object,
 		.base = { .kind = HASTE_OBJ_STRUCT });
@@ -770,13 +764,8 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 
 	if (has_error) return VAL_BAD;
 
-	struct haste_value result = {
-		.kind = HASTE_VL_OBJ,
-		.type_id = AS_TYPE(struct_type)->pool_id,
-		.obj = &so->base,
-	};
-	node->type = typeof(result);
-	node_transform(node, ND_VALUE, value = result);
+	struct haste_value result = VAL_OBJ(AS_TYPEID(struct_type), so);
+	node = node_into_value(self->arena_allocator, node, result);
 	return result;
 }
 

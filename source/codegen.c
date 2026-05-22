@@ -1,8 +1,9 @@
 #include "haste.h"
+#include "my_stream.h"
 #include "llvm-c/Core.h"
 
 struct type_map_entry {
-	struct haste_object_type *haste_type;
+	TypeID haste_type;
 	LLVMTypeRef llvm_type;
 };
 
@@ -61,26 +62,28 @@ static LLVMTypeRef llvm_type(struct codegen_context *ctx, struct haste_value typ
 	if (type_equal(type, ty_untyped_string) or type_equal(type, ty_cstr))
 		return t_i8ptr(ctx);
 
-	struct haste_object_type *tp = AS_TYPE(type);
+	struct haste_type_info *tp = AS_TYPE_INFO(type);
 	if (tp->kind == HASTE_TY_INT or tp->kind == HASTE_TY_UINT) {
 		return LLVMIntTypeInContext(ctx->llvm_ctx, tp->bit_size);
 	}
 
 	if (IS_STRUCT_TYPE(type) or IS_AUTO_STRUCT_TYPE(type)) {
-		struct haste_struct_type *st = (struct haste_struct_type*)AS_TYPE(type);
+		struct haste_type_info *type_info = AS_TYPE_INFO(type);
+		struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(type);
 
 		// Check cache (compare by pool_id, not pointer, since typeof() returns pool copies)
 		for (size_t i = 0; i < ctx->struct_types.len; i += 1) {
-			if (ctx->struct_types.items[i].haste_type->pool_id == AS_TYPE(type)->pool_id)
+			if (ctx->struct_types.items[i].haste_type == AS_TYPEID(type)) {
 				return ctx->struct_types.items[i].llvm_type;
+			}
 		}
 
 		// Create named struct
-		char *name = tsprint("struct.type.{s}.{z}", st->base.name then st->base.name otherwise "auto", ctx->struct_types.len);
+		char *name = tsprint("struct.type.{s}.{z}", type_info->name then type_info->name otherwise "auto", ctx->struct_types.len);
 		LLVMTypeRef llvm_st = LLVMStructCreateNamed(ctx->llvm_ctx, name);
 
 		arrpush(ctx->allocator, ctx->struct_types, ((struct type_map_entry){
-			.haste_type = AS_TYPE(type),
+			.haste_type = AS_TYPEID(type),
 			.llvm_type = llvm_st,
 		}));
 
@@ -147,7 +150,7 @@ static LLVMValueRef llvm_value(struct codegen_context *ctx, struct haste_value v
 		if (value.obj->kind == HASTE_OBJ_STRUCT) {
 			LLVMTypeRef llvm_st = llvm_type(ctx, typeof(value));
 			struct haste_struct_object *so = (struct haste_struct_object*)value.obj;
-			struct haste_struct_type *st = (struct haste_struct_type*)AS_TYPE(typeof(value));
+			struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(typeof(value));
 			LLVMValueRef members[SAFE_COUNT(st->field_count)];
 			for (size_t i = 0; i < st->field_count; i += 1) {
 				members[i] = llvm_value(ctx, so->fields[i]);

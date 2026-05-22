@@ -1,5 +1,6 @@
 #include "haste.h"
 #include "my_array.h"
+#include "my_stream.h"
 
 struct parser {
 	struct Allocator allocator;
