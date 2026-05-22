@@ -149,6 +149,9 @@ struct haste_value type_get_int(uint16_t bits, bool is_signed)
 	return VAL_TYPE(base + bits);
 }
 
+static uint32_t _builtin_end = 0;
+static uint32_t _new_type_therhold = 0;
+
 void set_up_builtins(struct Allocator allocator, struct intern_table *table)
 {
 	g_type_pool.allocator = allocator;
@@ -233,18 +236,34 @@ void set_up_builtins(struct Allocator allocator, struct intern_table *table)
 	AS_TYPE_INFO(ty_string)->name = "string";
 	AS_TYPE_INFO(ty_string)->is_string = true;
 
-err = eval(allocator, table, "int32", &ty_int);
+	err = eval(allocator, table, "int32", &ty_int);
     if (err) panic("Cannot Initialize the int type");
     AS_TYPE_INFO(ty_int)->name = "int";
-    /* AS_TYPE_INFO(ty_int)->is_integer = true;  // <--- FORCE THIS */
-    /* AS_TYPE_INFO(ty_int)->is_untyped = false;  // <--- FORCE THIS */
 
     err = eval(allocator, table, "uint32", &ty_uint);
     if (err) panic("Cannot Initialize the uint type");
     AS_TYPE_INFO(ty_uint)->name = "uint";
-    /* AS_TYPE_INFO(ty_uint)->is_integer = true;  // <--- FORCE THIS */
-    /* AS_TYPE_INFO(ty_uint)->is_unsigned = true; // <--- FORCE THIS */
-    /* AS_TYPE_INFO(ty_uint)->is_untyped = false; // <--- FORCE THIS */
+
+	_builtin_end = g_type_pool.len - 1;
+	_new_type_therhold = _builtin_end;
+}
+
+bool type_is_builtin(struct haste_value ty)
+{
+	ASSERT_IS_TYPE(ty);
+
+	return AS_TYPEID(ty) <= _builtin_end;
+}
+
+bool is_newly_created_type(struct haste_value ty)
+{
+	ASSERT_IS_TYPE(ty);
+	return AS_TYPEID(ty) >= _new_type_therhold;
+}
+
+void reset_new_type_counter(void)
+{
+	_new_type_therhold = g_type_pool.len - 1;
 }
 
 enum arith_op {
@@ -639,8 +658,10 @@ bool type_can_assign(const struct haste_value assignable,
 	if (type_equal(assignable, ty_int))   return type_equal(value, ty_unknown) or type_is_integer(value);
 	if (type_equal(assignable, ty_usize)) return type_equal(value, ty_unknown) or type_is_integer(value);
 	if (type_equal(assignable, ty_float)) return type_equal(value, ty_unknown) or type_is_untyped_number(value);
+
 	if (AS_TYPE_INFO(assignable)->kind == HASTE_TY_INT or AS_TYPE_INFO(assignable)->kind == HASTE_TY_UINT)
-		return type_equal(value, ty_unknown) or type_is_integer(value);
+		return type_equal(value, ty_unknown) or type_is_untyped_integer(value);
+
 	if (type_is_any_string(assignable))
 		return type_is_any_string(value) or type_equal(value, ty_unknown);
 
@@ -746,7 +767,6 @@ bool type_is_float(const struct haste_value t)
 bool type_is_number(const struct haste_value t)
 {
 	ASSERT_IS_TYPE(t);
-
 	return type_is_integer(t) or type_is_float(t);
 }
 
@@ -754,6 +774,12 @@ bool type_is_untyped(const struct haste_value t)
 {
 	ASSERT_IS_TYPE(t);
 	return AS_TYPE_INFO(t)->is_untyped;
+}
+
+bool type_is_untyped_integer(const struct haste_value t)
+{
+	ASSERT_IS_TYPE(t);
+	return AS_TYPE_INFO(t)->is_untyped and AS_TYPE_INFO(t)->is_integer;
 }
 
 bool type_is_untyped_number(const struct haste_value t)

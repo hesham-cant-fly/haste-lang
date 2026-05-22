@@ -11,6 +11,7 @@ static const char *TOKEN_KIND_LIT[] =
 	[TK_KW_INT]       = "kw_int",       // "int"
 	[TK_KW_UINT]      = "kw_uint",      // "uint"
 	[TK_KW_FLOAT]     = "kw_float",     // "float"
+	[TK_KW_USIZE]     = "kw_usize",     // "usize"
 	[TK_KW_VOID]      = "kw_void",      // "void"
 	[TK_KW_AUTO]      = "kw_auto",      // "auto"
 	[TK_KW_TYPE]      = "kw_type",      // "type"
@@ -18,6 +19,7 @@ static const char *TOKEN_KIND_LIT[] =
 	[TK_KW_CONST]     = "kw_const",     // "const"
 	[TK_KW_VAR]       = "kw_var",       // "var"
 	[TK_KW_STRUCT]    = "kw_struct",    // "struct"
+	[TK_KW_DISTINCT]  = "kw_distinct",  // "distinct"
 
 	[TK_SEMI_COLON]   = "semi_colon",   // ";"
 

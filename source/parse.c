@@ -235,6 +235,18 @@ static struct haste_ast_node *cast(struct parser *self)
 		});
 }
 
+static struct haste_ast_node *distinct(struct parser *self)
+{
+	struct token start = previous(self);
+	struct haste_ast_node *body = parse_precedence(self, PREC_UNARY);
+	return create(
+		self->allocator,
+		struct haste_ast_node,
+		.kind = ND_DISTINCT,
+		.start = start,
+		.body = body);
+}
+
 static struct haste_ast_node *primary(struct parser *self)
 {
 	struct token lit = previous(self);
@@ -373,6 +385,7 @@ struct parser_rule get_rule_from_kind(enum token_kind kind)
 	case TK_FLOAT:        return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
 	case TK_STR:          return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
 	case TK_IDENT:        return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_DISTINCT:  return (struct parser_rule){ distinct,           NULL,                 PREC_UNARY,   false };
 	case TK_KW_STRING:    return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
 	case TK_KW_CSTR:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
 	case TK_KW_INT:       return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };

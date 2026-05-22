@@ -10,6 +10,7 @@ static const char *HASTE_AST_NODE_KIND[] =
 	[ND_ACCESS]   = "access",
 	[ND_PRIMARY]  = "primary",
 	[ND_GROUPING] = "grouping",
+	[ND_DISTINCT] = "distinct",
 
 	[ND_CAST]     = "cast",
 
@@ -63,6 +64,7 @@ static int print_haste_ast_node(stream_t file, const struct haste_ast_node *node
 	case ND_PRIMARY:
 		printed_amount += sprint(file, "\"token\": {token:##}", node->token);
 		break;
+	case ND_DISTINCT:
 	case ND_GROUPING:
 		printed_amount += sprint(file, "\"body\": ");
 		printed_amount += print_haste_ast_node(file, node->body);

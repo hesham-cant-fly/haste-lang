@@ -363,7 +363,7 @@ static struct haste_value resolve_binary_op(struct analyzer *self, struct haste_
 				report_error(self, op, "Addition is not impossible. (try harder)");
 			} else {
 				report_error(self, op,
-					"Addition is not possible between '{value}' and '{value}'",
+					"Addition is not possible between a value of type '{value}' and a value of type '{value}'",
 					typeof(lhs), typeof(rhs));
 			}
 			return VAL_BAD;
@@ -479,6 +479,19 @@ static struct haste_value analyze_grouping(struct analyzer *self, struct haste_a
 	return value;
 }
 
+static struct haste_value analyze_distinct(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
+{
+	struct haste_value tp = analyze_node(self, node->body, expected_type);
+	struct haste_value type = typeof(tp);
+	if (IS_BAD(tp)) return VAL_BAD;
+	if (not type_equal(type, ty_type)) {
+		report_error(self, node->body, "Expected a '{value}', got '{value}' instead.", ty_type, type);
+		return VAL_BAD;
+	}
+
+	return VAL_TYPE(type_pool_add(*AS_TYPE_INFO(tp)));
+}
+
 static struct haste_value analyze_cast(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
 {
 	struct haste_value to = ty_auto;
@@ -515,6 +528,7 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 
 	if (node->variable.type == NULL and node->variable.value == NULL) {
 		report_error(self, node, "You need to either specify the type or the value or both.");
+		reset_new_type_counter();
 		emit_error_symbol(self, target_scope, name, is_constant, node);
 	}
 
@@ -522,6 +536,7 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 	if (node->variable.type != NULL) {
 		type = analyze_node(self, node->variable.type, (struct haste_value){0});
 		if (IS_BAD(type)) {
+			reset_new_type_counter();
 			emit_error_symbol(self, target_scope, name, is_constant, node);
 		}
 	}
@@ -529,6 +544,7 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 	if (not type_equal(typeof(type), ty_type)) {
 		report_error(self, node->variable.type,
 			"Expected a {value} got '{value}' instead.", ty_type, typeof(type));
+		reset_new_type_counter();
 		emit_error_symbol(self, target_scope, name, is_constant, node);
 	}
 
@@ -548,8 +564,10 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 
 		if (struct_decl != NULL) struct_decl->analyzing = false;
 
-		if (IS_BAD(value))
+		if (IS_BAD(value)) {
+			reset_new_type_counter();
 			emit_error_symbol(self, target_scope, name, is_constant, node);
+		}
 	}
 
 	if (type_equal(type, ty_auto)) {
@@ -557,14 +575,16 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 	} else if (not type_can_assign(type, typeof(value))) {
 		report_error(self, node->variable.name,
 			"cannot assign a value of type '{value}' to '{value}'.", typeof(value), type);
+		reset_new_type_counter();
 		emit_error_symbol(self, target_scope, name, is_constant, node);
 	} else if (IS_UNINIT(value))
 		value = default_for_type(self->allocator, type);
 
-	if (not type_equal(type, typeof(value)))
+	if (not type_equal(type, typeof(value))) {
 		value = value_cast(self->allocator, type, value);
+	}
 
-	if (IS_STRUCT_TYPE(value)) {
+	if (IS_TYPE(value) and is_newly_created_type(value)) {
 		type_pool_set_name(AS_TYPEID(value), name);
 	}
 
@@ -579,6 +599,7 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 	})) {
 		report_error(self, node->variable.name,
 			"duplicate declaration of '{s}'.", name);
+		reset_new_type_counter();
 		return VAL_BAD;
 	}
 
@@ -592,6 +613,8 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 				"THE FORBIDDEN {value} NUMBER IS NOT ALLOWED.", value);
 		}
 	}
+
+	reset_new_type_counter();
 
 	return value;
 }
@@ -786,6 +809,7 @@ struct haste_value analyze_node(struct analyzer *self, struct haste_ast_node *no
 	case ND_ACCESS:           return analyze_access(self, node, expected_type);
 	case ND_PRIMARY:          return analyze_primary(self, node, expected_type);
 	case ND_GROUPING:         return analyze_grouping(self, node, expected_type);
+	case ND_DISTINCT:         return analyze_distinct(self, node, expected_type);
 	case ND_CAST:             return analyze_cast(self, node, expected_type);
 	case ND_STRUCT_TYPE:      return analyze_struct_type(self, node, expected_type);
 	case ND_STRUCT_LITERAL:   return analyze_struct_literal(self, node, expected_type);

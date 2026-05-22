@@ -12,14 +12,14 @@
 #include "my_timing.h"
 #include "cwalk.h"
 
-static stream_t open_dump_stream(const struct options *opts, const char *ext, char *path_buf, size_t path_buf_size)
+static stream_t open_dump_stream(const char *ext, char *path_buf, size_t path_buf_size)
 {
-	if (opts->do_dump)
+	if (g_options.do_dump)
 		return serr;
 
-	const char *path = opts->output_path;
+	const char *path = g_options.output_path;
 	if (!path) {
-		cwk_path_change_extension(opts->source_path, ext, path_buf, path_buf_size);
+		cwk_path_change_extension(g_options.source_path, ext, path_buf, path_buf_size);
 		path = path_buf;
 	}
 
@@ -89,8 +89,7 @@ int main(int argc, char *argv[argc])
 {
 	setup_io_stream();
 
-	struct options options = {0};
-	Error err = parse_arguments(argc, (const char **)argv, &options);
+	Error err = parse_arguments(argc, (const char **)argv);
 	if (err) return 1;
 
 	define_format_specifier("span", custom_format_span);
@@ -121,7 +120,7 @@ int main(int argc, char *argv[argc])
 	struct timer timers[PHASE_COUNT] = {0};
 	const char *phase_names[PHASE_COUNT] = { "lexer", "parser", "hoisting", "analysis", "codegen" };
 
-	const source_file_id src = obtain_source_file_id(NULL, options.source_path);
+	const source_file_id src = obtain_source_file_id(NULL, g_options.source_path);
 	struct token_list tokens = {0};
 	timer_start(&timers[PHASE_LEX]);
 	err = scan_entire_file(c_allocator, &intern_table, src, &tokens);
@@ -132,14 +131,14 @@ int main(int argc, char *argv[argc])
 		return 1;
 	}
 
-	if (options.dump_tokens) {
+	if (g_options.dump_tokens) {
 		char path_buf[4096];
-		stream_t out = open_dump_stream(&options, ".tokens", path_buf, sizeof(path_buf));
+		stream_t out = open_dump_stream(".tokens", path_buf, sizeof(path_buf));
 		if (!out.data) { arrfree(c_allocator, tokens); deinit_intern_table(&intern_table); arena_free(&arena); return 1; }
 		arreach (struct token, tok, tokens) {
 			sprintln(out, "{token:#}", tok);
 		}
-		close_dump_stream(&options, out);
+		close_dump_stream(&g_options, out);
 		arrfree(c_allocator, tokens);
 		deinit_intern_table(&intern_table);
 		arena_free(&arena);
@@ -168,12 +167,12 @@ int main(int argc, char *argv[argc])
 		return 1;
 	}
 
-	if (options.dump_ast) {
+	if (g_options.dump_ast) {
 		char path_buf[4096];
-		stream_t out = open_dump_stream(&options, ".json", path_buf, sizeof(path_buf));
+		stream_t out = open_dump_stream(".json", path_buf, sizeof(path_buf));
 		if (!out.data) { deinit_intern_table(&intern_table); arena_free(&arena); return 1; }
 		sprintln(out, "{ast}", get_source_file_ast(src));
-		close_dump_stream(&options, out);
+		close_dump_stream(&g_options, out);
 		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 0;
@@ -189,28 +188,28 @@ int main(int argc, char *argv[argc])
 		return 1;
 	}
 
-	if (options.dump_sema) {
+	if (g_options.dump_sema) {
 		char path_buf[4096];
-		stream_t out = open_dump_stream(&options, ".json", path_buf, sizeof(path_buf));
+		stream_t out = open_dump_stream(".json", path_buf, sizeof(path_buf));
 		if (!out.data) { arena_free(&analysis_arena); deinit_intern_table(&intern_table); arena_free(&arena); return 1; }
 		sprintln(out, "{ast}", get_source_file_ast(src));
-		close_dump_stream(&options, out);
+		close_dump_stream(&g_options, out);
 		arena_free(&analysis_arena);
 		deinit_intern_table(&intern_table);
 		arena_free(&arena);
 		return 0;
 	}
 
-	if (options.dump_llvm) {
+	if (g_options.dump_llvm) {
 		const char *llvm_path = NULL;
 		bool llvm_to_stderr = false;
 		char llvm_path_buf[4096];
-		if (options.do_dump) {
+		if (g_options.do_dump) {
 			llvm_to_stderr = true;
 		} else {
-			llvm_path = options.output_path;
+			llvm_path = g_options.output_path;
 			if (!llvm_path) {
-				cwk_path_change_extension(options.source_path, ".ll", llvm_path_buf, sizeof(llvm_path_buf));
+				cwk_path_change_extension(g_options.source_path, ".ll", llvm_path_buf, sizeof(llvm_path_buf));
 				llvm_path = llvm_path_buf;
 			}
 		}
@@ -223,7 +222,7 @@ int main(int argc, char *argv[argc])
 		arena_free(&arena);
 		return 1;
 	}
-		if (options.do_measure)
+		if (g_options.do_measure)
 			print_timing_report(timers, phase_names, PHASE_COUNT);
 		arena_free(&analysis_arena);
 		deinit_intern_table(&intern_table);
@@ -240,7 +239,7 @@ int main(int argc, char *argv[argc])
 		return 1;
 	}
 
-	if (options.do_measure)
+	if (g_options.do_measure)
 		print_timing_report(timers, phase_names, PHASE_COUNT);
 
 	arena_free(&analysis_arena);

@@ -35,6 +35,10 @@
 		exit(1); \
 	} while (0)
 
+#define frand() ((float)rand() / (float)RAND_MAX)
+#define when_fun if (not g_options.disable_fun)
+#define run_at_percent(...) if ((not g_options.disable_fun) and (frand() * 100.0) <= ((__VA_ARGS__)))
+
 typedef enum Error {
 	OK = 0,
 	ERROR = 1,
@@ -50,11 +54,14 @@ struct options {
 	bool dump_llvm   : 1;
 	bool do_measure  : 1;
 	bool do_dump     : 1;
+	bool disable_fun : 1;
 	const char *source_path;
 	const char *output_path;
 };
 
-Error parse_arguments(const int argc, const char *argv[argc], struct options *out);
+extern struct options g_options;
+
+Error parse_arguments(const int argc, const char *argv[argc]);
 
 //
 // span.c
@@ -184,6 +191,7 @@ enum token_kind {
 	TK_KW_INT,       // "int"
 	TK_KW_UINT,      // "uint"
 	TK_KW_FLOAT,     // "float"
+	TK_KW_USIZE,     // "usize"
 	TK_KW_VOID,      // "void"
 	TK_KW_AUTO,      // "auto"
 	TK_KW_TYPE,      // "type"
@@ -191,7 +199,7 @@ enum token_kind {
 	TK_KW_CONST,     // "const"
 	TK_KW_VAR,       // "var"
 	TK_KW_STRUCT,    // "struct"
-	TK_KW_USIZE,     // "usize"
+	TK_KW_DISTINCT,  // "distinct"
 
 	TK_SEMI_COLON,   // ";"
 
@@ -414,11 +422,11 @@ struct haste_type_info {
 		HASTE_TY_STRUCT,
 		HASTE_TY_AUTO_STRUCT,
 	} kind;
-	bool is_integer;
-	bool is_float;
-	bool is_unsigned;
-	bool is_string;
-	bool is_untyped;
+	bool is_integer  : 1;
+	bool is_float    : 1;
+	bool is_unsigned : 1;
+	bool is_string   : 1;
+	bool is_untyped  : 1;
 
 	const char *name;
 	size_t size;
@@ -449,6 +457,9 @@ extern struct haste_value ty_cstr;
 extern struct haste_value ty_usize;
 
 void set_up_builtins(struct Allocator allocator, struct intern_table *table);
+bool type_is_builtin(struct haste_value ty);
+bool is_newly_created_type(struct haste_value ty);
+void reset_new_type_counter(void);
 
 struct haste_value typeof(const struct haste_value value);
 
@@ -488,6 +499,7 @@ bool type_is_integer(const struct haste_value t);
 bool type_is_float(const struct haste_value t);
 bool type_is_number(const struct haste_value t);
 bool type_is_untyped(const struct haste_value t);
+bool type_is_untyped_integer(const struct haste_value t);
 bool type_is_untyped_number(const struct haste_value t);
 bool type_is_any_string(const struct haste_value t);
 
@@ -516,6 +528,7 @@ struct haste_ast_node {
 		ND_ACCESS,   // access
 		ND_PRIMARY,  // struct token token
 		ND_GROUPING, // struct haste_ast_node *body
+		ND_DISTINCT, // struct haste_ast_node *body
 
 		ND_CAST,     // struct { ... } cast
 
@@ -534,7 +547,7 @@ struct haste_ast_node {
 
 	union {
 		struct token token;          // ND_PRIMARY
-		struct haste_ast_node *body; // ND_GROUPING
+		struct haste_ast_node *body; // ND_GROUPING, ND_DISTINCT
 		struct haste_value value;    // ND_VALUE
 		struct {                     // ND_BINARY, ND_UNARY
 			struct haste_ast_node *lhs;

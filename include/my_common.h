@@ -52,9 +52,6 @@ noreturn void __unreachable(const char *file, int line);
 		exit(1); \
 	} while (0)
 
-#define frand() ((float)rand() / (float)RAND_MAX)
-#define run_at_percent(...) if ((frand() * 100.0) <= ((__VA_ARGS__)))
-
 #define then ?
 #define otherwise :
 

@@ -218,6 +218,7 @@ static void scan_identifiers(struct scanner *self)
 		{"uint",   TK_KW_UINT},
 		{"int",    TK_KW_INT},
 		{"float",  TK_KW_FLOAT},
+		{"usize",  TK_KW_USIZE},
 		{"void",   TK_KW_VOID},
 		{"auto",   TK_KW_AUTO},
 		{"type",   TK_KW_TYPE},
@@ -225,7 +226,7 @@ static void scan_identifiers(struct scanner *self)
 		{"const",  TK_KW_CONST},
 		{"var",    TK_KW_VAR},
 		{"struct", TK_KW_STRUCT},
-		{"usize",  TK_KW_USIZE},
+		{"distinct", TK_KW_DISTINCT},
 		{0}
 	};
 

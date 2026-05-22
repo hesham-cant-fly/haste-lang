@@ -1,3 +1,3 @@
-home/hesham/Documents/Projects/haste-lang/test/errors/int_overflow_add.haste:1:31: Error: Addition is not possible between 'untyped_int' and 'untyped_int'
+home/hesham/Documents/Projects/haste-lang/test/errors/int_overflow_add.haste:1:31: Error: Addition is not possible between a value of type 'untyped_int' and a value of type 'untyped_int'
     1 | const x = 9223372036854775807 + 1;
                                       ^ 
