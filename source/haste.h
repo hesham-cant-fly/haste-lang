@@ -288,7 +288,6 @@ struct intern_table {
 //
 typedef uint32_t TypeID;
 struct haste_type_info;
-struct haste_struct_type;
 
 struct type_pool {
 	struct Allocator allocator;
@@ -386,22 +385,16 @@ struct haste_object {
 
 struct haste_string_object {
 	struct haste_object base;
-	char *data;
 	size_t len;
-};
-
-struct haste_struct_field {
-	const char *name;
-	struct haste_value type;
-	struct haste_value default_value;
-	bool has_default;
+	char data[];
 };
 
 struct haste_struct_object {
 	struct haste_object base;
-	struct haste_value *fields;
+	struct haste_value fields[];
 };
 
+// TODO: Move the type pool away from value.c
 struct haste_type_info {
 	TypeID pool_id;
 	enum {
@@ -435,8 +428,13 @@ struct haste_type_info {
 
 	union {
 		struct haste_struct_type_info {
-			size_t field_count;
-			struct haste_struct_field *fields;
+			size_t len;
+			struct haste_struct_field {
+				const char *name;
+				struct haste_value type;
+				struct haste_value default_value;
+				bool has_default;
+			} *items;
 		} structure;
 	};
 };
@@ -456,12 +454,16 @@ extern struct haste_value ty_string;
 extern struct haste_value ty_cstr;
 extern struct haste_value ty_usize;
 
-void set_up_builtins(struct Allocator allocator, struct intern_table *table);
+void set_up_builtins(struct Allocator allocator);
 bool type_is_builtin(struct haste_value ty);
 bool is_newly_created_type(struct haste_value ty);
 void reset_new_type_counter(void);
 
 struct haste_value typeof(const struct haste_value value);
+
+struct haste_value   make_value(struct Allocator alloc, const struct haste_value type);
+struct haste_object *create_struct(struct Allocator alloc, struct haste_struct_type_info *st);
+struct haste_object *create_string(struct Allocator alloc, const char *str, size_t len);
 
 bool value_equal(struct haste_value a, struct haste_value b);
 
@@ -507,7 +509,44 @@ bool type_equal_struct(const struct haste_type_info *t1, const struct haste_type
 uint64_t type_hash(const struct haste_value t);
 bool is_comptime_known(const struct haste_value v);
 
+#define struct_get_field(v_, ...) _Generic((__VA_ARGS__), \
+	const char *: struct_get_field_by_name, \
+	char *: struct_get_field_by_name, \
+	struct token: struct_get_field_by_token, \
+	size_t: struct_get_field_by_index) (v_, (__VA_ARGS__))
+#define struct_set_field(allocator_, v_, key_, ...) _Generic((key_), \
+	const char *: struct_set_field_by_name, \
+	char *: struct_set_field_by_name, \
+	struct token: struct_set_field_by_token, \
+	size_t: struct_set_field_by_index) (allocator_, v_, key_, (__VA_ARGS__))
+#define struct_has_field(v_, ...) _Generic((__VA_ARGS__), \
+	const char *: struct_has_field_name \
+	char *: struct_has_field_name \
+	struct token: struct_has_field_token) (v_, (__VA_ARGS__)))
+
 ssize_t find_named_field(const struct haste_value tp, const char *name);
+
+bool struct_has_field_name(const struct haste_value value, const char *name);
+bool struct_has_field_token(const struct haste_value value, struct token token);
+
+struct haste_value struct_get_field_by_name(const struct haste_value value,
+											const char *name);
+struct haste_value struct_get_field_by_token(const struct haste_value value,
+											 const struct token name);
+struct haste_value struct_get_field_by_index(const struct haste_value value,
+											 const size_t idx);
+struct haste_value struct_set_field_by_name(struct Allocator,
+											struct haste_value *value,
+											const char *name,
+											const struct haste_value new_value);
+struct haste_value struct_set_field_by_token(struct Allocator,
+											 struct haste_value *value,
+											 const struct token name,
+											 const struct haste_value new_value);
+struct haste_value struct_set_field_by_index(struct Allocator,
+											 struct haste_value *value,
+											 const size_t idx,
+											 const struct haste_value new_value);
 
 bool haste_is_default_empty_string(const struct haste_object *obj);
 
@@ -611,24 +650,22 @@ void f_vreport_at(const source_file_id src, const char *kind, const char *start,
 void f_report_at_token(const source_file_id src, const char *kind, struct token token, const char *fmt, ...);
 void f_vreport_at_token(const source_file_id src, const char *kind, struct token token, const char *fmt, va_list args);
 
-struct intern_table init_intern_table(struct Allocator allocator, struct Allocator arena);
-void deinit_intern_table(struct intern_table *table);
+void init_intern_table(struct Allocator allocator, struct Allocator arena);
+void deinit_intern_table(void);
 
-const char *intern_str(struct intern_table *table, const char *start, size_t len);
-const char *intern_token(struct intern_table *table, struct token token);
-const char *intern_cstr(struct intern_table *table, const char *str);
+const char *intern_str(const char *start, size_t len);
+const char *intern_token(struct token token);
+const char *intern_cstr(const char *str);
 
 //
 // scanner.c
 //
 Error scan_entire_file(
 	struct Allocator allocator,
-	struct intern_table *table,
 	const source_file_id src,
 	struct token_list *out);
 Error scan_entire_string(
 	struct Allocator allocator,
-	struct intern_table *table,
 	const char *content,
 	struct token_list *out);
 
@@ -648,7 +685,6 @@ Error parse(
 // hoisting.c
 //
 Error hoist(struct Allocator allocator,
-			struct intern_table *table,
             const source_file_id src);
 
 //
@@ -658,16 +694,18 @@ Error hoist(struct Allocator allocator,
 Error analyze_one_node(
 	struct Allocator allocator,
 	struct Allocator arena_allocator,
-    struct intern_table *intern_table,
 	struct haste_ast_node *node,
 	struct haste_value *out);
 Error analyze(struct Allocator allocator,
               struct Allocator arena_allocator,
-              struct intern_table *intern_table,
               const source_file_id src);
 //
 // codegen.c
 //
-Error codegen(struct Allocator allocator, const source_file_id src, struct intern_table *table, const char *output_path, bool dump_to_stderr);
+Error codegen(
+	struct Allocator allocator,
+	const source_file_id src,
+	const char *output_path,
+	bool dump_to_stderr);
 
 #endif // !HASTE_H_

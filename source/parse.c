@@ -436,7 +436,7 @@ static struct haste_ast_node *parse_precedence(struct parser *self, enum precede
 		struct token tok = advance(self);
 		ParseInfixFn infix_rule = get_rule(tok).infix;
 		if (infix_rule == NULL) {
-			run_at_percent (20) {
+			run_at_percent (3) {
 				if (strncmp(left->token.start, "cat", left->token.len) == 0) {
 					report_error_at(self, tok,
 									"meow! sorry, but purrs of a cat not gonna write useful software :(.", tok);

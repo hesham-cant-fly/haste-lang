@@ -5,7 +5,6 @@
 
 struct scanner {
 	struct Allocator allocator;
-	struct intern_table *table;
 	struct token_list tokens;
 	source_file_id src;
 	const char *start, *current, *end;
@@ -37,7 +36,7 @@ static const char *decode_string(struct scanner *self, const char *start, size_t
 	}
 	chars[j] = '\0';
 
-	const char *result = intern_cstr(self->table, chars);
+	const char *result = intern_cstr(chars);
 	destroy(self->allocator, chars);
 	return result;
 }
@@ -77,7 +76,7 @@ static void populate_token_value(struct scanner *self, struct token *tok)
 				break;
 			}
 		}
-		tok->ident = intern_str(self->table, tok->start, tok->len);
+		tok->ident = intern_str(tok->start, tok->len);
 		break;
 	case TK_STR: {
 		tok->str = decode_string(self, tok->start + 1, tok->len - 2);
@@ -341,7 +340,6 @@ static void start_scanning(struct scanner *self)
 
 Error scan_entire_file(
 	struct Allocator allocator,
-	struct intern_table *table,
 	const source_file_id src,
 	struct token_list *out)
 {
@@ -349,7 +347,6 @@ Error scan_entire_file(
 	struct scanner scanner = {
 		.allocator = allocator,
 		.tokens = {0},
-		.table = table,
 		.src = src,
 		.start = content,
 		.current = content,
@@ -375,7 +372,6 @@ Error scan_entire_file(
 
 Error scan_entire_string(
 	struct Allocator allocator,
-	struct intern_table *table,
 	const char *content,
 	struct token_list *out)
 {
@@ -383,7 +379,6 @@ Error scan_entire_string(
 		.allocator = allocator,
 		.tokens = {0},
 		.src = -1,
-		.table = table,
 		.start = content,
 		.current = content,
 		.end = content + strlen(content),

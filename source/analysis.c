@@ -30,7 +30,6 @@ struct symbol_set {
 struct analyzer {
 	struct Allocator allocator;
 	struct Allocator arena_allocator;
-	struct intern_table *intern_table;
 	struct scope *global, *local;
 	const source_file_id src;
 	bool had_error;
@@ -168,28 +167,14 @@ static struct symbol_set find_all_symbols(struct analyzer *self, const char *nam
 
 // ── Token → value ──────────────────────────────────────────────
 
-static struct haste_string_object *make_string_obj(struct Allocator allocator, char *data, size_t len)
-{
-	struct haste_string_object *obj = create(
-		allocator, struct haste_string_object,
-		.base = { .kind = HASTE_OBJ_STRING },
-		.data = data,
-		.len = len);
-	return obj;
-}
-
 static struct haste_value token_to_value(struct analyzer *self, struct token token)
 {
 	switch (token.kind) {
 	case TK_IDENT:    unimplemented();
 	case TK_STR: {
 		size_t len = strlen(token.str);
-		struct haste_string_object *obj = make_string_obj(self->arena_allocator, (char *)token.str, len);
-		return (struct haste_value){
-			.kind = HASTE_VL_OBJ,
-			.type_id = AS_TYPEID(ty_untyped_string),
-			.obj = &obj->base,
-		};
+		struct haste_object *obj = create_string(self->arena_allocator, (char *)token.str, len);
+		return VAL_OBJ(AS_TYPEID(ty_untyped_string), obj);
 	}
 	case TK_INT:
 		if (token.ival == 0) return VAL_ZERO;
@@ -258,11 +243,14 @@ static void inject_struct_type(struct analyzer *self, struct haste_ast_node *lit
 	lit->struct_literal.type_expr = ty_node;
 }
 
+// TODO: gotta refactor this one
 static ssize_t find_struct_field(struct haste_struct_type_info *st, struct token name)
 {
-	for (size_t i = 0; i < st->field_count; i += 1)
-		if (field_name_matches(st->fields[i], name))
+	iarreach (i, *st) {
+		if (field_name_matches(st->items[i], name)) {
 			return i;
+		}
+	}
 	return -1;
 }
 
@@ -387,20 +375,21 @@ static struct haste_value analyze_unary(struct analyzer *self, struct haste_ast_
 		if (IS_ZERO(value)) {
 			value = VAL_SCALAR(AS_TYPEID(typeof(value)), .integer = 0);
 		} else if (IS_SCALAR(value)) {
-			if (type_is_integer(typeof(value)))
+			if (type_is_integer(typeof(value))) {
 				value.integer = -value.integer;
-			else if (type_is_float(typeof(value)))
+			} else if (type_is_float(typeof(value))) {
 				value.floating = -value.floating;
-			else
+			} else {
 				goto neg_error;
+			}
 		} else if (IS_BAD(value)) {
 			return VAL_BAD;
 		} else {
 			goto neg_error;
 		}
 		break;
-	default:
-		break;
+	case TK_PLUS: break;
+	default: unimplemented();
 	}
 
 	node->type = typeof(value);
@@ -414,30 +403,12 @@ neg_error:
 	return VAL_BAD;
 }
 
-// TODO: move this to value.c
-static struct haste_value access_field(
-	struct haste_value lhs,
-	struct token token)
-{
-	struct haste_value lhs_type = typeof(lhs);
-	if (IS_STRUCT_TYPE(lhs_type) or IS_AUTO_STRUCT_TYPE(lhs_type)) {
-		struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(lhs_type);
-		const ssize_t id = find_struct_field(st, token);
-		if (id < 0) return VAL_BAD;
-
-		struct haste_struct_object *so = AS_STRUCT(lhs);
-		return so->fields[id];
-	}
-
-	return VAL_BAD;
-}
-
 static struct haste_value analyze_access(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
 {
 	struct haste_value lhs_value = analyze_node(self, node->access.lhs, expected_type);
 	if (IS_BAD(lhs_value)) return VAL_BAD;
 
-	struct haste_value result = access_field(lhs_value, node->access.rhs);
+	struct haste_value result = struct_get_field(lhs_value, node->access.rhs);
 	if (IS_BAD(result)) {
 		report_error(self, node->access.rhs,
 			"Cannot access field '{token}'. no such field inside '{value}'",
@@ -455,7 +426,7 @@ static struct haste_value analyze_primary(struct analyzer *self, struct haste_as
 	discard expected_type;
 	struct haste_value value = {0};
 	if (node->token.kind == TK_IDENT) {
-		const char *name = intern_token(self->intern_table, node->token);
+		const char *name = intern_token(node->token);
 		struct symbol *symbol = find_local_first(self, name);
 		if (symbol == NULL) {
 			report_error(self, node, "undefined symbol '{s}'.", name);
@@ -489,7 +460,9 @@ static struct haste_value analyze_distinct(struct analyzer *self, struct haste_a
 		return VAL_BAD;
 	}
 
-	return VAL_TYPE(type_pool_add(*AS_TYPE_INFO(tp)));
+	struct haste_value result = VAL_TYPE(type_pool_add(*AS_TYPE_INFO(tp)));
+	node = node_into_value(self->arena_allocator, node, result);
+	return result;
 }
 
 static struct haste_value analyze_cast(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
@@ -528,7 +501,7 @@ static struct haste_value analyze_cast(struct analyzer *self, struct haste_ast_n
 static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
 {
 	discard expected_type;
-	const char *name = intern_token(self->intern_table, node->variable.name);
+	const char *name = intern_token(node->variable.name);
 	const bool is_constant = node->variable.is_constant;
 	struct scope *target_scope = node->variable.is_global then self->global otherwise self->local;
 
@@ -633,25 +606,25 @@ static struct haste_value analyze_struct_type(struct analyzer *self, struct hast
 	struct haste_type_info type_info = { .kind = HASTE_TY_STRUCT };
 	struct haste_struct_type_info *st = &type_info.structure;
 
-	st->field_count = 0;
+	st->len = 0;
 	leach (struct haste_ast_node, field, node->struct_type.fields) {
-		st->field_count += field->struct_field.name_count;
+		st->len += field->struct_field.name_count;
 	}
 
-	st->fields = alloc(self->allocator,
-		sizeof(struct haste_struct_field) * SAFE_COUNT(st->field_count));
+	st->items = alloc(self->allocator,
+		sizeof(struct haste_struct_field) * SAFE_COUNT(st->len));
 
 	bool has_error = false;
 	size_t i = 0;
 	leach (struct haste_ast_node, field, node->struct_type.fields) {
 		for (size_t j=0; j < field->struct_field.name_count; j += 1) {
-			const char *name = intern_token(self->intern_table, field->struct_field.names[j]);
+			const char *name = intern_token(field->struct_field.names[j]);
 			struct haste_struct_field sf = {0};
 
 			if (read_struct_field(self, name, field, &sf)) {
 				has_error = true;
 			} else {
-				st->fields[i++] = sf;
+				st->items[i++] = sf;
 			}
 		}
 	}
@@ -670,17 +643,18 @@ static struct haste_value analyze_automatic_struct_literal(struct analyzer *self
 	};
 	struct haste_struct_type_info *st = &type_info.structure;
 
-	st->field_count = 0;
+	st->len = 0;
 	leach (struct haste_ast_node, f, node->struct_literal.fields) {
-		st->field_count += 1;
+		st->len += 1;
 	}
 
-	const size_t alloc_size = SAFE_COUNT(st->field_count);
-	st->fields = alloc(self->allocator, sizeof(struct haste_struct_field) * alloc_size);
+	st->items = alloc(self->allocator, sizeof(struct haste_struct_field) * SAFE_COUNT(st->len));
 
-	struct haste_struct_object *so = create(self->allocator, struct haste_struct_object,
-		.base = { .kind = HASTE_OBJ_STRUCT });
-	so->fields = alloc(self->allocator, sizeof(struct haste_value) * alloc_size);
+	/* struct haste_struct_object *so = create(self->allocator, struct haste_struct_object, */
+	/* 	.base = { .kind = HASTE_OBJ_STRUCT }); */
+	/* so->fields = alloc(self->allocator, sizeof(struct haste_value) * SAFE_COUNT(st->len)); */
+	struct haste_struct_object *so = alloc(self->allocator, sizeof(struct haste_struct_object) + sizeof(struct haste_value) * SAFE_COUNT(st->len));
+	so->base.kind = HASTE_OBJ_STRUCT;
 
 	size_t i = 0;
 	leach (struct haste_ast_node, lit_field, node->struct_literal.fields) {
@@ -691,8 +665,8 @@ static struct haste_value analyze_automatic_struct_literal(struct analyzer *self
 		}
 		struct haste_value fv = analyze_node(self, lit_field->struct_lit_field.value, expected_type);
 		if (IS_BAD(fv)) return VAL_BAD;
-		st->fields[i] = (struct haste_struct_field){
-			.name = intern_str(self->intern_table,
+		st->items[i] = (struct haste_struct_field){
+			.name = intern_str(
 				lit_field->struct_lit_field.name.start,
 				lit_field->struct_lit_field.name.len),
 			.type = typeof(fv),
@@ -729,27 +703,18 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 
 	struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(struct_type);
 
-	struct haste_struct_object *so = create(self->allocator, struct haste_struct_object,
-		.base = { .kind = HASTE_OBJ_STRUCT });
-	so->fields = alloc(self->allocator, sizeof(struct haste_value) * st->field_count);
+	/* struct haste_struct_object *so = (void*)create_struct(self->allocator, st); */
+	struct haste_value result = make_value(self->allocator, struct_type);
+
+	struct haste_struct_object *so = AS_STRUCT(result);
 
 	bool has_error = false;
-
-	for (size_t i = 0; i < st->field_count; i += 1) {
-		if (st->fields[i].has_default) {
-			so->fields[i] = st->fields[i].default_value;
-			if (not type_equal(typeof(so->fields[i]), st->fields[i].type))
-				so->fields[i] = value_cast(self->allocator, st->fields[i].type, so->fields[i]);
-		} else {
-			so->fields[i] = VAL_NONE;
-		}
-	}
 
 	size_t positional_idx = 0;
 	leach (struct haste_ast_node, lit_field, node->struct_literal.fields) {
 		ssize_t idx = -1;
 		if (lit_field->struct_lit_field.name.kind == 0) {
-			if (positional_idx >= st->field_count) {
+			if (positional_idx >= st->len) {
 				report_error(self, lit_field->struct_lit_field.value,
 					"Too many positional fields for struct '{value}'.", struct_type);
 				has_error = true;
@@ -767,33 +732,42 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 			positional_idx = idx + 1;
 		}
 
-		inject_struct_type(self, lit_field->struct_lit_field.value, st->fields[idx].type);
-		struct haste_value fv = analyze_node(self, lit_field->struct_lit_field.value, st->fields[idx].type);
+		inject_struct_type(self, lit_field->struct_lit_field.value, st->items[idx].type);
+		struct haste_value fv = analyze_node(self, lit_field->struct_lit_field.value, st->items[idx].type);
 
+		struct haste_value err = struct_set_field_by_index(self->allocator, &result, idx, fv);
 		if (IS_BAD(fv)) {
 			has_error = true;
-		} else if (not type_can_assign(st->fields[idx].type, typeof(fv))) {
+		} else if (IS_BAD(err)) {
 			report_error(self, lit_field,
 				"Cannot assign a value of type '{value}' to a value of type '{value}'",
-				typeof(fv), st->fields[idx].type);
+				typeof(fv), st->items[idx].type);
 			has_error = true;
-		} else {
-			fv = value_cast(self->allocator, st->fields[idx].type, fv);
-			so->fields[idx] = fv;
 		}
+		/* if (IS_BAD(fv)) { */
+		/* 	has_error = true; */
+		/* } else if (not type_can_assign(st->items[idx].type, typeof(fv))) { */
+		/* 	report_error(self, lit_field, */
+		/* 		"Cannot assign a value of type '{value}' to a value of type '{value}'", */
+		/* 		typeof(fv), st->items[idx].type); */
+		/* 	has_error = true; */
+		/* } else { */
+		/* 	fv = value_cast(self->allocator, st->items[idx].type, fv); */
+		/* 	so->fields[idx] = fv; */
+		/* } */
 	}
 
-	for (size_t i = 0; i < st->field_count; i += 1) {
+	// TODO: Probably gotta find a better way to iterate over struct's fields
+	iarreach (i, *st) {
 		if (IS_NONE(so->fields[i])) {
 			report_error(self, node,
-				"Forgot to set a value for `{s}`.", st->fields[i].name);
+				"Forgot to set a value for `{s}`.", st->items[i].name);
 			has_error = true;
 		}
 	}
 
 	if (has_error) return VAL_BAD;
 
-	struct haste_value result = VAL_OBJ(AS_TYPEID(struct_type), so);
 	node = node_into_value(self->arena_allocator, node, result);
 	return result;
 }
@@ -826,14 +800,12 @@ struct haste_value analyze_node(struct analyzer *self, struct haste_ast_node *no
 Error analyze_one_node(
 	struct Allocator allocator,
 	struct Allocator arena_allocator,
-    struct intern_table *intern_table,
 	struct haste_ast_node *node,
 	struct haste_value *out)
 {
 	struct analyzer analyzer = {
 		.allocator = allocator,
 		.arena_allocator = arena_allocator,
-		.intern_table = intern_table,
 		.src = -1,
 	};
 	begin_scope(&analyzer);
@@ -844,13 +816,11 @@ Error analyze_one_node(
 
 Error analyze(struct Allocator allocator,
               struct Allocator arena_allocator,
-              struct intern_table *intern_table,
               const source_file_id src)
 {
 	struct analyzer analyzer = {
 		.allocator = allocator,
 		.arena_allocator = arena_allocator,
-		.intern_table = intern_table,
 		.src = src,
 	};
 	begin_scope(&analyzer);

@@ -1,4 +1,6 @@
 #include "haste.h"
+#include "my_common.h"
+#include "my_stream.h"
 #include "llvm-c/Core.h"
 
 struct type_map_entry {
@@ -11,7 +13,6 @@ struct codegen_context {
 	LLVMBuilderRef builder;
 	LLVMModuleRef module;
 	struct Allocator allocator;
-	struct intern_table *table;
 	struct { size_t cap, len; struct type_map_entry *items; } struct_types;
 };
 
@@ -79,11 +80,11 @@ static LLVMTypeRef llvm_type(struct codegen_context *ctx, struct haste_value typ
 		}));
 
 		// Set body
-		LLVMTypeRef members[SAFE_COUNT(st->field_count)];
-		for (size_t i = 0; i < st->field_count; i += 1) {
-			members[i] = llvm_type(ctx, st->fields[i].type);
+		LLVMTypeRef members[SAFE_COUNT(st->len)];
+		iarreach (i, *st) {
+			members[i] = llvm_type(ctx, st->items[i].type);
 		}
-		LLVMStructSetBody(llvm_st, members, (unsigned)st->field_count, false);
+		LLVMStructSetBody(llvm_st, members, (unsigned)st->len, false);
 		return llvm_st;
 	}
 
@@ -142,16 +143,26 @@ static LLVMValueRef llvm_value(struct codegen_context *ctx, struct haste_value v
 			LLVMTypeRef llvm_st = llvm_type(ctx, typeof(value));
 			struct haste_struct_object *so = (struct haste_struct_object*)value.obj;
 			struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(typeof(value));
-			LLVMValueRef members[SAFE_COUNT(st->field_count)];
-			for (size_t i = 0; i < st->field_count; i += 1) {
+			LLVMValueRef members[SAFE_COUNT(st->len)];
+			iarreach (i, *st) {
 				members[i] = llvm_value(ctx, so->fields[i]);
 			}
-			return LLVMConstNamedStruct(llvm_st, members, (unsigned)st->field_count);
+			return LLVMConstNamedStruct(llvm_st, members, (unsigned)st->len);
 		}
 
 		unreachable();
 	}
-	default:
+	/* default: */
+	/* 	unreachable(); */
+	case HASTE_VL_NONE:
+		unreachable();
+	case HASTE_VL_BAD:
+		unreachable();
+	case HASTE_VL_UNINIT:
+		unreachable();
+	case HASTE_VL_RUNTIME:
+		unreachable();
+	case HASTE_VL_TYPE:
 		unreachable();
 	}
 }
@@ -208,7 +219,7 @@ static Error codegen_global_node(struct codegen_context *ctx, const struct haste
 		if (node->variable.is_explicitly_comptime) return OK;
 
 		LLVMTypeRef type = llvm_type(ctx, node->type);
-		const char *name = intern_token(ctx->table, node->variable.name);
+		const char *name = intern_token(node->variable.name);
 		LLVMValueRef global = LLVMAddGlobal(ctx->module, type, name);
 
 		LLVMValueRef init = node->variable.value != NULL
@@ -226,7 +237,11 @@ static Error codegen_global_node(struct codegen_context *ctx, const struct haste
 
 // ── Entry point ──────────────────────────────────────────────────
 
-Error codegen(struct Allocator allocator, const source_file_id src, struct intern_table *table, const char *output_path, bool dump_to_stderr)
+Error codegen(
+	struct Allocator allocator,
+	const source_file_id src,
+	const char *output_path,
+	bool dump_to_stderr)
 {
 	const char *path = get_source_file_path(src);
 
@@ -239,7 +254,6 @@ Error codegen(struct Allocator allocator, const source_file_id src, struct inter
 		.builder = builder,
 		.module = module,
 		.allocator = allocator,
-		.table = table,
 	};
 
 	leach (struct haste_ast_node, node, get_source_file_ast(src)) {

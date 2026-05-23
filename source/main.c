@@ -109,8 +109,8 @@ int main(int argc, char *argv[argc])
 	struct Arena arena = ArenaDefault();
 	struct Allocator allocator = arena_get_allocator(&arena);
 
-	struct intern_table intern_table = init_intern_table(c_allocator, allocator);
-	set_up_builtins(c_allocator, &intern_table);
+	init_intern_table(c_allocator, allocator);
+	set_up_builtins(c_allocator);
 
 	// Sub-arena for analysis allocations (struct types, objects, strings)
 	struct Arena analysis_arena = Arena(c_allocator);
@@ -123,10 +123,10 @@ int main(int argc, char *argv[argc])
 	const source_file_id src = obtain_source_file_id(NULL, g_options.source_path);
 	struct token_list tokens = {0};
 	timer_start(&timers[PHASE_LEX]);
-	err = scan_entire_file(c_allocator, &intern_table, src, &tokens);
+	err = scan_entire_file(c_allocator,  src, &tokens);
 	timer_stop(&timers[PHASE_LEX]);
 	if (err) {
-		deinit_intern_table(&intern_table);
+		deinit_intern_table();
 		arena_free(&arena);
 		return 1;
 	}
@@ -134,13 +134,13 @@ int main(int argc, char *argv[argc])
 	if (g_options.dump_tokens) {
 		char path_buf[4096];
 		stream_t out = open_dump_stream(".tokens", path_buf, sizeof(path_buf));
-		if (!out.data) { arrfree(c_allocator, tokens); deinit_intern_table(&intern_table); arena_free(&arena); return 1; }
+		if (!out.data) { arrfree(c_allocator, tokens); deinit_intern_table(); arena_free(&arena); return 1; }
 		arreach (struct token, tok, tokens) {
 			sprintln(out, "{token:#}", tok);
 		}
 		close_dump_stream(&g_options, out);
 		arrfree(c_allocator, tokens);
-		deinit_intern_table(&intern_table);
+		deinit_intern_table();
 		arena_free(&arena);
 		return 0;
 	}
@@ -150,7 +150,7 @@ int main(int argc, char *argv[argc])
 	timer_stop(&timers[PHASE_PARSE]);
 	if (err) {
 		arrfree(c_allocator, tokens);
-		deinit_intern_table(&intern_table);
+		deinit_intern_table();
 		arena_free(&arena);
 		return 1;
 	}
@@ -159,10 +159,10 @@ int main(int argc, char *argv[argc])
 	tokens = (struct token_list){0};
 
 	timer_start(&timers[PHASE_HOIST]);
-	err = hoist(c_allocator, &intern_table, src);
+	err = hoist(c_allocator,  src);
 	timer_stop(&timers[PHASE_HOIST]);
 	if (err) {
-		deinit_intern_table(&intern_table);
+		deinit_intern_table();
 		arena_free(&arena);
 		return 1;
 	}
@@ -170,20 +170,20 @@ int main(int argc, char *argv[argc])
 	if (g_options.dump_ast) {
 		char path_buf[4096];
 		stream_t out = open_dump_stream(".json", path_buf, sizeof(path_buf));
-		if (!out.data) { deinit_intern_table(&intern_table); arena_free(&arena); return 1; }
+		if (!out.data) { deinit_intern_table(); arena_free(&arena); return 1; }
 		sprintln(out, "{ast}", get_source_file_ast(src));
 		close_dump_stream(&g_options, out);
-		deinit_intern_table(&intern_table);
+		deinit_intern_table();
 		arena_free(&arena);
 		return 0;
 	}
 
 	timer_start(&timers[PHASE_ANALYZE]);
-	err = analyze(analysis_alloc, allocator, &intern_table, src);
+	err = analyze(analysis_alloc, allocator,  src);
 	timer_stop(&timers[PHASE_ANALYZE]);
 	if (err) {
 		arena_free(&analysis_arena);
-		deinit_intern_table(&intern_table);
+		deinit_intern_table();
 		arena_free(&arena);
 		return 1;
 	}
@@ -191,11 +191,11 @@ int main(int argc, char *argv[argc])
 	if (g_options.dump_sema) {
 		char path_buf[4096];
 		stream_t out = open_dump_stream(".json", path_buf, sizeof(path_buf));
-		if (!out.data) { arena_free(&analysis_arena); deinit_intern_table(&intern_table); arena_free(&arena); return 1; }
+		if (!out.data) { arena_free(&analysis_arena); deinit_intern_table(); arena_free(&arena); return 1; }
 		sprintln(out, "{ast}", get_source_file_ast(src));
 		close_dump_stream(&g_options, out);
 		arena_free(&analysis_arena);
-		deinit_intern_table(&intern_table);
+		deinit_intern_table();
 		arena_free(&arena);
 		return 0;
 	}
@@ -214,27 +214,27 @@ int main(int argc, char *argv[argc])
 			}
 		}
 		timer_start(&timers[PHASE_CODEGEN]);
-		err = codegen(c_allocator, src, &intern_table, llvm_path, llvm_to_stderr);
+		err = codegen(c_allocator, src,  llvm_path, llvm_to_stderr);
 		timer_stop(&timers[PHASE_CODEGEN]);
 	if (err) {
 		arrfree(c_allocator, tokens);
-		deinit_intern_table(&intern_table);
+		deinit_intern_table();
 		arena_free(&arena);
 		return 1;
 	}
 		if (g_options.do_measure)
 			print_timing_report(timers, phase_names, PHASE_COUNT);
 		arena_free(&analysis_arena);
-		deinit_intern_table(&intern_table);
+		deinit_intern_table();
 		arena_free(&arena);
 		return 0;
 	}
 
 	timer_start(&timers[PHASE_CODEGEN]);
-	err = codegen(c_allocator, src, &intern_table, NULL, false);
+	err = codegen(c_allocator, src,  NULL, false);
 	timer_stop(&timers[PHASE_CODEGEN]);
 	if (err) {
-		deinit_intern_table(&intern_table);
+		deinit_intern_table();
 		arena_free(&arena);
 		return 1;
 	}
@@ -252,7 +252,7 @@ int main(int argc, char *argv[argc])
 	}
 	marrfree(sources);
 
-	deinit_intern_table(&intern_table);
+	deinit_intern_table();
 	arena_free(&arena);
 	return 0;
 }

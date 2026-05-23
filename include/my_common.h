@@ -59,6 +59,16 @@ noreturn void __unreachable(const char *file, int line);
 #define and &&
 #define not !
 
+/** @def forange(T, name, list)
+ *  @brief Iterate from `start_`, incrementing `n_` by 1. until `n_` < `...` is false.
+ *  @param n_      Loop variable name (a size_t integer)
+ *  @param start_  where it should start.
+ *  @param ...     the end. */
+#ifndef forange
+#  define forange(n_, start_, ...) \
+	for (size_t n_ = (start_); (n_) < (__VA_ARGS__); (n_) += 1)
+#endif // !forange
+
 /** @def leach(T, name, list)
  *  @brief Iterate over a linked list by following `->next` pointers.
  *  @param T     The node type.
