@@ -1,5 +1,5 @@
 LDFLAGS:=-lstdc++ $(LLVM_LDFLAGS)
-CFLAGS:=-std=c11 -Iinclude/ $(LLVM_CFLAGS)
+CFLAGS:=-std=c23 -Iinclude/ $(LLVM_CFLAGS)
 CC:=clang
 CXX:=clang++
 

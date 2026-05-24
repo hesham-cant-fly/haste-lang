@@ -43,10 +43,8 @@ static LLVMTypeRef t_i8ptr(struct codegen_context *ctx)
 
 // ── Haste type → LLVM type ────────────────────────────────────────
 
-static LLVMTypeRef llvm_type(struct codegen_context *ctx, struct haste_value type)
+static LLVMTypeRef llvm_type(struct codegen_context *ctx, struct haste_type type)
 {
-	assert(IS_TYPE(type));
-
 	struct haste_type_info *tp = AS_TYPE_INFO(type);
 
 	if (tp->kind == HASTE_TY_UNTYPED_INT or tp->kind == HASTE_TY_ZERO) return t_i32(ctx);
@@ -125,7 +123,7 @@ static LLVMValueRef llvm_value(struct codegen_context *ctx, struct haste_value v
 		if (k == HASTE_TY_USIZE)
 			return LLVMConstInt(t_i64(ctx), value.integer, false);
 		if (k == HASTE_TY_INT or k == HASTE_TY_UNTYPED_INT or k == HASTE_TY_UINT) {
-			LLVMTypeRef int_type = llvm_type(ctx, typeof(value));
+			LLVMTypeRef int_type = llvm_type(ctx, typeof_value(value));
 			return LLVMConstInt(int_type, value.integer, k != HASTE_TY_UINT);
 		}
 		if (k == HASTE_TY_FLOAT or k == HASTE_TY_UNTYPED_FLOAT)
@@ -140,9 +138,9 @@ static LLVMValueRef llvm_value(struct codegen_context *ctx, struct haste_value v
 		}
 
 		if (value.obj->kind == HASTE_OBJ_STRUCT) {
-			LLVMTypeRef llvm_st = llvm_type(ctx, typeof(value));
+			LLVMTypeRef llvm_st = llvm_type(ctx, typeof_value(value));
 			struct haste_struct_object *so = (struct haste_struct_object*)value.obj;
-			struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(typeof(value));
+			struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(typeof_value(value));
 			LLVMValueRef members[SAFE_COUNT(st->len)];
 			iarreach (i, *st) {
 				members[i] = llvm_value(ctx, so->fields[i]);

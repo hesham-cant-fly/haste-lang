@@ -34,7 +34,7 @@ static int print_haste_ast_node(stream_t file, const struct haste_ast_node *node
 	printed_amount += sprint(file, "\"kind\": \"");
 	printed_amount += print_haste_ast_node_kind(file, node->kind);
 	printed_amount += sprint(file, "\",");
-	if (node->type.kind != 0) {
+	if (node->type.value.kind != 0) {
 		printed_amount += sprint(file, "\"type\": \"");
 		printed_amount += sprint(file, "{value}", node->type);
 		printed_amount += sprint(file, "\",");
@@ -139,7 +139,7 @@ struct haste_ast_node *node_into_value(
 
 	node->kind = ND_VALUE;
 	node->value = value;
-	node->type = typeof(value);
+	node->type = typeof_value(value);
 
 	return node;
 }

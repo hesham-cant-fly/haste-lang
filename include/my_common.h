@@ -27,9 +27,11 @@ extern "C" {
 /** @def panic(fmt)
  *  @brief Print file:line and formatted message, then exit with code 69. */
 #define panic(__fmt) __panic(__FILE__, __LINE__, (__fmt))
+#ifndef unreachable
 /** @def unreachable()
  *  @brief Print file:line and abort — marks code paths that must never execute. */
-#define unreachable() __unreachable(__FILE__, __LINE__)
+#  define unreachable() __unreachable(__FILE__, __LINE__)
+#endif // !unreachable
 
 /**
  * @brief Internal panic function (use the `panic` macro instead).

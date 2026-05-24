@@ -75,7 +75,7 @@ static int custom_format_object(stream_t stream, struct modifier_stream mod, va_
 {
 	discard mod;
 	struct haste_value object = va_arg(args, struct haste_value);
-	return print_object(stream, object.obj, typeof(object));
+	return print_object(stream, object.obj, typeof_value(object));
 }
 
 static int custom_format_ast(stream_t stream, struct modifier_stream mod, va_list args)
@@ -107,10 +107,10 @@ int main(int argc, char *argv[argc])
 	sources.allocator = c_allocator;
 
 	struct Arena arena = ArenaDefault();
-	struct Allocator allocator = arena_get_allocator(&arena);
+	struct Allocator arena_allocator = arena_get_allocator(&arena);
 
-	init_intern_table(c_allocator, allocator);
-	set_up_builtins(c_allocator);
+	init_intern_table(c_allocator, arena_allocator);
+	setup_builtins(c_allocator);
 
 	// Sub-arena for analysis allocations (struct types, objects, strings)
 	struct Arena analysis_arena = Arena(c_allocator);
@@ -146,7 +146,9 @@ int main(int argc, char *argv[argc])
 	}
 
 	timer_start(&timers[PHASE_PARSE]);
-	err = parse(allocator, tokens, src);
+
+	err = parse(arena_allocator, tokens, src);
+
 	timer_stop(&timers[PHASE_PARSE]);
 	if (err) {
 		arrfree(c_allocator, tokens);
@@ -179,7 +181,7 @@ int main(int argc, char *argv[argc])
 	}
 
 	timer_start(&timers[PHASE_ANALYZE]);
-	err = analyze(analysis_alloc, allocator,  src);
+	err = analyze(analysis_alloc, arena_allocator,  src);
 	timer_stop(&timers[PHASE_ANALYZE]);
 	if (err) {
 		arena_free(&analysis_arena);

@@ -337,19 +337,23 @@ struct haste_value type_get_int(uint16_t bits, bool is_signed);
 #  define IS_RUNTIME(...)           ((__VA_ARGS__).kind == HASTE_VL_RUNTIME)
 #  define IS_TYPE(...)              ((__VA_ARGS__).kind == HASTE_VL_TYPE)
 
-#  define IS_STRUCT_TYPE(...)       ((IS_TYPE(__VA_ARGS__)) and (AS_TYPE_INFO(__VA_ARGS__)->kind == HASTE_TY_STRUCT))
-#  define IS_AUTO_STRUCT_TYPE(...)  ((IS_TYPE(__VA_ARGS__)) and (AS_TYPE_INFO(__VA_ARGS__)->kind == HASTE_TY_AUTO_STRUCT))
+#  define IS_STRUCT_TYPE(...)       ((AS_TYPE_INFO(__VA_ARGS__)->kind == HASTE_TY_STRUCT))
+#  define IS_AUTO_STRUCT_TYPE(...)  ((AS_TYPE_INFO(__VA_ARGS__)->kind == HASTE_TY_AUTO_STRUCT))
 
 #  define IS_OBJ(...)               ((__VA_ARGS__).kind == HASTE_VL_OBJ)
 #  define IS_STRUCT(...)            ((IS_OBJ(__VA_ARGS__)) and ((__VA_ARGS__).obj->kind == HASTE_OBJ_STRUCT))
 
 #  define AS_OBJ(v)                 ((v).obj)
-#  define AS_TYPEID(v)              ((v).type)
+#  define AS_TYPEID(v)              ((v).value.type)
 #  define AS_TYPE_INFO(v)           ((type_pool_get(AS_TYPEID(v))))
 #  define AS_STRUCT_TYPE_INFO(v)    ((&AS_TYPE_INFO(v)->structure))
 
 #  define AS_STRUCT(v)              ((OAS_STRUCT(AS_OBJ(v))))
 #  define OAS_STRUCT(v)             ((struct haste_struct_object *)(v))
+
+enum haste_value_error {
+	ERR_UNKNOWN
+};
 
 enum haste_value_kind {
 	HASTE_VL_NONE, // unset value
@@ -368,6 +372,7 @@ struct haste_value {
 	TypeID type_id;
 
 	union {
+		enum haste_value_error error_code;
 		int64_t integer;
 		double floating;
 		TypeID type;
@@ -395,6 +400,87 @@ struct haste_struct_object {
 };
 
 // TODO: Move the type pool away from value.c
+
+struct haste_type;
+
+void setup_builtins(struct Allocator allocator);
+
+bool value_equal(struct haste_value a, struct haste_value b);
+
+struct haste_value value_add(const struct haste_value lhs, const struct haste_value rhs);
+struct haste_value value_sub(const struct haste_value lhs, const struct haste_value rhs);
+struct haste_value value_mul(const struct haste_value lhs, const struct haste_value rhs);
+struct haste_value value_div(const struct haste_value lhs, const struct haste_value rhs);
+
+bool is_comptime_known(const struct haste_value v);
+
+#define struct_get_field(v_, ...) _Generic((__VA_ARGS__), \
+	const char *: struct_get_field_by_name, \
+	char *: struct_get_field_by_name, \
+	struct token: struct_get_field_by_token, \
+	size_t: struct_get_field_by_index) (v_, (__VA_ARGS__))
+#define struct_set_field(allocator_, v_, key_, ...) _Generic((key_), \
+	const char *: struct_set_field_by_name, \
+	char *: struct_set_field_by_name, \
+	struct token: struct_set_field_by_token, \
+	size_t: struct_set_field_by_index) (allocator_, v_, key_, (__VA_ARGS__))
+#define struct_has_field(v_, ...) _Generic((__VA_ARGS__), \
+	const char *: struct_has_field_name \
+	char *: struct_has_field_name \
+	struct token: struct_has_field_token) (v_, (__VA_ARGS__)))
+
+bool struct_has_field_name(const struct haste_value value, const char *name);
+bool struct_has_field_token(const struct haste_value value, struct token token);
+
+struct haste_value struct_get_field_by_name(const struct haste_value value,
+											const char *name);
+struct haste_value struct_get_field_by_token(const struct haste_value value,
+											 const struct token name);
+struct haste_value struct_get_field_by_index(const struct haste_value value,
+											 const size_t idx);
+struct haste_value struct_set_field_by_name(struct Allocator,
+											struct haste_value *value,
+											const char *name,
+											const struct haste_value new_value);
+struct haste_value struct_set_field_by_token(struct Allocator,
+											 struct haste_value *value,
+											 const struct token name,
+											 const struct haste_value new_value);
+struct haste_value struct_set_field_by_index(struct Allocator,
+											 struct haste_value *value,
+											 const size_t idx,
+											 const struct haste_value new_value);
+
+bool haste_is_default_empty_string(const struct haste_object *obj);
+
+int print_object(stream_t stream, const struct haste_object *obj, struct haste_type type);
+int print_value(stream_t stream, const struct haste_value value);
+
+//
+// type.c
+//
+/**
+  * this is just a wrapper for type safety
+  */
+struct haste_type {
+	struct haste_value value;
+};
+
+extern struct haste_type ty_zero;
+extern struct haste_type ty_unknown;
+extern struct haste_type ty_type;
+extern struct haste_type ty_uint;
+extern struct haste_type ty_int;
+extern struct haste_type ty_untyped_int;
+extern struct haste_type ty_float;
+extern struct haste_type ty_untyped_float;
+extern struct haste_type ty_auto;
+extern struct haste_type ty_void;
+extern struct haste_type ty_untyped_string;
+extern struct haste_type ty_string;
+extern struct haste_type ty_cstr;
+extern struct haste_type ty_usize;
+
 struct haste_type_info {
 	TypeID pool_id;
 	enum {
@@ -431,7 +517,7 @@ struct haste_type_info {
 			size_t len;
 			struct haste_struct_field {
 				const char *name;
-				struct haste_value type;
+				struct haste_type  type;
 				struct haste_value default_value;
 				bool has_default;
 			} *items;
@@ -439,38 +525,25 @@ struct haste_type_info {
 	};
 };
 
-extern struct haste_value ty_zero;
-extern struct haste_value ty_unknown;
-extern struct haste_value ty_type;
-extern struct haste_value ty_uint;
-extern struct haste_value ty_int;
-extern struct haste_value ty_untyped_int;
-extern struct haste_value ty_float;
-extern struct haste_value ty_untyped_float;
-extern struct haste_value ty_auto;
-extern struct haste_value ty_void;
-extern struct haste_value ty_untyped_string;
-extern struct haste_value ty_string;
-extern struct haste_value ty_cstr;
-extern struct haste_value ty_usize;
+void setup_builtin_types(struct Allocator allocator);
 
-void set_up_builtins(struct Allocator allocator);
-bool type_is_builtin(struct haste_value ty);
-bool is_newly_created_type(struct haste_value ty);
+/** @brief converts a value to a type. panics when it fails */
+struct haste_type into_type(struct haste_value value);
+
+/** @brief converts a type into value. it must not fail */
+struct haste_value into_value(struct haste_type type);
+
+bool type_is_builtin(struct haste_type ty);
+bool is_newly_created_type(struct haste_type ty);
 void reset_new_type_counter(void);
 
-struct haste_value typeof(const struct haste_value value);
+ssize_t find_named_field(const struct haste_type tp, const char *name);
 
-struct haste_value   make_value(struct Allocator alloc, const struct haste_value type);
+struct haste_type typeof_value(const struct haste_value value);
+
+struct haste_value   make_value(struct Allocator alloc, const struct haste_type type);
 struct haste_object *create_struct(struct Allocator alloc, struct haste_struct_type_info *st);
 struct haste_object *create_string(struct Allocator alloc, const char *str, size_t len);
-
-bool value_equal(struct haste_value a, struct haste_value b);
-
-struct haste_value value_add(const struct haste_value lhs, const struct haste_value rhs);
-struct haste_value value_sub(const struct haste_value lhs, const struct haste_value rhs);
-struct haste_value value_mul(const struct haste_value lhs, const struct haste_value rhs);
-struct haste_value value_div(const struct haste_value lhs, const struct haste_value rhs);
 
 /** @brief These are the allowed cast:
   * typeof(value) -> to
@@ -484,74 +557,30 @@ struct haste_value value_div(const struct haste_value lhs, const struct haste_va
   * @param value can be any value
   * @returns `value' casted to the type `to'. upon failing it will return `VAL_BAD'
   */
-struct haste_value value_cast(struct Allocator alloc, const struct haste_value to, const struct haste_value value);
-struct haste_value zero_for_type(struct Allocator alloc, struct haste_value to);
-struct haste_value default_for_type(struct Allocator alloc, struct haste_value to);
+struct haste_value value_cast(struct Allocator alloc, const struct haste_type to, const struct haste_value value);
+struct haste_value zero_for_type(struct Allocator alloc, struct haste_type to);
+struct haste_value default_for_type(struct Allocator alloc, struct haste_type to);
 
-bool type_equal(const struct haste_value t1,
-                const struct haste_value t2);
-bool type_can_assign(const struct haste_value assignable,
-                     const struct haste_value value);
-bool type_can_cast(const struct haste_value to,
-                   const struct haste_value from);
+bool type_equal(const struct haste_type t1,
+                const struct haste_type t2);
+bool type_can_assign(const struct haste_type assignable,
+                     const struct haste_type value);
+bool type_can_cast(const struct haste_type to,
+                   const struct haste_type from);
 
-struct haste_value untyped_to_typed(struct haste_value type);
+struct haste_type untyped_to_typed(struct haste_type type);
 
-bool type_is_integer(const struct haste_value t);
-bool type_is_float(const struct haste_value t);
-bool type_is_number(const struct haste_value t);
-bool type_is_untyped(const struct haste_value t);
-bool type_is_untyped_integer(const struct haste_value t);
-bool type_is_untyped_number(const struct haste_value t);
-bool type_is_any_string(const struct haste_value t);
+bool type_is_integer(const struct haste_type t);
+bool type_is_float(const struct haste_type t);
+bool type_is_untyped_float(const struct haste_type t);
+bool type_is_number(const struct haste_type t);
+bool type_is_untyped(const struct haste_type t);
+bool type_is_untyped_integer(const struct haste_type t);
+bool type_is_untyped_number(const struct haste_type t);
+bool type_is_any_string(const struct haste_type t);
 
-bool type_equal_struct(const struct haste_type_info *t1, const struct haste_type_info *t2);
-uint64_t type_hash(const struct haste_value t);
-bool is_comptime_known(const struct haste_value v);
-
-#define struct_get_field(v_, ...) _Generic((__VA_ARGS__), \
-	const char *: struct_get_field_by_name, \
-	char *: struct_get_field_by_name, \
-	struct token: struct_get_field_by_token, \
-	size_t: struct_get_field_by_index) (v_, (__VA_ARGS__))
-#define struct_set_field(allocator_, v_, key_, ...) _Generic((key_), \
-	const char *: struct_set_field_by_name, \
-	char *: struct_set_field_by_name, \
-	struct token: struct_set_field_by_token, \
-	size_t: struct_set_field_by_index) (allocator_, v_, key_, (__VA_ARGS__))
-#define struct_has_field(v_, ...) _Generic((__VA_ARGS__), \
-	const char *: struct_has_field_name \
-	char *: struct_has_field_name \
-	struct token: struct_has_field_token) (v_, (__VA_ARGS__)))
-
-ssize_t find_named_field(const struct haste_value tp, const char *name);
-
-bool struct_has_field_name(const struct haste_value value, const char *name);
-bool struct_has_field_token(const struct haste_value value, struct token token);
-
-struct haste_value struct_get_field_by_name(const struct haste_value value,
-											const char *name);
-struct haste_value struct_get_field_by_token(const struct haste_value value,
-											 const struct token name);
-struct haste_value struct_get_field_by_index(const struct haste_value value,
-											 const size_t idx);
-struct haste_value struct_set_field_by_name(struct Allocator,
-											struct haste_value *value,
-											const char *name,
-											const struct haste_value new_value);
-struct haste_value struct_set_field_by_token(struct Allocator,
-											 struct haste_value *value,
-											 const struct token name,
-											 const struct haste_value new_value);
-struct haste_value struct_set_field_by_index(struct Allocator,
-											 struct haste_value *value,
-											 const size_t idx,
-											 const struct haste_value new_value);
-
-bool haste_is_default_empty_string(const struct haste_object *obj);
-
-int print_object(stream_t stream, const struct haste_object *obj, struct haste_value type);
-int print_value(stream_t stream, const struct haste_value value);
+// bool type_equal_struct(const struct haste_type_info *t1, const struct haste_type_info *t2);
+uint64_t type_hash(const struct haste_type t);
 
 //
 // ast.c
@@ -580,7 +609,7 @@ struct haste_ast_node {
 		/* Statements */
 		ND_VAR_DECL, // struct { ... } variable
 	} kind : 8;
-	struct haste_value type;
+	struct haste_type type;
 	struct haste_ast_node *next;
 	struct token start;
 

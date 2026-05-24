@@ -4,7 +4,7 @@
 #include "my_stream.h"
 #include "my_termcolor.h"
 
-#define IS_NODE_ANALYZED(...) (__VA_ARGS__)->type.kind != 0
+#define IS_NODE_ANALYZED(...) (__VA_ARGS__)->type.value.kind != 0
 
 struct scope {
 	struct scope *next;
@@ -16,7 +16,7 @@ struct scope {
 		enum symbol_kind {
 			SYM_VAR,
 		} kind;
-		struct haste_value type;
+		struct haste_type type;
 		struct haste_value value;
 		struct haste_ast_node *node;
 	} *items;
@@ -35,7 +35,27 @@ struct analyzer {
 	bool had_error;
 };
 
-static struct haste_value analyze_node(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type);
+#define try(name_, ...) \
+	for (int _ok_ = 1, _run_ = 1; _ok_; _ok_ = 0) \
+	for (struct haste_value name_ = (__VA_ARGS__); _run_; _run_ = 0) \
+	if (IS_BAD(name_)) return name_; \
+	else
+
+#define catch(ok_name_, err_name_, ...) \
+	struct haste_value ok_name_ = (__VA_ARGS__); \
+	for (int _ok_ = 1; _ok_; _ok_ = 0) \
+	if (IS_BAD(ok_name_)) \
+		for (enum haste_value_error err_name_ = (ok_name_).error_code; _ok_; _ok_ = 0)
+
+#define propagate(...) \
+	do { \
+		struct haste_value v_ = (__VA_ARGS__); \
+		if (IS_BAD(v_)) { \
+			return v_; \
+		} \
+	} while (0)
+
+static struct haste_value analyze_node(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type);
 
 // ── Error helpers ────────────────────────────────────────────────
 
@@ -107,7 +127,7 @@ static bool _put_symbol(struct analyzer *self, struct scope *scope, const char *
 	do { \
 		put_symbol(self_, scope_, name_, \
 			.value = VAL_BAD, \
-			.type = VAL_BAD, \
+			.type = into_type(VAL_BAD), \
 			.is_constant = is_constant_, \
 			.node = node_); \
 		return VAL_BAD; \
@@ -131,7 +151,7 @@ static struct symbol *find_local_first(struct analyzer *self, const char *name)
 	}
 
 	decl->analyzing = true;
-	analyze_node(self, decl->node, (struct haste_value){0});
+	analyze_node(self, decl->node, (struct haste_type){0});
 	decl->analyzing = false;
 
 	return find_local_first(self, name);
@@ -155,7 +175,7 @@ static struct symbol_set find_all_symbols(struct analyzer *self, const char *nam
 
 	if (not decl->analyzing) {
 		decl->analyzing = true;
-		analyze_node(self, decl->node, (struct haste_value){0});
+		analyze_node(self, decl->node, (struct haste_type){0});
 		decl->analyzing = false;
 
 		struct symbol *s = hmget(*self->global, name);
@@ -209,15 +229,15 @@ static struct haste_value token_to_value(struct analyzer *self, struct token tok
 			return VAL_BAD;
 		}
 		return type_get_int(token.ival, false);
-	case TK_KW_STRING: return ty_string;
-	case TK_KW_CSTR:   return ty_cstr;
-	case TK_KW_UINT:   return ty_uint;
-	case TK_KW_INT:    return ty_int;
-	case TK_KW_FLOAT:  return ty_float;
-	case TK_KW_USIZE:  return ty_usize;
-	case TK_KW_VOID:   return ty_void;
-	case TK_KW_TYPE:   return ty_type;
-	case TK_KW_AUTO:   return ty_auto;
+	case TK_KW_STRING: return into_value(ty_string);
+	case TK_KW_CSTR:   return into_value(ty_cstr);
+	case TK_KW_UINT:   return into_value(ty_uint);
+	case TK_KW_INT:    return into_value(ty_int);
+	case TK_KW_FLOAT:  return into_value(ty_float);
+	case TK_KW_USIZE:  return into_value(ty_usize);
+	case TK_KW_VOID:   return into_value(ty_void);
+	case TK_KW_TYPE:   return into_value(ty_type);
+	case TK_KW_AUTO:   return into_value(ty_auto);
 	default:           unreachable();
 	}
 }
@@ -230,7 +250,7 @@ static bool field_name_matches(struct haste_struct_field field, struct token nam
 		and field.name[name_token.len] == '\0';
 }
 
-static void inject_struct_type(struct analyzer *self, struct haste_ast_node *lit, struct haste_value field_type)
+static void inject_struct_type(struct analyzer *self, struct haste_ast_node *lit, struct haste_type field_type)
 {
 	if (lit->kind != ND_STRUCT_LITERAL) return;
 	if (lit->struct_literal.type_expr != NULL
@@ -239,7 +259,7 @@ static void inject_struct_type(struct analyzer *self, struct haste_ast_node *lit
 		return;
 	struct haste_ast_node *ty_node = create(self->arena_allocator,
 											struct haste_ast_node, .start = lit->start);
-	ty_node = node_into_value(self->arena_allocator, ty_node, field_type);
+	ty_node = node_into_value(self->arena_allocator, ty_node, into_value(field_type));
 	lit->struct_literal.type_expr = ty_node;
 }
 
@@ -260,32 +280,33 @@ static bool read_struct_field(struct analyzer *self,
 							  struct haste_ast_node *field,
 							  struct haste_struct_field *out)
 {
-	struct haste_value field_type = ty_auto;
-	if (field->struct_field.type != NULL)
-		field_type = analyze_node(self, field->struct_field.type, (struct haste_value){0});
-
-	if (IS_BAD(field_type) or not type_equal(typeof(field_type), ty_type)) {
-		if (not IS_BAD(field_type))
+	struct haste_type field_type = ty_auto;
+	if (field->struct_field.type != NULL) {
+		struct haste_value tp = analyze_node(self, field->struct_field.type, (struct haste_type){0});
+		if (IS_BAD(tp)) return true;
+		if (not IS_TYPE(tp)) {
 			report_error(self, field->struct_field.type,
-						 "expected a type for field, got '{value}' instead.", typeof(field_type));
-		out->type = VAL_BAD;
-		return true;
+						 "Expected a type for field, got '{value}' instead.", typeof_value(tp));
+			out->type = into_type(VAL_BAD);
+			return true;
+		}
+		field_type = into_type(tp);
 	}
 
 	struct haste_value default_value = {0};
 	bool has_default = false;
 	if (field->struct_field.default_value != NULL) {
 		default_value = analyze_node(self, field->struct_field.default_value, field_type);
-		if (type_can_assign(field_type, typeof(default_value))) {
+		if (type_can_assign(field_type, typeof_value(default_value))) {
 			default_value = value_cast(self->allocator, field_type, default_value);
 			if (type_equal(field_type, ty_auto)) {
-				field_type = typeof(default_value);
+				field_type = typeof_value(default_value);
 				field_type = untyped_to_typed(field_type);
 			}
 		} else {
 			report_error(self, field->struct_field.default_value,
 						 "Cannot set the default value of type '{value}' to '{value}'",
-						 typeof(default_value), field_type);
+						 typeof_value(default_value), field_type);
 			default_value = VAL_BAD;
 			return true;
 		}
@@ -311,117 +332,116 @@ static bool read_struct_field(struct analyzer *self,
 
 static struct haste_value resolve_binary_op(struct analyzer *self, struct haste_value lhs, struct haste_value rhs, struct token op);
 
-static struct haste_value analyze_binary(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
+static struct haste_value analyze_binary(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type)
 {
-	struct haste_value lhs = analyze_node(self, node->lhs, expected_type);
-	struct haste_value rhs = analyze_node(self, node->rhs, expected_type);
-	struct haste_value value = {0};
+	try (lhs, analyze_node(self, node->lhs, expected_type))
+	try (rhs, analyze_node(self, node->rhs, expected_type))
+	try (result, resolve_binary_op(self, lhs, rhs, node->op))
+	{
+		node = node_into_value(self->arena_allocator, node, result);
+		return result;
+	}
 
-	if (IS_BAD(lhs)) return lhs;
-	if (IS_BAD(rhs)) return rhs;
-
-	value = resolve_binary_op(self, lhs, rhs, node->op);
-
-	if (IS_BAD(value)) return VAL_BAD;
-
-	node = node_into_value(self->arena_allocator, node, value);
-	return value;
+	return VAL_NONE;
 }
 
 #define BINARY_OP_CASE(kind, op_func, op_name) \
-	case kind: \
-		value = op_func(lhs, rhs); \
-		if (IS_BAD(value)) { \
+	case kind: { \
+		catch(value, err, op_func(lhs, rhs)) {  \
+			discard err; \
 			report_error(self, op, \
 				op_name " is not possible between '{value}' and '{value}'", \
-				typeof(lhs), typeof(rhs)); \
+				typeof_value(lhs), typeof_value(rhs)); \
 			return VAL_BAD; \
 		} \
-		break;
+		return value; \
+	} break
 
 static struct haste_value resolve_binary_op(struct analyzer *self, struct haste_value lhs, struct haste_value rhs, struct token op)
 {
-	struct haste_value value = {0};
-
 	switch (op.kind) {
-	case TK_PLUS:
-		value = value_add(lhs, rhs);
-		if (IS_BAD(value)) {
+	case TK_PLUS: {
+		catch (value, err, value_add(lhs, rhs)) {
+			discard err;
+
 			run_at_percent (1.5) {
 				report_error(self, op, "Addition is not impossible. (try harder)");
 			} else {
 				report_error(self, op,
 					"Addition is not possible between a value of type '{value}' and a value of type '{value}'",
-					typeof(lhs), typeof(rhs));
+					typeof_value(lhs), typeof_value(rhs));
 			}
 			return VAL_BAD;
 		}
-		break;
-	BINARY_OP_CASE(TK_MINUS,  value_sub, "Subtraction")
-	BINARY_OP_CASE(TK_STAR,   value_mul, "Multiplication")
-	BINARY_OP_CASE(TK_FSLASH, value_div, "Division")
+		return value;
+	} break;
+	BINARY_OP_CASE(TK_MINUS,  value_sub, "Subtraction");
+	BINARY_OP_CASE(TK_STAR,   value_mul, "Multiplication");
+	BINARY_OP_CASE(TK_FSLASH, value_div, "Division");
 	default: unreachable();
 	}
 
-	return value;
+	return VAL_NONE;
 }
 
-static struct haste_value analyze_unary(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
+static struct haste_value analyze_unary(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type)
 {
-	struct haste_value value = analyze_node(self, node->rhs, expected_type);
-
-	switch (node->op.kind) {
-	case TK_MINUS:
-		if (IS_ZERO(value)) {
-			value = VAL_SCALAR(AS_TYPEID(typeof(value)), .integer = 0);
-		} else if (IS_SCALAR(value)) {
-			if (type_is_integer(typeof(value))) {
-				value.integer = -value.integer;
-			} else if (type_is_float(typeof(value))) {
-				value.floating = -value.floating;
+	// TODO: This needs some refactoring
+	try (value, analyze_node(self, node->rhs, expected_type)) {
+		switch (node->op.kind) {
+		case TK_MINUS:
+			if (IS_ZERO(value)) {
+				value = VAL_SCALAR(AS_TYPEID(typeof_value(value)), .integer = 0);
+			} else if (IS_SCALAR(value)) {
+				if (type_is_integer(typeof_value(value))) {
+					value.integer = -value.integer;
+				} else if (type_is_float(typeof_value(value))) {
+					value.floating = -value.floating;
+				} else {
+					goto neg_error;
+				}
+			} else if (IS_BAD(value)) {
+				return VAL_BAD;
 			} else {
 				goto neg_error;
 			}
-		} else if (IS_BAD(value)) {
-			return VAL_BAD;
-		} else {
-			goto neg_error;
+			break;
+		case TK_PLUS: break;
+		default: unimplemented();
 		}
-		break;
-	case TK_PLUS: break;
-	default: unimplemented();
-	}
 
-	node->type = typeof(value);
-	node->kind = ND_VALUE;
-	node->value = value;
-	return value;
+		node = node_into_value(self->arena_allocator, node, value);
+		return value;
 
-neg_error:
-	report_error(self, node->op,
-		"Negation is not possible on '{value}'.", typeof(value));
-	return VAL_BAD;
-}
-
-static struct haste_value analyze_access(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
-{
-	struct haste_value lhs_value = analyze_node(self, node->access.lhs, expected_type);
-	if (IS_BAD(lhs_value)) return VAL_BAD;
-
-	struct haste_value result = struct_get_field(lhs_value, node->access.rhs);
-	if (IS_BAD(result)) {
-		report_error(self, node->access.rhs,
-			"Cannot access field '{token}'. no such field inside '{value}'",
-			node->access.rhs, typeof(lhs_value));
+	neg_error:
+		report_error(self, node->op,
+					 "Negation is not possible on '{value}'.", typeof_value(value));
 		return VAL_BAD;
 	}
 
-	node->type = typeof(result);
-	node = node_into_value(self->allocator, node, result);
-	return result;
+	return VAL_NONE;
 }
 
-static struct haste_value analyze_primary(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
+static struct haste_value analyze_access(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type)
+{
+	try (lhs_value, analyze_node(self, node->access.lhs, expected_type)) {
+		catch (result, err, struct_get_field(lhs_value, node->access.rhs)) {
+			discard err;
+			report_error(self, node->access.rhs,
+						 "Cannot access field '{token}'. no such field inside '{value}'",
+						 node->access.rhs, typeof_value(lhs_value));
+			return VAL_BAD;
+		}
+
+		node->type = typeof_value(result);
+		node = node_into_value(self->allocator, node, result);
+		return result;
+	}
+
+	return VAL_NONE;
+}
+
+static struct haste_value analyze_primary(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type)
 {
 	discard expected_type;
 	struct haste_value value = {0};
@@ -437,68 +457,80 @@ static struct haste_value analyze_primary(struct analyzer *self, struct haste_as
 		value = token_to_value(self, node->token);
 	}
 
-	node->type = typeof(value);
+	node->type = typeof_value(value);
 	node->kind = ND_VALUE;
 	node->value = value;
 	return value;
 }
 
-static struct haste_value analyze_grouping(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
+static struct haste_value analyze_grouping(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type)
 {
 	struct haste_value value = analyze_node(self, node->body, expected_type);
-	node->type = typeof(value);
+	node->type = typeof_value(value);
 	return value;
 }
 
-static struct haste_value analyze_distinct(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
+static struct haste_value analyze_distinct(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type)
 {
-	struct haste_value tp = analyze_node(self, node->body, expected_type);
-	struct haste_value type = typeof(tp);
-	if (IS_BAD(tp)) return VAL_BAD;
-	if (not type_equal(type, ty_type)) {
-		report_error(self, node->body, "Expected a '{value}', got '{value}' instead.", ty_type, type);
-		return VAL_BAD;
+	try (type, analyze_node(self, node->body, expected_type)) {
+		if (not type_equal(typeof_value(type), ty_type)) {
+			report_error(self, node->body, "Expected a '{value}', got '{value}' instead.", ty_type, typeof_value(type));
+			return VAL_BAD;
+		}
+
+		struct haste_type tp = {0};
+		tp = into_type(type);
+
+		struct haste_value result = VAL_TYPE(type_pool_add(*AS_TYPE_INFO(tp)));
+		node = node_into_value(self->arena_allocator, node, result);
+		return result;
 	}
 
-	struct haste_value result = VAL_TYPE(type_pool_add(*AS_TYPE_INFO(tp)));
-	node = node_into_value(self->arena_allocator, node, result);
-	return result;
+	return VAL_NONE;
 }
 
-static struct haste_value analyze_cast(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
+static struct haste_value analyze_cast(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type)
 {
-	struct haste_value to = ty_auto;
+	struct haste_type to = ty_auto;
 	if (node->cast.to == NULL) {
 		to = expected_type;
 	} else {
-		to = analyze_node(self, node->cast.to, (struct haste_value){0});
-	}
-
-	if (not type_equal(typeof(to), ty_type)) {
-		report_error(self, node->cast.to then node->cast.to otherwise node,
-			"expected a {value} got '{value}' instead.", ty_type, typeof(to));
-		return VAL_BAD;
-	}
-
-	struct haste_value value = analyze_node(self, node->cast.expr, (struct haste_value){0});
-	if (not type_can_cast(to, typeof(value))) {
-		run_at_percent (1) {
-			report_error(self, node,
-						 "This cat cannot purr like a {value}. "
-						 "(if you don't get the easter egg its because I sometimes mispell 'cast' to 'cat')", to);
-		} else {
-			report_error(self, node,
-						 "Cannot cast '{value}' to '{value}'", typeof(value), to);
+		try (value, analyze_node(self, node->cast.to, (struct haste_type){0}))
+		{
+			if (not type_equal(typeof_value(value), ty_type)) {
+				report_error(self, node->cast.to then node->cast.to otherwise node,
+							 "expected a {value} got '{value}' instead.", ty_type, typeof_value(value));
+				return VAL_BAD;
+			}
+			to = into_type(value);
 		}
-		return VAL_BAD;
 	}
 
-	struct haste_value result = value_cast(self->allocator, to, value);
-	node->type = typeof(result);
-	return result;
+	try (value, analyze_node(self, node->cast.expr, (struct haste_type){0}))
+	{
+		if (not type_can_cast(to, typeof_value(value))) {
+			run_at_percent (1) {
+				report_error(self, node,
+							 "This cat cannot purr like a {value}. "
+							 "(if you don't get the easter egg its because I sometimes mispell 'cast' to 'cat')", to);
+			} else {
+				report_error(self, node,
+							 "Cannot cast '{value}' to '{value}'", typeof_value(value), to);
+			}
+			return VAL_BAD;
+		}
+
+		try(result, value_cast(self->allocator, to, value))
+		{
+			node->type = typeof_value(result);
+			return result;
+		}
+	}
+
+	return VAL_NONE;
 }
 
-static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
+static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type)
 {
 	discard expected_type;
 	const char *name = intern_token(node->variable.name);
@@ -511,20 +543,20 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 		emit_error_symbol(self, target_scope, name, is_constant, node);
 	}
 
-	struct haste_value type = ty_auto;
+	struct haste_type type = ty_auto;
 	if (node->variable.type != NULL) {
-		type = analyze_node(self, node->variable.type, (struct haste_value){0});
-		if (IS_BAD(type)) {
+		struct haste_value tp = analyze_node(self, node->variable.type, (struct haste_type){0});
+		if (IS_BAD(tp)) {
 			reset_new_type_counter();
 			emit_error_symbol(self, target_scope, name, is_constant, node);
 		}
-	}
-
-	if (not type_equal(typeof(type), ty_type)) {
-		report_error(self, node->variable.type,
-			"Expected a {value} got '{value}' instead.", ty_type, typeof(type));
-		reset_new_type_counter();
-		emit_error_symbol(self, target_scope, name, is_constant, node);
+		if (not type_equal(typeof_value(tp), ty_type)) {
+			report_error(self, node->variable.type,
+						 "Expected a {value} got '{value}' instead.", ty_type, typeof_value(tp));
+			reset_new_type_counter();
+			emit_error_symbol(self, target_scope, name, is_constant, node);
+		}
+		type = into_type(tp);
 	}
 
 	struct haste_value value = VAL_UNINIT;
@@ -550,21 +582,23 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 	}
 
 	if (type_equal(type, ty_auto)) {
-		type = typeof(value);
-	} else if (not type_can_assign(type, typeof(value))) {
+		type = typeof_value(value);
+	} else if (not type_can_assign(type, typeof_value(value))) {
 		report_error(self, node->variable.name,
-			"cannot assign a value of type '{value}' to '{value}'.", typeof(value), type);
+			"cannot assign a value of type '{value}' to '{value}'.", typeof_value(value), type);
 		reset_new_type_counter();
 		emit_error_symbol(self, target_scope, name, is_constant, node);
 	} else if (IS_UNINIT(value))
 		value = default_for_type(self->allocator, type);
 
-	if (not type_equal(type, typeof(value))) {
+	if (not type_equal(type, typeof_value(value))) {
 		value = value_cast(self->allocator, type, value);
 	}
 
-	if (IS_TYPE(value) and is_newly_created_type(value)) {
-		type_pool_set_name(AS_TYPEID(value), name);
+	if (IS_TYPE(value)) {
+		if (is_newly_created_type(into_type(value))) {
+			type_pool_set_name(AS_TYPEID(into_type(value)), name);
+		}
 	}
 
 	const bool is_explicitly_comptime = node->variable.is_explicitly_comptime
@@ -600,7 +634,7 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 
 // ── Struct analysis ───────────────────────────────────────────────
 
-static struct haste_value analyze_struct_type(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
+static struct haste_value analyze_struct_type(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type)
 {
 	discard expected_type;
 	struct haste_type_info type_info = { .kind = HASTE_TY_STRUCT };
@@ -636,7 +670,7 @@ static struct haste_value analyze_struct_type(struct analyzer *self, struct hast
 	return result;
 }
 
-static struct haste_value analyze_automatic_struct_literal(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
+static struct haste_value analyze_automatic_struct_literal(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type)
 {
 	struct haste_type_info type_info = {
 		.kind = HASTE_TY_AUTO_STRUCT,
@@ -669,7 +703,7 @@ static struct haste_value analyze_automatic_struct_literal(struct analyzer *self
 			.name = intern_str(
 				lit_field->struct_lit_field.name.start,
 				lit_field->struct_lit_field.name.len),
-			.type = typeof(fv),
+			.type = typeof_value(fv),
 		};
 		so->fields[i] = fv;
 		i += 1;
@@ -680,30 +714,36 @@ static struct haste_value analyze_automatic_struct_literal(struct analyzer *self
 	return result;
 }
 
-static struct haste_value analyze_struct_literal(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
+static struct haste_value analyze_struct_literal(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type)
 {
 	if (node->struct_literal.type_expr == NULL)
 		return analyze_automatic_struct_literal(self, node, expected_type);
 
-	struct haste_value struct_type = analyze_node(self, node->struct_literal.type_expr, (struct haste_value){0});
+	struct haste_type struct_type = {0};
+	{
+		catch (tp, err, analyze_node(self, node->struct_literal.type_expr, (struct haste_type){0}))
+		{
+			discard err;
+			if (not type_equal(typeof_value(tp), ty_type)) {
+				report_error(self, node->struct_literal.type_expr,
+							 "Expected a type, got '{value}'.", typeof_value(tp));
+				return VAL_BAD;
+			}
+		}
+		struct_type = into_type(tp);
+	}
+
 	if (type_equal(struct_type, ty_auto))
 		return analyze_automatic_struct_literal(self, node, expected_type);
 
-	if (not type_equal(typeof(struct_type), ty_type)) {
-		report_error(self, node->struct_literal.type_expr,
-			"Expected a type, got '{value}'.", typeof(struct_type));
-		return VAL_BAD;
-	}
-
 	if (not IS_STRUCT_TYPE(struct_type)) {
 		report_error(self, node->struct_literal.type_expr,
-			"Expected a struct type, got '{value}'.", struct_type);
+					 "Expected a struct type, got '{value}'.", struct_type);
 		return VAL_BAD;
 	}
 
 	struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(struct_type);
 
-	/* struct haste_struct_object *so = (void*)create_struct(self->allocator, st); */
 	struct haste_value result = make_value(self->allocator, struct_type);
 
 	struct haste_struct_object *so = AS_STRUCT(result);
@@ -733,28 +773,21 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 		}
 
 		inject_struct_type(self, lit_field->struct_lit_field.value, st->items[idx].type);
-		struct haste_value fv = analyze_node(self, lit_field->struct_lit_field.value, st->items[idx].type);
-
-		struct haste_value err = struct_set_field_by_index(self->allocator, &result, idx, fv);
-		if (IS_BAD(fv)) {
-			has_error = true;
-		} else if (IS_BAD(err)) {
-			report_error(self, lit_field,
-				"Cannot assign a value of type '{value}' to a value of type '{value}'",
-				typeof(fv), st->items[idx].type);
+		catch (fv, err, analyze_node(self, lit_field->struct_lit_field.value, st->items[idx].type))
+		{
+			discard err;
 			has_error = true;
 		}
-		/* if (IS_BAD(fv)) { */
-		/* 	has_error = true; */
-		/* } else if (not type_can_assign(st->items[idx].type, typeof(fv))) { */
-		/* 	report_error(self, lit_field, */
-		/* 		"Cannot assign a value of type '{value}' to a value of type '{value}'", */
-		/* 		typeof(fv), st->items[idx].type); */
-		/* 	has_error = true; */
-		/* } else { */
-		/* 	fv = value_cast(self->allocator, st->items[idx].type, fv); */
-		/* 	so->fields[idx] = fv; */
-		/* } */
+
+		catch (_, err, struct_set_field_by_index(self->allocator, &result, idx, fv))
+		{
+			discard err;
+			so->fields[idx] = VAL_BAD;
+			report_error(self, lit_field,
+						 "Cannot assign a value of type '{value}' to a value of type '{value}'",
+						 typeof_value(fv), st->items[idx].type);
+			has_error = true;
+		}
 	}
 
 	// TODO: Probably gotta find a better way to iterate over struct's fields
@@ -774,7 +807,7 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 
 // ── Main dispatch ────────────────────────────────────────────────
 
-struct haste_value analyze_node(struct analyzer *self, struct haste_ast_node *node, struct haste_value expected_type)
+struct haste_value analyze_node(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type)
 {
 	if (IS_NODE_ANALYZED(node)) {
 		return node->kind == ND_VALUE then node->value otherwise VAL_BAD;
@@ -809,7 +842,7 @@ Error analyze_one_node(
 		.src = -1,
 	};
 	begin_scope(&analyzer);
-	*out = analyze_node(&analyzer, node, VAL_NONE);
+	*out = analyze_node(&analyzer, node, into_type(VAL_NONE));
 	end_scope(&analyzer);
 	return analyzer.had_error then ERROR otherwise OK;
 }
@@ -827,7 +860,7 @@ Error analyze(struct Allocator allocator,
 
 	struct haste_ast_node *root = get_source_file_ast(src);
 	leach (struct haste_ast_node, node, root) {
-		analyze_node(&analyzer, node, (struct haste_value){0});
+		analyze_node(&analyzer, node, (struct haste_type){0});
 		reset_temporary_allocator();
 	}
 
