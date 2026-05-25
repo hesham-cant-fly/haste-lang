@@ -35,6 +35,8 @@ struct analyzer {
 	bool had_error;
 };
 
+/* 🗣️: Stop using macros they are bad
+ * me: Macro abuse goes brrrrrrrrrrrrrrrrrrrrrrr */
 #define try(name_, ...) \
 	for (int _ok_ = 1, _run_ = 1; _ok_; _ok_ = 0) \
 	for (struct haste_value name_ = (__VA_ARGS__); _run_; _run_ = 0) \
@@ -354,9 +356,23 @@ static struct haste_value analyze_binary(struct analyzer *self, struct haste_ast
 	case kind: { \
 		catch(value, err, op_func(lhs, rhs)) {  \
 			discard err; \
-			return bail(self, op, \
-				op_name " is not possible between '{value}' and '{value}'", \
-				typeof_value(lhs), typeof_value(rhs)); \
+			switch (err) { \
+			case ERR_INCOMPATIBLE_ARITH_TYPES: \
+				report_error(self, op, \
+					op_name " is not possible between a value of type '{value}' and a value of type '{value}'", \
+					typeof_value(lhs), typeof_value(rhs)); \
+				break; \
+			case ERR_ARITH_OVERFLOW: \
+				report_error(self, op, \
+					op_name " is not possible because of arithmatic overflow."); \
+				break; \
+			case ERR_DIVISION_BY_ZERO: \
+				report_error(self, op, \
+					op_name " by zero is not possible."); \
+				break; \
+			default: unreachable(); \
+			} \
+			return VAL_BAD; \
 		} \
 		return value; \
 	} break
@@ -366,14 +382,22 @@ static struct haste_value resolve_binary_op(struct analyzer *self, struct haste_
 	switch (op.kind) {
 	case TK_PLUS: {
 		catch (value, err, value_add(lhs, rhs)) {
-			discard err;
-
 			run_at_percent (1.5) {
 				report_error(self, op, "Addition is not impossible. (try harder)");
-			} else {
+				return VAL_BAD;
+			}
+
+			switch (err) {
+			case ERR_INCOMPATIBLE_ARITH_TYPES:
 				report_error(self, op,
 					"Addition is not possible between a value of type '{value}' and a value of type '{value}'",
 					typeof_value(lhs), typeof_value(rhs));
+				break;
+			case ERR_ARITH_OVERFLOW:
+				report_error(self, op,
+					"Addition is not possible because of arithmatic overflow.");
+				break;
+			default: unreachable();
 			}
 			return VAL_BAD;
 		}
@@ -506,23 +530,28 @@ static struct haste_value analyze_cast(struct analyzer *self, struct haste_ast_n
 
 	try (value, analyze_node(self, node->cast.expr, (struct haste_type){0}))
 	{
-		if (not type_can_cast(to, typeof_value(value))) {
+		catch(result, err, value_cast(self->allocator, to, value))
+		{
 			run_at_percent (1) {
 				report_error(self, node,
-							 "This cat cannot purr like a {value}. "
-							 "(if you don't get the easter egg its because I sometimes mispell 'cast' to 'cat')", to);
-			} else {
-				report_error(self, node,
-							 "Cannot cast '{value}' to '{value}'", typeof_value(value), to);
+				             "This cat cannot purr like a {value}. "
+				             "(if you don't get the easter egg its because I sometimes mispell 'cast' to 'cat')", to);
+				return VAL_BAD;
 			}
+			switch (err) {
+			case ERR_INVALID_CAST:
+				report_error(
+					self, node,
+					"Cannot cast '{value}' to '{value}'",
+					typeof_value(value), to);
+				break;
+			default: unreachable();
+			}
+
 			return VAL_BAD;
 		}
-
-		try(result, value_cast(self->allocator, to, value))
-		{
-			node->type = typeof_value(result);
-			return result;
-		}
+		node->type = typeof_value(result);
+		return result;
 	}
 
 	return VAL_NONE;
@@ -720,22 +749,30 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 
 	struct haste_type struct_type = {0};
 	{
-		catch (tp, err, analyze_node(self, node->struct_literal.type_expr, (struct haste_type){0}))
+		try (tp, analyze_node(self, node->struct_literal.type_expr, (struct haste_type){0}))
 		{
-			discard err;
-			if (not IS_TYPE(tp))
-				return bail(self, node->struct_literal.type_expr,
-							 "Expected a type, got '{value}'.", typeof_value(tp));
+			if (not IS_TYPE(tp)) {
+				return bail(
+					self, node->struct_literal.type_expr,
+					"Expected a type, got '{value}'.",
+					typeof_value(tp));
+			}
+
+			struct_type = into_type(tp);
 		}
-		struct_type = into_type(tp);
 	}
 
-	if (IS_AUTO(struct_type))
-		return analyze_automatic_struct_literal(self, node, expected_type);
+	if (IS_AUTO(struct_type)) {
+		return analyze_automatic_struct_literal(
+			self, node, expected_type);
+	}
 
-	if (not IS_STRUCT_TYPE(struct_type))
-		return bail(self, node->struct_literal.type_expr,
-					 "Expected a struct type, got '{value}'.", struct_type);
+	if (not IS_STRUCT_TYPE(struct_type)) {
+		return bail(
+			self, node->struct_literal.type_expr,
+			"Expected a struct type, got '{value}'.",
+			struct_type);
+	}
 
 	struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(struct_type);
 

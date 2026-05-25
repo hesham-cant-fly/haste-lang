@@ -318,6 +318,7 @@ struct haste_value type_get_int(uint16_t bits, bool is_signed);
 #  define VAL_BAD                   ((struct haste_value) { .kind = HASTE_VL_BAD  })
 #  define VAL_ZERO                  ((struct haste_value) { .kind = HASTE_VL_ZERO })
 #  define VAL_UNINIT                ((struct haste_value) { .kind = HASTE_VL_UNINIT })
+#  define VAL_BAD_ERROR(err_)       ((struct haste_value) { .kind = HASTE_VL_BAD, .error_code = (err_) })
 #  define VAL_SCALAR(tid, ...)      ((struct haste_value) { .kind = HASTE_VL_SCALAR, .type_id = (tid), __VA_ARGS__ })
 #  define VAL_RUNTIME(...)          ((struct haste_value) { .kind = HASTE_VL_RUNTIME, .runtime = (__VA_ARGS__) })
 #  define VAL_TYPE(...)             ((struct haste_value) { .kind = HASTE_VL_TYPE, .type_id = AS_TYPEID(ty_type), .type = (__VA_ARGS__) })
@@ -357,7 +358,24 @@ struct haste_value type_get_int(uint16_t bits, bool is_signed);
 	} while (0)
 
 enum haste_value_error {
-	ERR_UNKNOWN
+	ERR_ANY, /* any error and any propagated error */
+
+	/* ARITHMATICS */
+	ERR_INCOMPATIBLE_ARITH_TYPES,
+	// TODO: implement underflow checks
+	ERR_ARITH_OVERFLOW,
+	ERR_DIVISION_BY_ZERO,
+
+	/* CASTING */
+	ERR_INVALID_CAST,
+
+	/* ASSIGNMENT */
+	// TODO: You didn't completely refactor this yet. implement =value_assign=
+	ERR_INVALID_ASSIGNMET,
+
+	/* STRUCTS */
+	ERR_NOT_A_STRUCT,
+	ERR_FIELD_DOESNT_EXIST,
 };
 
 enum haste_value_kind {

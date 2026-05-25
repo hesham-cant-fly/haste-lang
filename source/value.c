@@ -260,7 +260,7 @@ static struct haste_value arith_float(enum arith_op op, struct haste_value lhs, 
 	case ARITH_SUB: res = a - b; break;
 	case ARITH_MUL: res = a * b; break;
 	case ARITH_DIV:
-		if (b == 0.0) return VAL_BAD;
+		if (b == 0.0) return VAL_BAD_ERROR(ERR_DIVISION_BY_ZERO);
 		res = a / b;
 		break;
 	}
@@ -280,13 +280,15 @@ static struct haste_value arith_int(enum arith_op op, struct haste_value lhs, st
 
 	switch (op) {
 	case ARITH_ADD:
-		if ((b > 0 && a > INT64_MAX - b) or (b < 0 && a < INT64_MIN - b))
-			return VAL_BAD;
+		if ((b > 0 && a > INT64_MAX - b) or (b < 0 && a < INT64_MIN - b)) {
+			return VAL_BAD_ERROR(ERR_ARITH_OVERFLOW);
+		}
 		res = a + b;
 		break;
 	case ARITH_SUB:
-		if ((b > 0 && a < INT64_MIN + b) or (b < 0 && a > INT64_MAX + b))
-			return VAL_BAD;
+		if ((b > 0 && a < INT64_MIN + b) or (b < 0 && a > INT64_MAX + b)) {
+			return VAL_BAD_ERROR(ERR_ARITH_OVERFLOW);
+		}
 		res = a - b;
 		break;
 	case ARITH_MUL:
@@ -294,19 +296,26 @@ static struct haste_value arith_int(enum arith_op op, struct haste_value lhs, st
 			if ((a > 0 and b > 0 and a > INT64_MAX / b)
 			    or (a > 0 and b < 0 and b < INT64_MIN / a)
 			    or (a < 0 and b > 0 and a < INT64_MIN / b)
-			    or (a < 0 and b < 0 and a < INT64_MAX / b))
-				return VAL_BAD;
+			    or (a < 0 and b < 0 and a < INT64_MAX / b)) {
+				return VAL_BAD_ERROR(ERR_ARITH_OVERFLOW);
+			}
 		}
 		res = a * b;
 		break;
 	case ARITH_DIV:
-		if (b == 0 or (a == INT64_MIN and b == -1)) return VAL_BAD;
+		if (b == 0) {
+			return VAL_BAD_ERROR(ERR_DIVISION_BY_ZERO);
+		}
+		if (a == INT64_MIN and b == -1) {
+			return VAL_BAD_ERROR(ERR_ARITH_OVERFLOW);
+		}
 		res = a / b;
 		break;
 	}
 
-	if (type_equal(typeof_value(lhs), typeof_value(rhs)))
+	if (type_equal(typeof_value(lhs), typeof_value(rhs))) {
 		return VAL_SCALAR(lhs.type_id, .integer = res);
+	}
 
 	return VAL_SCALAR(AS_TYPEID(ty_untyped_int), .integer = res);
 }
@@ -319,12 +328,17 @@ static struct haste_value value_do_arith(
 	if (IS_ZERO(lhs)) lhs = VAL_SCALAR(AS_TYPEID(ty_untyped_int), .integer = 0);
 	if (IS_ZERO(rhs)) rhs = VAL_SCALAR(AS_TYPEID(ty_untyped_int), .integer = 0);
 
-	if (not (value_is_any_int(lhs) or value_is_any_float(lhs))) return VAL_BAD;
-	if (not (value_is_any_int(rhs) or value_is_any_float(rhs))) return VAL_BAD;
+	if (not (value_is_any_int(lhs) or value_is_any_float(lhs))) {
+		return VAL_BAD_ERROR(ERR_INCOMPATIBLE_ARITH_TYPES);
+	}
+	if (not (value_is_any_int(rhs) or value_is_any_float(rhs))) {
+		return VAL_BAD_ERROR(ERR_INCOMPATIBLE_ARITH_TYPES);
+	}
 	if (not type_equal(typeof_value(lhs), typeof_value(rhs))
 	    and not type_is_untyped(typeof_value(lhs))
-	    and not type_is_untyped(typeof_value(rhs)))
-		return VAL_BAD;
+	    and not type_is_untyped(typeof_value(rhs))) {
+		return VAL_BAD_ERROR(ERR_INCOMPATIBLE_ARITH_TYPES);
+	}
 
 	if (value_is_any_float(lhs) or value_is_any_float(rhs))
 		return arith_float(op, lhs, rhs);
@@ -451,12 +465,14 @@ struct haste_value struct_get_field_by_name(const struct haste_value value,
 											const char *name)
 {
 	if (not IS_STRUCT(value)) {
-		return VAL_BAD;
+		return VAL_BAD_ERROR(ERR_NOT_A_STRUCT);
 	}
 
 	struct haste_type type = typeof_value(value);
 	const ssize_t idx = find_named_field(type, name);
-	if (idx < 0) return VAL_BAD;
+	if (idx < 0) {
+		return VAL_BAD_ERROR(ERR_FIELD_DOESNT_EXIST);
+	}
 
 	return struct_get_field_by_index(value, idx);
 }
@@ -471,12 +487,14 @@ struct haste_value struct_get_field_by_index(const struct haste_value value,
 											 const size_t idx)
 {
 	if (not IS_STRUCT(value)) {
-		return VAL_BAD;
+		return VAL_BAD_ERROR(ERR_NOT_A_STRUCT);
 	}
 
 	struct haste_type type = typeof_value(value);
 	struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(type);
-	if (idx >= st->len) return VAL_BAD;
+	if (idx >= st->len) {
+		return VAL_BAD_ERROR(ERR_FIELD_DOESNT_EXIST);
+	}
 
 	struct haste_struct_object *so = AS_STRUCT(value);
 
@@ -490,12 +508,14 @@ struct haste_value struct_set_field_by_name(struct Allocator allocator,
 											const struct haste_value new_value)
 {
 	if (not IS_STRUCT(*value)) {
-		return VAL_BAD;
+		return VAL_BAD_ERROR(ERR_NOT_A_STRUCT);
 	}
 
 	struct haste_type type = typeof_value(*value);
 	const ssize_t idx = find_named_field(type, name);
-	if (idx < 0) return VAL_BAD;
+	if (idx < 0) {
+		return VAL_BAD_ERROR(ERR_FIELD_DOESNT_EXIST);
+	}
 
 	return struct_set_field_by_index(allocator, value, idx, new_value);
 }
@@ -514,28 +534,27 @@ struct haste_value struct_set_field_by_index(struct Allocator allocator,
 											 const struct haste_value new_value)
 {
 	if (not IS_STRUCT(*value)) {
-		return VAL_BAD;
+		return VAL_BAD_ERROR(ERR_NOT_A_STRUCT);
 	}
 
 	struct haste_type type = typeof_value(*value);
 	struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(type);
 	if (idx >= st->len) {
-		return VAL_BAD;
+		return VAL_BAD_ERROR(ERR_FIELD_DOESNT_EXIST);
 	}
 
 	struct haste_struct_field field = st->items[idx];
 	if (not type_can_assign(field.type, typeof_value(new_value))) {
-		return VAL_BAD;
+		return VAL_BAD_ERROR(ERR_INVALID_ASSIGNMET);
 	}
 
 	struct haste_struct_object *so = AS_STRUCT(*value);
 	so->fields[idx] = new_value;
 
 	if (IS_BAD(new_value)) {
-		return VAL_BAD;
+		return new_value;
 	}
 
-	// TODO: reconsider the allocator being used here
 	if (not type_equal(field.type, typeof_value(new_value))) {
 		so->fields[idx] = value_cast(allocator, field.type, new_value);
 	} else {

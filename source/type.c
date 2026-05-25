@@ -85,14 +85,10 @@ struct haste_value default_for_type(struct Allocator alloc, struct haste_type ty
 			if (IS_NONE(so->fields[i])) {
 				so->fields[i] = default_for_type(alloc, st->items[i].type);
 			}
-			/* if (st->items[i].has_default) { */
-			/* 	so->fields[i] = st->items[i].default_value; */
-			/* } else { */
-			/* 	so->fields[i] = default_for_type(alloc, st->items[i].type); */
-			/* } */
 		}
 		return VAL_OBJ(AS_TYPEID(type), so);
 	}
+
 	unreachable();
 }
 
@@ -112,17 +108,22 @@ ssize_t find_named_field(const struct haste_type tp, const char *name)
 	return -1;
 }
 
-struct haste_value value_cast(struct Allocator alloc, const struct haste_type to, const struct haste_value value)
+struct haste_value value_cast(
+	struct Allocator alloc,
+	const struct haste_type to,
+	const struct haste_value value)
 {
 	const struct haste_type value_type = typeof_value(value);
+
+	if (IS_BAD(value))                     return VAL_BAD;
+	if (IS_BAD(into_value(to)))            return VAL_BAD;
 
 	if (type_is_untyped(to))               unreachable();
 	if (IS_RUNTIME(value))                 unimplemented();
 
 	if (type_equal(to, ty_auto))           return value;
-	if (IS_BAD(value))                     return VAL_BAD;
-	if (not type_can_cast(to, value_type)) return VAL_BAD;
 	if (type_equal(to, value_type))        return value;
+	if (not type_can_cast(to, value_type)) return VAL_BAD_ERROR(ERR_INVALID_CAST);
 
 	if (value_equal(value, VAL_UNINIT))    return default_for_type(alloc, to);
 	if (IS_ZERO(value))                    return zero_for_type(alloc, to);
