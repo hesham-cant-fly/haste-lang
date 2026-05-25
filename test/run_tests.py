@@ -3,7 +3,7 @@ import os, subprocess, sys, glob, re
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HASTE = os.path.join(PROJECT_DIR, "haste")
-
+BRIEF = False
 
 def green(s):
     print(f"\033[32m{s}\033[0m")
@@ -64,7 +64,7 @@ def _run_one_test(group, file_path, index=0, leng=0):
         got_lines = f.readlines()[skip:]
 
     if expected_lines == got_lines:
-        green(f"{int((float(index) / float(leng)) * 100.0):3}% PASS: {kind:>10}: {name}")
+        if not BRIEF: green(f"{int((float(index) / float(leng)) * 100.0):3}% PASS: {kind:>10}: {name}")
         return {"name": name, "kind": kind, "passed": True}
     else:
         red(f"{int((float(index) / float(leng)) * 100.0):3}% FAIL {kind:>10}: {name} (output mismatch)")
@@ -115,6 +115,9 @@ TEST_GROUPS = [
 
 
 def main():
+    global BRIEF
+    BRIEF = "--brief" in sys.argv
+
     all_tests = []
     for group in TEST_GROUPS:
         for file in _discover_tests(group):

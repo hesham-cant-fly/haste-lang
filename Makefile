@@ -50,6 +50,9 @@ run: $(all)
 test: $(EXE)
 	@cd test && python3 ./run_tests.py
 
+test-brief: $(EXE)
+	@cd test && python3 ./run_tests.py --brief
+
 clean-test:
 	rm -f test/**/*.got test/**/*.tokens test/**/*.ll test/**/*.json
 
