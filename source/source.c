@@ -130,38 +130,18 @@ struct source_file get_source_file(const source_file_id id)
 	return sources.items[id];
 }
 
-const char *get_source_file_path(const source_file_id id)
-{
-	return get_source_file(id).path;
-}
+#define SOURCE_GETTER(ret, name, field) \
+	ret name(const source_file_id id) { return get_source_file(id).field; }
 
-size_t get_source_file_len(const source_file_id id)
-{
-	return get_source_file(id).len;
-}
-
-const char *get_source_file_content(const source_file_id id)
-{
-	return get_source_file(id).content;
-}
+SOURCE_GETTER(const char *, get_source_file_path, path)
+SOURCE_GETTER(size_t, get_source_file_len, len)
+SOURCE_GETTER(const char *, get_source_file_content, content)
 
 const char *get_source_file_end(const source_file_id id)
 {
 	return get_source_file_content(id) + get_source_file_len(id);
 }
 
-
-enum source_file_type get_source_file_type(const source_file_id id)
-{
-	return get_source_file(id).type;
-}
-
-struct haste_ast_node *get_source_file_ast(const source_file_id id)
-{
-	return get_source_file(id).root;
-}
-
-struct haste_declarations get_source_file_declarations(const source_file_id id)
-{
-	return get_source_file(id).declarations;
-}
+SOURCE_GETTER(enum source_file_type, get_source_file_type, type)
+SOURCE_GETTER(struct haste_ast_node *, get_source_file_ast, root)
+SOURCE_GETTER(struct haste_declarations, get_source_file_declarations, declarations)

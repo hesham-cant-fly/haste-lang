@@ -2,10 +2,12 @@
 #include "my_common.h"
 #include <signal.h>
 
-#define ASSERT_IS_TYPE(...) \
-	do { \
-		assert(IS_TYPE(__VA_ARGS__) and "It should be a type. maybe you forgot to use `typeof()`?"); \
-	} while (0)
+
+#define IS_UNKNOWN(type) \
+	type_equal(type, ty_unknown)
+
+#define IS_ZERO_TYPE(type) \
+	type_equal(type, ty_zero)
 
 typedef struct {
 	int64_t as_int;
@@ -239,19 +241,19 @@ bool type_can_assign(const struct haste_type assignable,
 	assert(not type_is_untyped(assignable) and "the assignable shouldn't be untyped.");
 
 	if (type_equal(assignable, value))    return true;
-	if (type_equal(value, ty_zero))       return true;
-	if (type_equal(assignable, ty_auto))  return not type_equal(value, ty_unknown);
-	if (type_equal(assignable, ty_int))   return type_equal(value, ty_unknown) or type_is_integer(value);
-	if (type_equal(assignable, ty_usize)) return type_equal(value, ty_unknown) or type_is_integer(value);
-	if (type_equal(assignable, ty_float)) return type_equal(value, ty_unknown) or type_is_untyped_number(value);
+	if (IS_ZERO_TYPE(value))       return true;
+	if (type_equal(assignable, ty_auto))  return not IS_UNKNOWN(value);
+	if (type_equal(assignable, ty_int))   return IS_UNKNOWN(value) or type_is_integer(value);
+	if (type_equal(assignable, ty_usize)) return IS_UNKNOWN(value) or type_is_integer(value);
+	if (type_equal(assignable, ty_float)) return IS_UNKNOWN(value) or type_is_untyped_number(value);
 
 	if (AS_TYPE_INFO(assignable)->kind == HASTE_TY_INT or AS_TYPE_INFO(assignable)->kind == HASTE_TY_UINT)
-		return type_equal(value, ty_unknown) or type_is_untyped_integer(value);
+		return IS_UNKNOWN(value) or type_is_untyped_integer(value);
 
 	if (type_is_any_string(assignable))
-		return type_is_any_string(value) or type_equal(value, ty_unknown);
+		return type_is_any_string(value) or IS_UNKNOWN(value);
 
-	if (type_equal(value, ty_unknown)) return true;
+	if (IS_UNKNOWN(value)) return true;
 
 	if (IS_STRUCT_TYPE(assignable) and IS_AUTO_STRUCT_TYPE(value)) {
 		const struct haste_struct_type_info *ass_st = AS_STRUCT_TYPE_INFO(assignable);
@@ -289,16 +291,16 @@ bool type_can_cast(const struct haste_type to,
 	// (Also this saves us some code)
 	if (type_can_assign(to, from))    return true;
 
-	if (type_equal(from, ty_unknown)) return true;
+	if (IS_UNKNOWN(from)) return true;
 	if (type_equal(to, ty_auto))      return true;
 	if (type_equal(to, from))         return true;
-	if (type_equal(from, ty_zero))    return true;
+	if (IS_ZERO_TYPE(from))    return true;
 	if (type_is_number(to))           return type_is_number(from) or type_equal(from, ty_usize);
 	if (type_equal(to, ty_usize))     return type_is_number(from);
 	if (AS_TYPE_INFO(to)->kind == HASTE_TY_INT or AS_TYPE_INFO(to)->kind == HASTE_TY_UINT)
 		return type_is_integer(from);
 	if (type_is_any_string(to))
-		return type_is_any_string(from) or type_equal(from, ty_unknown);
+		return type_is_any_string(from) or IS_UNKNOWN(from);
 
 	return false;
 }
@@ -313,7 +315,7 @@ struct haste_type untyped_to_typed(struct haste_type type)
 	if (type_equal(type, ty_untyped_int))       return ty_int;
 	if (type_equal(type, ty_untyped_float))     return ty_float;
 	if (type_equal(type, ty_untyped_string))    return ty_string;
-	if (type_equal(type, ty_zero))              return ty_int;
+	if (IS_ZERO_TYPE(type))              return ty_int;
 	if (HASTE_TID_IS_RESERVED(AS_TYPEID(type))) return type;
 
 	return type;

@@ -351,6 +351,11 @@ struct haste_value type_get_int(uint16_t bits, bool is_signed);
 #  define AS_STRUCT(v)              ((OAS_STRUCT(AS_OBJ(v))))
 #  define OAS_STRUCT(v)             ((struct haste_struct_object *)(v))
 
+#  define ASSERT_IS_TYPE(...) \
+	do { \
+		assert(IS_TYPE(__VA_ARGS__) and "It should be a type. maybe you forgot to use `typeof_value()`?"); \
+	} while (0)
+
 enum haste_value_error {
 	ERR_UNKNOWN
 };

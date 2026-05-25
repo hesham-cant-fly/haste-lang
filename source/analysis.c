@@ -475,7 +475,7 @@ static struct haste_value analyze_grouping(struct analyzer *self, struct haste_a
 static struct haste_value analyze_distinct(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type)
 {
 	try (type, analyze_node(self, node->body, expected_type)) {
-		if (not type_equal(typeof_value(type), ty_type))
+		if (not IS_TYPE(type))
 			return bail(self, node->body, "Expected a '{value}', got '{value}' instead.", ty_type, typeof_value(type));
 
 		struct haste_type tp = {0};
@@ -497,7 +497,7 @@ static struct haste_value analyze_cast(struct analyzer *self, struct haste_ast_n
 	} else {
 		try (value, analyze_node(self, node->cast.to, (struct haste_type){0}))
 		{
-			if (not type_equal(typeof_value(value), ty_type))
+			if (not IS_TYPE(value))
 				return bail(self, node->cast.to then node->cast.to otherwise node,
 							 "expected a {value} got '{value}' instead.", ty_type, typeof_value(value));
 			to = into_type(value);
@@ -545,7 +545,7 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 		struct haste_value tp = analyze_node(self, node->variable.type, (struct haste_type){0});
 		if (IS_BAD(tp))
 			fail_var_decl(self, target_scope, name, is_constant, node);
-		if (not type_equal(typeof_value(tp), ty_type)) {
+		if (not IS_TYPE(tp)) {
 			report_error(self, node->variable.type,
 						 "Expected a {value} got '{value}' instead.", ty_type, typeof_value(tp));
 			fail_var_decl(self, target_scope, name, is_constant, node);
@@ -625,6 +625,16 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 
 // ── Struct analysis ───────────────────────────────────────────────
 
+static struct haste_struct_field *alloc_struct_items(struct Allocator alloc, size_t count)
+{
+	return alloc(alloc, sizeof(struct haste_struct_field) * SAFE_COUNT(count));
+}
+
+static struct haste_struct_object *alloc_struct_object(struct Allocator alloc, size_t field_count)
+{
+	return alloc(alloc, sizeof(struct haste_struct_object) + sizeof(struct haste_value) * SAFE_COUNT(field_count));
+}
+
 static struct haste_value analyze_struct_type(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type)
 {
 	discard expected_type;
@@ -636,8 +646,7 @@ static struct haste_value analyze_struct_type(struct analyzer *self, struct hast
 		st->len += field->struct_field.name_count;
 	}
 
-	st->items = alloc(self->allocator,
-		sizeof(struct haste_struct_field) * SAFE_COUNT(st->len));
+	st->items = alloc_struct_items(self->allocator, st->len);
 
 	bool has_error = false;
 	size_t i = 0;
@@ -673,12 +682,12 @@ static struct haste_value analyze_automatic_struct_literal(struct analyzer *self
 		st->len += 1;
 	}
 
-	st->items = alloc(self->allocator, sizeof(struct haste_struct_field) * SAFE_COUNT(st->len));
+	st->items = alloc_struct_items(self->allocator, st->len);
 
 	/* struct haste_struct_object *so = create(self->allocator, struct haste_struct_object, */
 	/* 	.base = { .kind = HASTE_OBJ_STRUCT }); */
 	/* so->fields = alloc(self->allocator, sizeof(struct haste_value) * SAFE_COUNT(st->len)); */
-	struct haste_struct_object *so = alloc(self->allocator, sizeof(struct haste_struct_object) + sizeof(struct haste_value) * SAFE_COUNT(st->len));
+	struct haste_struct_object *so = alloc_struct_object(self->allocator, st->len);
 	so->base.kind = HASTE_OBJ_STRUCT;
 
 	size_t i = 0;
@@ -714,7 +723,7 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 		catch (tp, err, analyze_node(self, node->struct_literal.type_expr, (struct haste_type){0}))
 		{
 			discard err;
-			if (not type_equal(typeof_value(tp), ty_type))
+			if (not IS_TYPE(tp))
 				return bail(self, node->struct_literal.type_expr,
 							 "Expected a type, got '{value}'.", typeof_value(tp));
 		}

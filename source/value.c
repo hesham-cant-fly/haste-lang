@@ -9,10 +9,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#define ASSERT_IS_TYPE(...) \
-	do { \
-		assert(IS_TYPE(__VA_ARGS__) and "It should be a type. maybe you forgot to use `typeof_value()`?"); \
-	} while (0)
 
 #define TY_POOL_CHUNK 256
 #define ty_pool_get(pool, i) ((pool).chunks.items[(i) / TY_POOL_CHUNK][(i) % TY_POOL_CHUNK])
@@ -114,22 +110,12 @@ static Error eval(struct Allocator allocator, const char *input, struct haste_va
 
 	struct haste_ast_node *node = {0};
 	err = parse_expr(arena_allocator, tokens, &node);
-	if (err) {
-		arrfree(allocator, tokens);
-		arena_free(&arena);
-		return ERROR;
-	}
-
-	err = analyze_one_node(allocator, arena_allocator, node, out);
-	if (err) {
-		arrfree(allocator, tokens);
-		arena_free(&arena);
-		return ERROR;
-	}
+	if (!err)
+		err = analyze_one_node(allocator, arena_allocator, node, out);
 
 	arrfree(allocator, tokens);
 	arena_free(&arena);
-	return OK;
+	return err ? ERROR : OK;
 }
 
 struct haste_value type_get_int(uint16_t bits, bool is_signed)
@@ -257,17 +243,11 @@ enum arith_op {
 	ARITH_DIV,
 };
 
-static bool value_is_any_int(struct haste_value v)
-{
-	const struct haste_type tp = typeof_value(v);
-	return IS_SCALAR(v) and type_is_integer(tp);
-}
+#define value_is_any_int(v) \
+	(IS_SCALAR(v) and type_is_integer(typeof_value(v)))
 
-static bool value_is_any_float(struct haste_value v)
-{
-	const struct haste_type tp = typeof_value(v);
-	return IS_SCALAR(v) and type_is_float(tp);
-}
+#define value_is_any_float(v) \
+	(IS_SCALAR(v) and type_is_float(typeof_value(v)))
 
 static struct haste_value arith_float(enum arith_op op, struct haste_value lhs, struct haste_value rhs)
 {
@@ -352,25 +332,14 @@ static struct haste_value value_do_arith(
 	return arith_int(op, lhs, rhs);
 }
 
-struct haste_value value_add(const struct haste_value lhs, const struct haste_value rhs)
-{
-	return value_do_arith(ARITH_ADD, lhs, rhs);
-}
+#define DEFINE_ARITH(name, op) \
+	struct haste_value name(const struct haste_value lhs, const struct haste_value rhs) \
+	{ return value_do_arith(op, lhs, rhs); }
 
-struct haste_value value_sub(const struct haste_value lhs, const struct haste_value rhs)
-{
-	return value_do_arith(ARITH_SUB, lhs, rhs);
-}
-
-struct haste_value value_mul(const struct haste_value lhs, const struct haste_value rhs)
-{
-	return value_do_arith(ARITH_MUL, lhs, rhs);
-}
-
-struct haste_value value_div(const struct haste_value lhs, const struct haste_value rhs)
-{
-	return value_do_arith(ARITH_DIV, lhs, rhs);
-}
+DEFINE_ARITH(value_add, ARITH_ADD)
+DEFINE_ARITH(value_sub, ARITH_SUB)
+DEFINE_ARITH(value_mul, ARITH_MUL)
+DEFINE_ARITH(value_div, ARITH_DIV)
 
 struct haste_object *create_struct(struct Allocator alloc, struct haste_struct_type_info *st)
 {
