@@ -117,37 +117,28 @@ int main(int argc, char *argv[argc])
 	struct Arena analysis_arena = Arena(c_allocator);
 	struct Allocator analysis_alloc = arena_get_allocator(&analysis_arena);
 
-	enum { PHASE_LEX, PHASE_PARSE, PHASE_HOIST, PHASE_ANALYZE, PHASE_CODEGEN, PHASE_COUNT };
+	enum { PHASE_PARSE, PHASE_HOIST, PHASE_ANALYZE, PHASE_CODEGEN, PHASE_COUNT };
 	struct timer timers[PHASE_COUNT] = {0};
-	const char *phase_names[PHASE_COUNT] = { "lexer", "parser", "hoisting", "analysis", "codegen" };
+	const char *phase_names[PHASE_COUNT] = { "parser", "hoisting", "analysis", "codegen" };
 
 	const source_file_id src = obtain_source_file_id(NULL, g_options.source_path);
-	struct token_list tokens = {0};
-	timer_start(&timers[PHASE_LEX]);
-	err = scan_entire_file(c_allocator,  src, &tokens);
-	timer_stop(&timers[PHASE_LEX]);
-	if (err) { exit_code = 1; goto cleanup; }
 
 	if (g_options.dump_tokens) {
 		char path_buf[4096];
 		stream_t out = open_dump_stream(".tokens", path_buf, sizeof(path_buf));
-		if (!out.data) { exit_code = 1; goto cleanup; }
-		arreach (struct token, tok, tokens) {
-			sprintln(out, "{token:#}", tok);
+		struct token_stream tokens = token_stream(src);
+		while (not token_stream_ended(&tokens)) {
+			sprintln(out, "{token:#}", token_stream_advance(&tokens));
 		}
 		close_dump_stream(&g_options, out);
 		goto cleanup;
 	}
 
 	timer_start(&timers[PHASE_PARSE]);
-
-	err = parse(arena_allocator, tokens, src);
-
+	err = parse(arena_allocator, src);
 	timer_stop(&timers[PHASE_PARSE]);
-	if (err) { exit_code = 1; goto cleanup; }
 
-	arrfree(c_allocator, tokens);
-	tokens = (struct token_list){0};
+	if (err) { exit_code = 1; goto cleanup; }
 
 	timer_start(&timers[PHASE_HOIST]);
 	err = hoist(c_allocator,  src);
@@ -216,7 +207,6 @@ int main(int argc, char *argv[argc])
 	marrfree(sources);
 
 cleanup:
-	arrfree(c_allocator, tokens);
 	arena_free(&analysis_arena);
 	deinit_intern_table();
 	arena_free(&arena);

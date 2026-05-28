@@ -97,27 +97,6 @@ struct haste_type ty_string         = {0};
 struct haste_type ty_cstr           = {0};
 struct haste_type ty_usize          = {0};
 
-static Error eval(struct Allocator allocator, const char *input, struct haste_value *out)
-{
-	Error err = 0;
-
-	struct token_list tokens = {0};
-	err = scan_entire_string(allocator, input, &tokens);
-	if (err) return ERROR;
-
-	struct Arena arena = Arena(allocator);
-	struct Allocator arena_allocator = arena_get_allocator(&arena);
-
-	struct haste_ast_node *node = {0};
-	err = parse_expr(arena_allocator, tokens, &node);
-	if (!err)
-		err = analyze_one_node(allocator, arena_allocator, node, out);
-
-	arrfree(allocator, tokens);
-	arena_free(&arena);
-	return err ? ERROR : OK;
-}
-
 struct haste_value type_get_int(uint16_t bits, bool is_signed)
 {
 	TypeID base = is_signed ? HASTE_TID_RESERVED_INT_BASE : HASTE_TID_RESERVED_UINT_BASE;
@@ -201,21 +180,39 @@ void setup_builtins(struct Allocator allocator)
 					 .name = "usize",
 					 .is_integer = true, .is_unsigned = true);
 
-	Error err = eval(
-		allocator,
-		"struct { ptr: cstr; len: usize; }",
-		&ty_string.value);
-	if (err) panic("Cannot Initialize a built-in string.");
-	AS_TYPE_INFO(ty_string)->name = "string";
-	AS_TYPE_INFO(ty_string)->is_string = true;
+	{
+		struct haste_struct_field *string_fields = alloc(
+			g_type_pool.allocator,
+			sizeof(struct haste_struct_field) * 2);
+		string_fields[0] = (struct haste_struct_field){
+			.name = "ptr",
+			.type = ty_cstr,
+		};
+		string_fields[1] = (struct haste_struct_field){
+			.name = "len",
+			.type = ty_usize,
+		};
+		const auto string_type_info = TYPE_INFO(
+			.kind = HASTE_TY_STRUCT,
+			.structure = {
+				.len = 2,
+				.items = string_fields,
+			});
+		const TypeID string_id = type_pool_add(string_type_info);
+		ty_string = into_type(VAL_TYPE(string_id));
+		AS_TYPE_INFO(ty_string)->name = "string";
+		AS_TYPE_INFO(ty_string)->is_string = true;
+	}
 
-	err = eval(allocator, "int32", &ty_int.value);
-    if (err) panic("Cannot Initialize the int type");
-    AS_TYPE_INFO(ty_int)->name = "int";
+	{
+		ty_int = into_type(VAL_TYPE(ensure_reserved_type(32)->pool_id));
+		AS_TYPE_INFO(ty_int)->name = "int";
+	}
 
-    err = eval(allocator, "uint32", &ty_uint.value);
-    if (err) panic("Cannot Initialize the uint type");
-    AS_TYPE_INFO(ty_uint)->name = "uint";
+	{
+		ty_uint = into_type(VAL_TYPE(ensure_reserved_type(HASTE_TID_RESERVED_UINT_BASE + 32)->pool_id));
+		AS_TYPE_INFO(ty_uint)->name = "uint";
+	}
 
 	_builtin_end = g_type_pool.len - 1;
 	_new_type_therhold = _builtin_end;

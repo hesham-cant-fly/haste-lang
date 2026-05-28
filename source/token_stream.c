@@ -1,22 +1,12 @@
 #include "haste.h"
 #include "my_stream.h"
 #include "my_termcolor.h"
-#include <string.h>
-
-struct scanner {
-	struct Allocator allocator;
-	struct token_list tokens;
-	source_file_id src;
-	const char *start, *current, *end;
-	uint32_t line, current_line;
-	bool has_error, ended;
-};
 
 static bool is_digit(uint32_t c) { return c >= '0' and c <= '9'; }
 
-static const char *decode_string(struct scanner *self, const char *start, size_t len)
+static const char *decode_string(const char *start, size_t len)
 {
-	char *chars = alloc(self->allocator, len + 1);
+	char *chars = make(len + 1);
 	size_t j = 0;
 	for (size_t i = 0; i < len; i += 1) {
 		if (start[i] == '\\' and i + 1 < len) {
@@ -37,12 +27,13 @@ static const char *decode_string(struct scanner *self, const char *start, size_t
 	chars[j] = '\0';
 
 	const char *result = intern_cstr(chars);
-	destroy(self->allocator, chars);
+	delete(chars);
 	return result;
 }
 
-static void populate_token_value(struct scanner *self, struct token *tok)
+static void populate_token_value(struct token_stream *self, struct token *tok)
 {
+	discard self;
     switch (tok->kind) {
 	case TK_INT: {
 		char *buf = tsprint("{s:*}", tok->start, (int)tok->len);
@@ -79,7 +70,7 @@ static void populate_token_value(struct scanner *self, struct token *tok)
 		tok->ident = intern_str(tok->start, tok->len);
 		break;
 	case TK_STR: {
-		tok->str = decode_string(self, tok->start + 1, tok->len - 2);
+		tok->str = decode_string(tok->start + 1, tok->len - 2);
 	} break;
 	default:
 		break;
@@ -88,35 +79,40 @@ static void populate_token_value(struct scanner *self, struct token *tok)
 	reset_temporary_allocator();
 }
 
-static bool ended(const struct scanner *self)
+static bool ended(const struct token_stream *self)
 {
 	return self->ended;
 }
 
-static uint32_t peek(struct scanner *self)
+static uint32_t peek(struct token_stream *self)
 {
 	if (ended(self)) return '\0';
 	const uint32_t result = decode_utf8(NULL, self->current, self->src);
-	if (result == '\0') self->ended = true;
+	if (result == '\0') {
+		self->ended = true;
+	}
 	return result;
 }
 
-static uint32_t advance(struct scanner *self)
+static uint32_t advance(struct token_stream *self)
 {
-	if (ended(self)) return '\0';
+	if (ended(self)) {
+		return '\0';
+	}
 	const uint32_t result = decode_utf8(&self->current, self->current, self->src);
-	if (result == '\0') self->ended = true;
-	if (result == '\n') self->current_line += 1;
+	if (result == '\0') {
+		self->ended = true;
+	}
 	return result;
 }
 
-static bool check(struct scanner *self, uint32_t ch)
+static bool check(struct token_stream *self, uint32_t ch)
 {
 	if (ended(self)) return false;
 	return peek(self) == ch;
 }
 
-static bool matches(struct scanner *self, char *str)
+static bool matches(struct token_stream *self, char *str)
 {
 	const size_t remaining = self->end - self->current;
 	const size_t str_len = strlen(str);
@@ -132,29 +128,27 @@ static bool matches(struct scanner *self, char *str)
 	return true;
 }
 
-static void advance_until(struct scanner *self, uint32_t ch)
+static void advance_until(struct token_stream *self, uint32_t ch)
 {
 	while (not check(self, ch)) {
 		advance(self);
 	}
 }
 
-static struct token *add_token(struct scanner *self, enum token_kind kind)
+static struct token *add_token(struct token_stream *self, enum token_kind kind)
 {
-	arrpush(
-		self->allocator,
-		self->tokens,
+	self->items[self->write_cursor % STREAM_DATA_COUNT] =
 		token(
 			kind,
 			self->start,
-			self->current,
-			.line = self->line));
-	struct token *result = &self->tokens.items[self->tokens.len - 1];
+			self->current);
+	struct token *result = &self->items[self->write_cursor % STREAM_DATA_COUNT];
+	self->write_cursor += 1;
 	populate_token_value(self, result);
 	return result;
 }
 
-static void report_error(struct scanner *self, const char *at, const char *restrict const fmt, ...)
+static void report_error(struct token_stream *self, const char *at, const char *restrict const fmt, ...)
 {
 	va_list args; va_start(args, fmt);
 	if (self->src >= 0) f_vreport_at(self->src, ANSI_CODE_RED "Error", at, fmt, args);
@@ -162,14 +156,14 @@ static void report_error(struct scanner *self, const char *at, const char *restr
 	self->has_error = true;
 }
 
-static void report_note(struct scanner *self, const char *at, const char *restrict const fmt, ...)
+static void report_note(struct token_stream *self, const char *at, const char *restrict const fmt, ...)
 {
 	va_list args; va_start(args, fmt);
 	f_vreport_at(self->src, ANSI_CODE_GREEN "Note", at, fmt, args);
 	va_end(args);
 }
 
-static void scan_string(struct scanner *self)
+static void scan_string(struct token_stream *self)
 {
 	while (not ended(self)) {
 		uint32_t ch = peek(self);
@@ -184,10 +178,11 @@ static void scan_string(struct scanner *self)
 		}
 		advance(self);
 	}
+
 	report_error(self, self->start, "unterminated string literal");
 }
 
-static void skip_whitespace(struct scanner *self)
+static void skip_whitespace(struct token_stream *self)
 {
 	while (not ended(self)) {
 		uint32_t c = peek(self);
@@ -201,7 +196,7 @@ static void skip_whitespace(struct scanner *self)
 	}
 }
 
-static void scan_identifiers(struct scanner *self)
+static void scan_identifiers(struct token_stream *self)
 {
 	const struct { const char *str; enum token_kind kind; } keywords[] = {
 		{"string", TK_KW_STRING},
@@ -242,7 +237,7 @@ static void scan_identifiers(struct scanner *self)
 	add_token(self, TK_IDENT);
 }
 
-static void scan_lexem(struct scanner *self)
+static void scan_lexem(struct token_stream *self)
 {
 	// skip single line comment
 	if (matches(self, "//")) {
@@ -272,8 +267,9 @@ static void scan_lexem(struct scanner *self)
 		const bool is_float = not ended(self) and peek(self) == '.';
 		if (is_float) {
 			advance(self);
-			while (not ended(self) and is_digit(peek(self)))
+			while (not ended(self) and is_digit(peek(self))) {
 				advance(self);
+			}
 		}
 		add_token(self, is_float then TK_FLOAT otherwise TK_INT);
 		return;
@@ -319,76 +315,80 @@ static void scan_lexem(struct scanner *self)
 	report_error(self, pos, "invalid character: '{lc}'", ch);
 }
 
-static void start_scanning(struct scanner *self)
+static void start_scanning(struct token_stream *self)
 {
-	while (not ended(self)) {
+	while (not ended(self) and (self->write_cursor - self->read_cursor) < STREAM_DATA_COUNT) {
 		skip_whitespace(self);
 
-		self->line = self->current_line;
 		self->start = self->current;
 		scan_lexem(self);
 	}
+
+	if (self->has_error) {
+		exit(67);
+	}
 }
 
-Error scan_entire_file(
-	struct Allocator allocator,
-	const source_file_id src,
-	struct token_list *out)
+static bool is_empty(const struct token_stream *self)
 {
-	const char *content = get_source_file_content(src);
-	struct scanner scanner = {
-		.allocator = allocator,
-		.tokens = {0},
-		.src = src,
-		.start = content,
-		.current = content,
+	return self->write_cursor <= self->read_cursor;
+}
+
+struct token_stream token_stream(source_file_id src)
+{
+	const char *source = get_source_file_content(src);
+	return (struct token_stream) {
+		.current = source,
+		.start = source,
 		.end = get_source_file_end(src),
-		.line = 1,
-		.current_line = 1,
+		.src = src,
 	};
-
-	start_scanning(&scanner);
-	if (scanner.has_error) {
-		arrfree(scanner.allocator, scanner.tokens);
-		return ERROR;
-	}
-
-	scanner.start = scanner.current;
-	struct token *token = add_token(&scanner, TK_EOF);
-	token->len = 0;
-
-	*out = scanner.tokens;
-
-	return OK;
 }
 
-Error scan_entire_string(
-	struct Allocator allocator,
-	const char *content,
-	struct token_list *out)
+bool token_stream_ended(const struct token_stream *stream)
 {
-	struct scanner scanner = {
-		.allocator = allocator,
-		.tokens = {0},
-		.src = -1,
-		.start = content,
-		.current = content,
-		.end = content + strlen(content),
-		.line = 1,
-		.current_line = 1,
-	};
+	return ended(stream) and is_empty(stream);
+}
 
-	start_scanning(&scanner);
-	if (scanner.has_error) {
-		arrfree(allocator, scanner.tokens);
-		return ERROR;
+struct token token_stream_peek(struct token_stream *stream)
+{
+	if (is_empty(stream)) {
+		start_scanning(stream);
+		if (is_empty(stream)) {
+			return token(TK_EOF, NULL, NULL);
+		}
 	}
 
-	scanner.start = scanner.current;
-	struct token *tok = add_token(&scanner, TK_EOF);
-	tok->len = 0;
+	return stream->items[stream->read_cursor % STREAM_DATA_COUNT];
+}
 
-	*out = scanner.tokens;
+struct token token_stream_peek_next(struct token_stream *stream)
+{
+	if (is_empty(stream)) {
+		start_scanning(stream);
+	}
 
-	return OK;
+	if (stream->write_cursor - stream->read_cursor < 2) {
+		start_scanning(stream);
+		if (stream->write_cursor - stream->read_cursor < 2) {
+			return token(TK_EOF, NULL, NULL);
+		}
+	}
+
+	return stream->items[(stream->read_cursor + 1) % STREAM_DATA_COUNT];
+}
+
+struct token token_stream_advance(struct token_stream *stream)
+{
+	if (token_stream_ended(stream)) {
+		return (struct token){};
+	}
+
+	if (is_empty(stream)) {
+		start_scanning(stream);
+	}
+
+	struct token result = token_stream_peek(stream);
+	stream->read_cursor += 1;
+	return result;
 }

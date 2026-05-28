@@ -1,0 +1,3 @@
+#+title: Notes
+
+This is the directory which I write what I learned. and what I did during the time I'm implmenting this compiler.

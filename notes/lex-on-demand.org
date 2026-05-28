@@ -1,0 +1,7 @@
+#+DATE: 28/5/2026
+
+Today I tried something interesting. I tried to use lex-on-demand in this project. Most people on discord tell me: "If you wanna improve performance or your lexer. use lex-on-demand". so I did give a try. and it didn't improve a shit. I tried both the regular lex-on-demand and one with a [[https://en.wikipedia.org/wiki/Circular_buffer][ring buffer]] (which I'm currently using). the regular one was slower than the ring buffer. but none of them did make my compiler faster by any mean. the only thing it did it just reduced memory usage slightly.
+
+conclusion: don't suggest lex-on-demand for increasing performance. Its just a waste of time. the only thing it improves is memory usage. which may benifit some people. but most won't.
+
+It was a good experience nonetheless. Learning about different techniques is very fun. and I only suggesting checking it out if you are a nerd like me :)

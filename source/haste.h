@@ -252,13 +252,34 @@ struct token {
 #define TOKEN_FMT(...) SPAN_FMT(token_to_span(__VA_ARGS__))
 
 struct token_list {
-	size_t len;
-	size_t cap;
+	size_t len, cap;
 	struct token *items;
 };
 
 struct span token_to_span(struct token token);
 int print_token(stream_t stream, struct token token);
+
+//
+// token_stream.c
+//
+#define STREAM_DATA_COUNT 512
+
+struct token_stream {
+	struct token items[STREAM_DATA_COUNT];
+	size_t read_cursor, write_cursor;
+
+	source_file_id src;
+	const char *start, *current, *end;
+	bool has_error : 1;
+	bool ended : 1;
+};
+
+struct token_stream token_stream(source_file_id src);
+
+bool token_stream_ended(const struct token_stream *stream);
+struct token token_stream_peek(struct token_stream *stream);
+struct token token_stream_peek_next(struct token_stream *stream);
+struct token token_stream_advance(struct token_stream *stream);
 
 //
 // unicode.c
@@ -710,28 +731,9 @@ const char *intern_token(struct token token);
 const char *intern_cstr(const char *str);
 
 //
-// scanner.c
-//
-Error scan_entire_file(
-	struct Allocator allocator,
-	const source_file_id src,
-	struct token_list *out);
-Error scan_entire_string(
-	struct Allocator allocator,
-	const char *content,
-	struct token_list *out);
-
-//
 // parse.c
 //
-Error parse_expr(
-	struct Allocator allocator,
-	const struct token_list tokens,
-	struct haste_ast_node **out);
-Error parse(
-	struct Allocator allocator,
-	const struct token_list tokens,
-	const source_file_id src);
+Error parse(struct Allocator allocator, const source_file_id src);
 
 //
 // hoisting.c

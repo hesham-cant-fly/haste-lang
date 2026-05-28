@@ -56,5 +56,5 @@ test-brief: $(EXE)
 clean-test:
 	rm -f test/**/*.got test/**/*.tokens test/**/*.ll test/**/*.json
 
-clean: test-clean
+clean: clean-test
 	rm -rdf $(OBJS) $(EXE) $(BUILD_DIR) TAGS

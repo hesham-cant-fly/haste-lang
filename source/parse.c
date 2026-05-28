@@ -5,9 +5,9 @@
 
 struct parser {
 	struct Allocator allocator;
-	struct token_list tokens;
+	struct token_stream stream;
 	source_file_id src;
-	size_t current;
+	struct token previous;
 	bool has_error;
 };
 
@@ -35,48 +35,36 @@ static struct parser_rule get_rule(struct token token);
 static struct haste_ast_node *expr(struct parser *self);
 static struct haste_ast_node *parse_precedence(struct parser *self, enum precedence prec);
 
-static struct token peek(const struct parser *self);
+static struct token peek(struct parser *self);
 
-static bool ended(const struct parser *self)
+static bool ended(struct parser *self)
 {
-	return peek(self).kind == TK_EOF or self->current >= self->tokens.len;
+	return peek(self).kind == TK_EOF or token_stream_ended(&self->stream);
 }
 
-static struct token get_eof(const struct parser *self)
+static struct token peek(struct parser *self)
 {
-	return self->tokens.items[self->tokens.len - 1];
+	return token_stream_peek(&self->stream);
 }
 
-static struct token get_pre_eof(const struct parser *self)
+static struct token peek_next(struct parser *self)
 {
-	if (self->tokens.len < 2) {
-		return get_eof(self);
-	}
-	return self->tokens.items[self->tokens.len - 2];
-}
-
-static struct token peek(const struct parser *self)
-{
-	return self->tokens.items[self->current];
-}
-
-static struct token peek_next(const struct parser *self)
-{
-	if (self->current + 1 >= self->tokens.len) return get_eof(self);
-	return self->tokens.items[self->current + 1];
+	/* if (self->current + 1 >= self->tokens.len) return get_eof(self); */
+	/* return self->tokens.items[self->current + 1]; */
+	return token_stream_peek_next(&self->stream);
 }
 
 static struct token advance(struct parser *self)
 {
 	if (ended(self)) return (struct token){0};
-	struct token token = peek(self);
-	self->current += 1;
-	return token;
+	self->previous = peek(self);
+	token_stream_advance(&self->stream);
+	return self->previous;
 }
 
 static struct token previous(const struct parser *self)
 {
-	return self->tokens.items[self->current - 1];
+	return self->previous;
 }
 
 static void report_error_at(struct parser *self, struct token token, const char *restrict fmt, ...)
@@ -90,7 +78,7 @@ static void report_error_at(struct parser *self, struct token token, const char 
 
 static void report_error(struct parser *self, const char *restrict fmt, ...)
 {
-	struct token token = ended(self) then get_pre_eof(self) otherwise peek(self);
+	struct token token = peek(self);
 	va_list args; va_start(args, fmt);
 	if (self->src >= 0) f_vreport_at_token(self->src, "Error", token, fmt, args);
 	va_end(args);
@@ -107,7 +95,7 @@ static void vreport_error(struct parser *self, const char *restrict fmt, va_list
 }
 
 #define check(_self, ...) _check((_self), __VA_ARGS__, (enum token_kind){0})
-static bool _check(const struct parser *self, ...)
+static bool _check(struct parser *self, ...)
 {
 	if (ended(self)) return false;
 	va_list args;
@@ -511,28 +499,12 @@ static struct haste_ast_node *decl(struct parser *self, const bool error_on_unex
 	exit(0);
 }
 
-Error parse_expr(
-	struct Allocator allocator,
-	const struct token_list tokens,
-	struct haste_ast_node **out)
-{
-	struct parser parser = {
-		.allocator = allocator,
-		.src = -1,
-		.tokens = tokens,
-	};
-
-	*out = expr(&parser);
-
-	return parser.has_error then ERROR otherwise OK;
-}
-
-Error parse(struct Allocator allocator, const struct token_list tokens, const source_file_id src)
+Error parse(struct Allocator allocator, const source_file_id src)
 {
 	struct parser parser = {
 		.allocator = allocator,
 		.src = src,
-		.tokens = tokens,
+		.stream = token_stream(src),
 	};
 
 	struct haste_ast_node head = {0};
