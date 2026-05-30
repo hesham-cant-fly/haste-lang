@@ -41,105 +41,141 @@ static int print_haste_ast_node(stream_t file, const struct haste_ast_node *node
 	}
 	switch (node->kind) {
 	case ND_VALUE:
-		printed_amount += sprint(file, "\"value\": \"");
-		printed_amount += sprint(file, "{value}", node->value);
-		printed_amount += sprint(file, "\"");
+		{
+			const struct haste_ast_value *n = (const struct haste_ast_value*)node;
+			printed_amount += sprint(file, "\"value\": \"");
+			printed_amount += sprint(file, "{value}", n->value);
+			printed_amount += sprint(file, "\"");
+		}
 		break;
 	case ND_BINARY:
-		printed_amount += sprint(file, "\"op\": \"{span}\",", token_to_span(node->op));
-		printed_amount += sprint(file, "\"lhs\": ");
-		printed_amount += print_haste_ast_node(file, node->lhs);
-		printed_amount += sprint(file, ",");
-		printed_amount += sprint(file, "\"rhs\": ");
-		printed_amount += print_haste_ast_node(file, node->rhs);
+		{
+			const struct haste_ast_binary *n = (const struct haste_ast_binary*)node;
+			printed_amount += sprint(file, "\"op\": \"{span}\",", token_to_span(n->op));
+			printed_amount += sprint(file, "\"lhs\": ");
+			printed_amount += print_haste_ast_node(file, n->lhs);
+			printed_amount += sprint(file, ",");
+			printed_amount += sprint(file, "\"rhs\": ");
+			printed_amount += print_haste_ast_node(file, n->rhs);
+		}
 		break;
 	case ND_UNARY:
-		printed_amount += sprint(file, "\"op\": \"{span}\",", token_to_span(node->op));
-		printed_amount += sprint(file, "\"rhs\": ");
-		printed_amount += print_haste_ast_node(file, node->rhs);
+		{
+			const struct haste_ast_unary *n = (const struct haste_ast_unary*)node;
+			printed_amount += sprint(file, "\"op\": \"{span}\",", token_to_span(n->op));
+			printed_amount += sprint(file, "\"rhs\": ");
+			printed_amount += print_haste_ast_node(file, n->rhs);
+		}
 		break;
 	case ND_ACCESS:
-		printed_amount += sprint(file, "\"lhs\": {ast},\"rhs\": {token:##}", node->access.lhs, node->access.rhs);
+		{
+			const struct haste_ast_access *n = (const struct haste_ast_access*)node;
+			printed_amount += sprint(file, "\"lhs\": {ast},\"rhs\": {token:##}", n->lhs, n->rhs);
+		}
 		break;
 	case ND_PRIMARY:
-		printed_amount += sprint(file, "\"token\": {token:##}", node->token);
+		{
+			const struct haste_ast_primary *n = (const struct haste_ast_primary*)node;
+			printed_amount += sprint(file, "\"token\": {token:##}", n->token);
+		}
 		break;
 	case ND_DISTINCT:
 	case ND_GROUPING:
-		printed_amount += sprint(file, "\"body\": ");
-		printed_amount += print_haste_ast_node(file, node->body);
+		{
+			const struct haste_ast_grouping *n = (const struct haste_ast_grouping*)node;
+			printed_amount += sprint(file, "\"body\": ");
+			printed_amount += print_haste_ast_node(file, n->child);
+		}
 		break;
 	case ND_CAST:
-		printed_amount += sprint(file, "\"to\": ");
-
-		if (node->cast.to != NULL) printed_amount += print_haste_ast_node(file, node->cast.to);
-		else printed_amount += sprint(file, "\"auto\"");
-		printed_amount += sprint(file, ",");
-		printed_amount += sprint(file, "\"expr\": ");
-		printed_amount += print_haste_ast_node(file, node->cast.expr);
+		{
+			const struct haste_ast_cast *n = (const struct haste_ast_cast*)node;
+			printed_amount += sprint(file, "\"to\": ");
+			if (n->to != NULL) printed_amount += print_haste_ast_node(file, n->to);
+			else printed_amount += sprint(file, "\"auto\"");
+			printed_amount += sprint(file, ",");
+			printed_amount += sprint(file, "\"expr\": ");
+			printed_amount += print_haste_ast_node(file, n->expr);
+		}
 		break;
 	case ND_VAR_DECL:
-		printed_amount += sprint(file, "\"name\": \"{span}\",", token_to_span(node->variable.name));
-		printed_amount += sprint(file, "\"type_node\": ");
-		if (node->variable.type) printed_amount += print_haste_ast_node(file, node->variable.type);
-		else printed_amount += sprint(file, "null");
-		printed_amount += sprint(file, ",");
-		printed_amount += sprint(file, "\"value\": ");
-		if (node->variable.value) printed_amount += print_haste_ast_node(file, node->variable.value);
-		else printed_amount += sprint(file, "null");
+		{
+			const struct haste_ast_var_decl *n = (const struct haste_ast_var_decl*)node;
+			printed_amount += sprint(file, "\"name\": \"{span}\",", token_to_span(n->name));
+			printed_amount += sprint(file, "\"type_node\": ");
+			if (n->type) printed_amount += print_haste_ast_node(file, n->type);
+			else printed_amount += sprint(file, "null");
+			printed_amount += sprint(file, ",");
+			printed_amount += sprint(file, "\"value\": ");
+			if (n->value) printed_amount += print_haste_ast_node(file, n->value);
+			else printed_amount += sprint(file, "null");
+		}
 		break;
-	case ND_STRUCT_TYPE:
-		printed_amount += sprint(file, "\"fields\": ");
-		printed_amount += print_haste_ast(file, node->struct_type.fields);
+		case ND_STRUCT_TYPE:
+		{
+			const struct haste_ast_struct_type *n = (const struct haste_ast_struct_type*)node;
+			printed_amount += sprint(file, "\"fields\": ");
+			printed_amount += print_haste_ast(file, (const struct haste_ast_node*)n->fields);
+		}
 		break;
 	case ND_STRUCT_FIELD:
-		printed_amount += sprint(file, "\"names\": [");
-		for (size_t i=0; i < node->struct_field.name_count; i += 1) {
-			printed_amount += sprint(file, "{token:##}", node->struct_field.names[i]);
-			if (i != (node->struct_field.name_count - 1)) {
-				printed_amount += sprint(file, ",");
+		{
+			const struct haste_ast_struct_field *n = (const struct haste_ast_struct_field*)node;
+			printed_amount += sprint(file, "\"names\": [");
+			for (size_t i=0; i < n->name_count; i += 1) {
+				printed_amount += sprint(file, "{token:##}", n->names[i]);
+				if (i != (n->name_count - 1)) {
+					printed_amount += sprint(file, ",");
+				}
 			}
+			printed_amount += sprint(file, "],");
+			printed_amount += sprint(file, "\"type\": ");
+			if (n->type) printed_amount += print_haste_ast_node(file, n->type);
+			else printed_amount += sprint(file, "null");
+			printed_amount += sprint(file, ",");
+			printed_amount += sprint(file, "\"default\": ");
+			if (n->default_value) printed_amount += print_haste_ast_node(file, n->default_value);
+			else printed_amount += sprint(file, "null");
 		}
-		printed_amount += sprint(file, "],");
-		printed_amount += sprint(file, "\"type\": ");
-		if (node->struct_field.type) printed_amount += print_haste_ast_node(file, node->struct_field.type);
-		else printed_amount += sprint(file, "null");
-		printed_amount += sprint(file, ",");
-		printed_amount += sprint(file, "\"default\": ");
-		if (node->struct_field.default_value) printed_amount += print_haste_ast_node(file, node->struct_field.default_value);
-		else printed_amount += sprint(file, "null");
 		break;
 	case ND_STRUCT_LITERAL:
-		printed_amount += sprint(file, "\"type_expr\": ");
-		if (node->struct_literal.type_expr) printed_amount += print_haste_ast_node(file, node->struct_literal.type_expr);
-		else printed_amount += sprint(file, "null");
-		printed_amount += sprint(file, ",");
-		printed_amount += sprint(file, "\"fields\": ");
-		if (node->struct_literal.fields == NULL) printed_amount += sprint(file, "[]");
-		else printed_amount += print_haste_ast(file, node->struct_literal.fields);
+		{
+			const struct haste_ast_struct_literal *n = (const struct haste_ast_struct_literal*)node;
+			printed_amount += sprint(file, "\"type_expr\": ");
+			if (n->type_expr) printed_amount += print_haste_ast_node(file, n->type_expr);
+			else printed_amount += sprint(file, "null");
+			printed_amount += sprint(file, ",");
+			printed_amount += sprint(file, "\"fields\": ");
+			if (n->fields == NULL) printed_amount += sprint(file, "[]");
+			else printed_amount += print_haste_ast(file, (const struct haste_ast_node*)n->fields);
+		}
 		break;
 	case ND_STRUCT_LIT_FIELD:
-		printed_amount += sprint(file, "\"name\": \"{span}\",", token_to_span(node->struct_lit_field.name));
-		printed_amount += sprint(file, "\"value\": ");
-		printed_amount += print_haste_ast_node(file, node->struct_lit_field.value);
+		{
+			const struct haste_ast_struct_lit_field *n = (const struct haste_ast_struct_lit_field*)node;
+			printed_amount += sprint(file, "\"name\": \"{span}\",", token_to_span(n->name));
+			printed_amount += sprint(file, "\"value\": ");
+			printed_amount += print_haste_ast_node(file, n->value);
+		}
 		break;
 	}
 	printed_amount += sprint(file, "}");
 	return printed_amount;
 }
 
-struct haste_ast_node *node_into_value(
+void *node_into_value(
 	struct Allocator allocator,
-	struct haste_ast_node *node,
+	void *nd,
 	struct haste_value value)
 {
+	struct haste_ast_value *node = nd;
 	if (node == NULL) {
-		node = create(allocator, struct haste_ast_node, 0);
+		node = create(allocator, struct haste_ast_value, 0);
 	}
 
-	node->kind = ND_VALUE;
+	node->base.kind = ND_VALUE;
 	node->value = value;
-	node->type = typeof_value(value);
+	node->base.type = typeof_value(value);
 
 	return node;
 }

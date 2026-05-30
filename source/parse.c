@@ -1,6 +1,8 @@
 #include "haste.h"
+#include "my_allocator.h"
 #include "my_array.h"
 #include "my_stream.h"
+#include <stddef.h>
 #include <string.h>
 
 struct parser {
@@ -29,6 +31,16 @@ struct parser_rule {
 	enum precedence precedence;
 	bool right_assoc;
 };
+
+#define create_node(self_, T_, ...) \
+	(void*)_create_node((self_), &(T_) { __VA_ARGS__ }, sizeof(T_))
+
+static struct haste_ast_node *_create_node(struct parser *self, void *value, size_t size)
+{
+	void *result = alloc(self->allocator, size);
+	memcpy(result, value, size);
+	return result;
+}
 
 static struct parser_rule get_rule(struct token token);
 static struct haste_ast_node *expr(struct parser *self);
@@ -158,11 +170,11 @@ struct haste_ast_node *binary(struct parser *self, struct haste_ast_node *lhs)
 	}
 
 	struct haste_ast_node *rhs = parse_precedence(self, precedence);
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_BINARY,
-		.start = lhs->start,
+	return (void*) create_node(
+		self,
+		struct haste_ast_binary,
+		.base.kind = ND_BINARY,
+		.base.start = lhs->start,
 		.lhs = lhs,
 		.rhs = rhs,
 		.op = op);
@@ -176,14 +188,12 @@ struct haste_ast_node *field_access(struct parser *self, struct haste_ast_node *
 		report_error(self, "Expected a name. got '{token}' instead.", token);
 	}
 
-	return create(self->allocator,
-		struct haste_ast_node,
-		.kind = ND_ACCESS,
-		.start = start,
-		.access = {
-			.lhs = lhs,
-			.rhs = token,
-		});
+	return create_node(self,
+		struct haste_ast_access,
+		.base.kind = ND_ACCESS,
+		.base.start = start,
+		.lhs = lhs,
+		.rhs = token);
 }
 
 static struct haste_ast_node *unary(struct parser *self)
@@ -191,11 +201,11 @@ static struct haste_ast_node *unary(struct parser *self)
 	struct token start = previous(self);
 	struct token op	= previous(self);
 	struct haste_ast_node *rhs = parse_precedence(self, PREC_UNARY);
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_UNARY,
-		.start = start,
+	return create_node(
+		self,
+		struct haste_ast_unary,
+		.base.kind = ND_UNARY,
+		.base.start = start,
 		.op = op,
 		.rhs = rhs);
 }
@@ -212,37 +222,35 @@ static struct haste_ast_node *cast(struct parser *self)
 	}
 
 	struct haste_ast_node *child_expr = parse_precedence(self, PREC_UNARY);
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_CAST,
-		.start = start,
-		.cast = {
-			.to = to,
-			.expr = child_expr
-		});
+	return create_node(
+		self,
+		struct haste_ast_cast,
+		.base.kind = ND_CAST,
+		.base.start = start,
+		.to = to,
+		.expr = child_expr);
 }
 
 static struct haste_ast_node *distinct(struct parser *self)
 {
 	struct token start = previous(self);
-	struct haste_ast_node *body = parse_precedence(self, PREC_UNARY);
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_DISTINCT,
-		.start = start,
-		.body = body);
+	struct haste_ast_node *child = parse_precedence(self, PREC_UNARY);
+	return create_node(
+		self,
+		struct haste_ast_distinct,
+		.base.kind = ND_DISTINCT,
+		.base.start = start,
+		.child = child);
 }
 
 static struct haste_ast_node *primary(struct parser *self)
 {
 	struct token lit = previous(self);
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_PRIMARY,
-		.start = lit,
+	return create_node(
+		self,
+		struct haste_ast_primary,
+		.base.kind = ND_PRIMARY,
+		.base.start = lit,
 		.token = lit);
 }
 
@@ -251,12 +259,12 @@ static struct haste_ast_node *grouping(struct parser *self)
 	struct token start = previous(self);
 	struct haste_ast_node *child = expr(self);
 	consume(self, TK_CLOSE_PAREN, "Expected ')', got '%.*s' instead.", TOKEN_FMT(peek(self)));
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_GROUPING,
-		.start = start,
-		.body = child);
+	return create_node(
+		self,
+		struct haste_ast_grouping,
+		.base.kind = ND_GROUPING,
+		.base.start = start,
+		.child = child);
 }
 
 // ── Struct parsing ────────────────────────────────────────────────
@@ -266,8 +274,8 @@ static struct haste_ast_node *struct_type_prefix(struct parser *self)
 	struct token start = previous(self);
 	consume(self, TK_OPEN_BRACE, "Expected '{' after 'struct'.");
 
-	struct haste_ast_node head = {0};
-	struct haste_ast_node *current = &head;
+	struct haste_ast_struct_field head = {0};
+	struct haste_ast_struct_field *current = &head;
 	while (not check(self, TK_CLOSE_BRACE) and not ended(self)) {
 		struct token_list names = {0};
 		arrpush(self->allocator, names, consume(self, TK_IDENT, "Expected field name."));
@@ -286,34 +294,31 @@ static struct haste_ast_node *struct_type_prefix(struct parser *self)
 		}
 		consume(self, TK_SEMI_COLON, "Expected ';' after field declaration.");
 
-		current->next = create(
-			self->allocator,
-			struct haste_ast_node,
-			.kind = ND_STRUCT_FIELD,
-			.start = names.items[0],
-			.struct_field = {
-				.name_count = names.len,
-				.names = names.items,
-				.type = type,
-				.default_value = default_value,
-			});
+		current->next = create_node(
+			self,
+			struct haste_ast_struct_field,
+			.base.start = names.items[0],
+			.name_count = names.len,
+			.names = names.items,
+			.type = type,
+			.default_value = default_value);
 		current = current->next;
 	}
 
 	consume(self, TK_CLOSE_BRACE, "Expected '}' after struct fields.");
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_STRUCT_TYPE,
-		.start = start,
-		.struct_type = { .fields = head.next });
+	return create_node(
+		self,
+		struct haste_ast_struct_type,
+		.base.kind = ND_STRUCT_TYPE,
+		.base.start = start,
+		.fields = (void*)head.next);
 }
 
 static struct haste_ast_node *struct_literal_infix(struct parser *self, struct haste_ast_node *type_expr)
 {
 	struct token start = type_expr != NULL then type_expr->start otherwise previous(self);
-	struct haste_ast_node head = {0};
-	struct haste_ast_node *current = &head;
+	struct haste_ast_struct_lit_field head = {0};
+	struct haste_ast_struct_lit_field *current = &head;
 
 	while (not check(self, TK_CLOSE_BRACE) and not ended(self)) {
 		struct token name = {0};
@@ -331,28 +336,24 @@ static struct haste_ast_node *struct_literal_infix(struct parser *self, struct h
 		else if (not check(self, TK_CLOSE_BRACE))
 			consume(self, TK_COMMA, "Expected ',' or '}' after field value.");
 
-		current->next = create(
-			self->allocator,
-			struct haste_ast_node,
-			.kind = ND_STRUCT_LIT_FIELD,
-			.start = name,
-			.struct_lit_field = {
-				.name = name,
-				.value = value,
-			});
+		current->next = create_node(
+			self,
+			struct haste_ast_struct_lit_field,
+			.base.kind = ND_STRUCT_LIT_FIELD,
+			.base.start = name,
+			.name = name,
+			.value = value);
 		current = current->next;
 	}
 
 	consume(self, TK_CLOSE_BRACE, "Expected '}' after struct literal fields.");
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_STRUCT_LITERAL,
-		.start = start,
-		.struct_literal = {
-			.type_expr = type_expr,
-			.fields = head.next,
-		});
+	return create_node(
+		self,
+		struct haste_ast_struct_literal,
+		.base.kind = ND_STRUCT_LITERAL,
+		.base.start = start,
+		.type_expr = type_expr,
+		.fields = (void*)head.next);
 }
 
 static struct haste_ast_node *auto_struct_prefix(struct parser *self)
@@ -424,7 +425,7 @@ static struct haste_ast_node *parse_precedence(struct parser *self, enum precede
 		ParseInfixFn infix_rule = get_rule(tok).infix;
 		if (infix_rule == NULL) {
 			run_at_percent (3) {
-				if (strncmp(left->token.start, "cat", left->token.len) == 0) {
+				if (strncmp(left->start.start, "cat", left->start.len) == 0) {
 					report_error_at(self, tok,
 									"meow! sorry, but purrs of a cat not gonna write useful software :(.", tok);
 				} else {
@@ -466,26 +467,24 @@ static struct haste_ast_node *variable_decl(struct parser *self, bool is_constan
 
 	consume(self, TK_SEMI_COLON, "Expected ';' at the end of the variable declaration.");
 
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_VAR_DECL,
-		.start = start,
-		.variable = {
-			.is_constant = is_constant,
-			.name        = name,
-			.type        = type,
-			.value       = value,
-		});
+	return create_node(
+		self,
+		struct haste_ast_var_decl,
+		.base.kind = ND_VAR_DECL,
+		.base.start = start,
+		.is_constant = is_constant,
+		.name        = name,
+		.type        = type,
+		.value       = value);
 }
 
 static struct haste_ast_node *decl(struct parser *self, const bool error_on_unexpected)
 {
 	struct token token = peek(self);
 	if (match(self, TK_KW_CONST, TK_KW_VAR)) {
-		struct haste_ast_node *node = variable_decl(self, token.kind == TK_KW_CONST);
-		node->variable.is_global = true;
-		return node;
+		struct haste_ast_var_decl *node = (void*)variable_decl(self, token.kind == TK_KW_CONST);
+		node->is_global = true;
+		return (void*)node;
 	}
 
 	if (not error_on_unexpected) return NULL;
