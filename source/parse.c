@@ -13,7 +13,6 @@ struct parser {
 
 enum precedence {
 	PREC_NONE,
-	PREC_ASSIGNMENT, // = (unimplemented)
 	PREC_TERM,       // + -
 	PREC_FACTOR,     // * /
 	PREC_ACCESS,     // .
@@ -445,7 +444,7 @@ static struct haste_ast_node *parse_precedence(struct parser *self, enum precede
 
 static struct haste_ast_node *expr(struct parser *self)
 {
-	return parse_precedence(self, PREC_ASSIGNMENT);
+	return parse_precedence(self, PREC_TERM);
 }
 
 static struct haste_ast_node *variable_decl(struct parser *self, bool is_constant)
@@ -490,13 +489,13 @@ static struct haste_ast_node *decl(struct parser *self, const bool error_on_unex
 	}
 
 	if (not error_on_unexpected) return NULL;
-	report_error_at(
-		self,
-		token,
-		"Unexpected token: '{token}'. "
-		"expected either 'const', 'var' or 'func'.",
-		token);
-	exit(0);
+
+	if (ended(self)) {
+		report_error_at(self, token,
+			"Unexpected end of file. expected 'const', 'var' or 'func'.");
+	}
+
+	return NULL;
 }
 
 Error parse(struct Allocator allocator, const source_file_id src)

@@ -358,6 +358,7 @@ struct haste_value type_get_int(uint16_t bits, bool is_signed);
 #  define IS_SCALAR(...)            ((__VA_ARGS__).kind == HASTE_VL_SCALAR)
 #  define IS_RUNTIME(...)           ((__VA_ARGS__).kind == HASTE_VL_RUNTIME)
 #  define IS_TYPE(...)              ((__VA_ARGS__).kind == HASTE_VL_TYPE)
+#  define IS_LVALUE(...)            ((__VA_ARGS__).is_lvalue)
 
 #  define IS_STRUCT_TYPE(...)       ((AS_TYPE_INFO(__VA_ARGS__)->kind == HASTE_TY_STRUCT))
 #  define IS_AUTO_STRUCT_TYPE(...)  ((AS_TYPE_INFO(__VA_ARGS__)->kind == HASTE_TY_AUTO_STRUCT))
@@ -388,10 +389,10 @@ enum haste_value_error {
 	ERR_DIVISION_BY_ZERO,
 
 	/* CASTING */
+	ERR_INVALID_IMPLICIT_CAST,
 	ERR_INVALID_CAST,
 
 	/* ASSIGNMENT */
-	// TODO: You didn't completely refactor this yet. implement =value_assign=
 	ERR_INVALID_ASSIGNMET,
 
 	/* STRUCTS */
@@ -411,8 +412,9 @@ enum haste_value_kind {
 };
 
 struct haste_value {
-	enum haste_value_kind kind : 7;
+	enum haste_value_kind kind : 6;
 	bool is_explicitly_comptime : 1;
+	bool is_lvalue : 1;
 	TypeID type_id;
 
 	union {
@@ -450,6 +452,11 @@ struct haste_type;
 void setup_builtins(struct Allocator allocator);
 
 bool value_equal(struct haste_value a, struct haste_value b);
+
+struct haste_value value_assign(
+	struct Allocator alloc,
+	struct haste_value *lvalue,
+	struct haste_value rvalue);
 
 struct haste_value value_add(const struct haste_value lhs, const struct haste_value rhs);
 struct haste_value value_sub(const struct haste_value lhs, const struct haste_value rhs);
@@ -602,15 +609,16 @@ struct haste_object *create_string(struct Allocator alloc, const char *str, size
   * @returns `value' casted to the type `to'. upon failing it will return `VAL_BAD'
   */
 struct haste_value value_cast(struct Allocator alloc, const struct haste_type to, const struct haste_value value);
+struct haste_value value_implicit_cast(struct Allocator alloc, const struct haste_type to, const struct haste_value value);
 struct haste_value zero_for_type(struct Allocator alloc, struct haste_type to);
 struct haste_value default_for_type(struct Allocator alloc, struct haste_type to);
 
 bool type_equal(const struct haste_type t1,
                 const struct haste_type t2);
-bool type_can_assign(const struct haste_type assignable,
-                     const struct haste_type value);
-bool type_can_cast(const struct haste_type to,
-                   const struct haste_type from);
+// bool type_can_assign(const struct haste_type assignable,
+//                      const struct haste_type value);
+// bool type_can_cast(const struct haste_type to,
+//                    const struct haste_type from);
 
 struct haste_type untyped_to_typed(struct haste_type type);
 

@@ -123,7 +123,11 @@ struct haste_value value_cast(
 
 	if (type_equal(to, ty_auto))           return value;
 	if (type_equal(to, value_type))        return value;
-	if (not type_can_cast(to, value_type)) return VAL_BAD_ERROR(ERR_INVALID_CAST);
+
+	{
+		struct haste_value implicit = value_implicit_cast(alloc, to, value);
+		if (not IS_BAD(implicit)) return implicit;
+	}
 
 	if (value_equal(value, VAL_UNINIT))    return default_for_type(alloc, to);
 	if (IS_ZERO(value))                    return zero_for_type(alloc, to);
@@ -172,6 +176,9 @@ struct haste_value value_cast(
 		return result;
 	}
 
+	if (not type_is_number(to) or not type_is_number(value_type)) {
+		return VAL_BAD_ERROR(ERR_INVALID_CAST);
+	}
 	return construct_from_raw(to, extract_raw(value));
 }
 
@@ -236,75 +243,75 @@ uint64_t type_hash(const struct haste_type t)
 	return h;
 }
 
-bool type_can_assign(const struct haste_type assignable,
-                     const struct haste_type value)
-{
-	assert(not type_is_untyped(assignable) and "the assignable shouldn't be untyped.");
+/* bool type_can_assign(const struct haste_type assignable, */
+/*                      const struct haste_type value) */
+/* { */
+/* 	assert(not type_is_untyped(assignable) and "the assignable shouldn't be untyped."); */
 
-	if (type_equal(assignable, value))    return true;
-	if (IS_ZERO_TYPE(value))       return true;
-	if (type_equal(assignable, ty_auto))  return not IS_UNKNOWN(value);
-	if (type_equal(assignable, ty_int))   return IS_UNKNOWN(value) or type_is_integer(value);
-	if (type_equal(assignable, ty_usize)) return IS_UNKNOWN(value) or type_is_integer(value);
-	if (type_equal(assignable, ty_float)) return IS_UNKNOWN(value) or type_is_untyped_number(value);
+/* 	if (type_equal(assignable, value))    return true; */
+/* 	if (IS_ZERO_TYPE(value))       return true; */
+/* 	if (type_equal(assignable, ty_auto))  return not IS_UNKNOWN(value); */
+/* 	if (type_equal(assignable, ty_int))   return IS_UNKNOWN(value) or type_is_integer(value); */
+/* 	if (type_equal(assignable, ty_usize)) return IS_UNKNOWN(value) or type_is_integer(value); */
+/* 	if (type_equal(assignable, ty_float)) return IS_UNKNOWN(value) or type_is_untyped_number(value); */
 
-	if (AS_TYPE_INFO(assignable)->kind == HASTE_TY_INT or AS_TYPE_INFO(assignable)->kind == HASTE_TY_UINT)
-		return IS_UNKNOWN(value) or type_is_untyped_integer(value);
+/* 	if (AS_TYPE_INFO(assignable)->kind == HASTE_TY_INT or AS_TYPE_INFO(assignable)->kind == HASTE_TY_UINT) */
+/* 		return IS_UNKNOWN(value) or type_is_untyped_integer(value); */
 
-	if (type_is_any_string(assignable))
-		return type_is_any_string(value) or IS_UNKNOWN(value);
+/* 	if (type_is_any_string(assignable)) */
+/* 		return type_is_any_string(value) or IS_UNKNOWN(value); */
 
-	if (IS_UNKNOWN(value)) return true;
+/* 	if (IS_UNKNOWN(value)) return true; */
 
-	if (IS_STRUCT_TYPE(assignable) and IS_AUTO_STRUCT_TYPE(value)) {
-		const struct haste_struct_type_info *ass_st = AS_STRUCT_TYPE_INFO(assignable);
-		const struct haste_struct_type_info *val_st = AS_STRUCT_TYPE_INFO(value);
+/* 	if (IS_STRUCT_TYPE(assignable) and IS_AUTO_STRUCT_TYPE(value)) { */
+/* 		const struct haste_struct_type_info *ass_st = AS_STRUCT_TYPE_INFO(assignable); */
+/* 		const struct haste_struct_type_info *val_st = AS_STRUCT_TYPE_INFO(value); */
 
-		// TODO: this is not a valid requirement. consider this
-		// const Foo = struct{
-		//     a: int;
-		//     b: int = 2;
-		// };
-		// const foo = .{
-		//     a: 1, // we set whats required
-		// };
-		// const bar: Foo = cast foo;
-		if (val_st->len > ass_st->len) return false;
+/* 		// TODO: this is not a valid requirement. consider this */
+/* 		// const Foo = struct{ */
+/* 		//     a: int; */
+/* 		//     b: int = 2; */
+/* 		// }; */
+/* 		// const foo = .{ */
+/* 		//     a: 1, // we set whats required */
+/* 		// }; */
+/* 		// const bar: Foo = cast foo; */
+/* 		if (val_st->len > ass_st->len) return false; */
 
-		for (size_t i=0; i < ass_st->len; i += 1) {
-			if (ass_st->items[i].has_default) continue;
-			ssize_t idx = find_named_field(value, ass_st->items[i].name);
-			if (idx < 0) {
-				return false;
-			}
-		}
+/* 		for (size_t i=0; i < ass_st->len; i += 1) { */
+/* 			if (ass_st->items[i].has_default) continue; */
+/* 			ssize_t idx = find_named_field(value, ass_st->items[i].name); */
+/* 			if (idx < 0) { */
+/* 				return false; */
+/* 			} */
+/* 		} */
 
-		return true;
-	}
+/* 		return true; */
+/* 	} */
 
-	return false;
-}
+/* 	return false; */
+/* } */
 
-bool type_can_cast(const struct haste_type to,
-                   const struct haste_type from)
-{
-	// if you can assign to it. you can cast to it
-	// (Also this saves us some code)
-	if (type_can_assign(to, from))    return true;
+/* bool type_can_cast(const struct haste_type to, */
+/*                    const struct haste_type from) */
+/* { */
+/* 	// if you can assign to it. you can cast to it */
+/* 	// (Also this saves us some code) */
+/* 	if (type_can_assign(to, from))    return true; */
 
-	if (IS_UNKNOWN(from)) return true;
-	if (type_equal(to, ty_auto))      return true;
-	if (type_equal(to, from))         return true;
-	if (IS_ZERO_TYPE(from))    return true;
-	if (type_is_number(to))           return type_is_number(from) or type_equal(from, ty_usize);
-	if (type_equal(to, ty_usize))     return type_is_number(from);
-	if (AS_TYPE_INFO(to)->kind == HASTE_TY_INT or AS_TYPE_INFO(to)->kind == HASTE_TY_UINT)
-		return type_is_integer(from);
-	if (type_is_any_string(to))
-		return type_is_any_string(from) or IS_UNKNOWN(from);
+/* 	if (IS_UNKNOWN(from)) return true; */
+/* 	if (type_equal(to, ty_auto))      return true; */
+/* 	if (type_equal(to, from))         return true; */
+/* 	if (IS_ZERO_TYPE(from))    return true; */
+/* 	if (type_is_number(to))           return type_is_number(from) or type_equal(from, ty_usize); */
+/* 	if (type_equal(to, ty_usize))     return type_is_number(from); */
+/* 	if (AS_TYPE_INFO(to)->kind == HASTE_TY_INT or AS_TYPE_INFO(to)->kind == HASTE_TY_UINT) */
+/* 		return type_is_integer(from); */
+/* 	if (type_is_any_string(to)) */
+/* 		return type_is_any_string(from) or IS_UNKNOWN(from); */
 
-	return false;
-}
+/* 	return false; */
+/* } */
 
 bool type_is_any_string(const struct haste_type t)
 {

@@ -201,7 +201,20 @@ static LLVMValueRef codegen_expr(struct codegen_context *ctx, const struct haste
 {
 	switch (node->kind) {
 	case ND_VALUE:
-		return llvm_value(ctx, node->value);
+		if (is_comptime_known(node->value)) {
+			return llvm_value(ctx, node->value);
+		}
+		if (node->value.is_lvalue) {
+			const char *name = intern_token(node->start);
+			LLVMValueRef global = LLVMGetNamedGlobal(ctx->module, name);
+			assert(global != NULL);
+			return LLVMBuildLoad2(ctx->builder,
+				llvm_type(ctx, node->type), global, "load");
+		}
+		if (IS_RUNTIME(node->value)) {
+			return codegen_expr(ctx, node->value.runtime);
+		}
+		unreachable();
 	case ND_CAST:
 		return codegen_cast(ctx, node);
 	default: unimplemented();

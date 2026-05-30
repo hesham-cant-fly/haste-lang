@@ -304,18 +304,28 @@ static bool read_struct_field(struct analyzer *self,
 	bool has_default = false;
 	if (field->struct_field.default_value != NULL) {
 		default_value = analyze_node(self, field->struct_field.default_value, field_type);
-		if (type_can_assign(field_type, typeof_value(default_value))) {
-			default_value = value_cast(self->allocator, field_type, default_value);
-			if (IS_AUTO(field_type)) {
-				field_type = typeof_value(default_value);
-				field_type = untyped_to_typed(field_type);
+		if (IS_BAD(default_value)) return true;
+
+		if (not IS_AUTO(field_type)) {
+			struct haste_type default_value_type = typeof_value(default_value);
+			if (not type_equal(field_type, default_value_type)) {
+				struct haste_value slot = make_value(self->allocator, field_type);
+				slot.is_lvalue = true;
+				catch(result, err, value_assign(self->allocator, &slot, default_value)) {
+					discard err;
+					report_error(self, field->struct_field.default_value,
+								 "Cannot set the default value of type '{value}' to '{value}'",
+								 default_value_type, field_type);
+					default_value = VAL_BAD;
+					return true;
+				}
+				default_value = result;
 			}
-		} else {
-			report_error(self, field->struct_field.default_value,
-						 "Cannot set the default value of type '{value}' to '{value}'",
-						 typeof_value(default_value), field_type);
-			default_value = VAL_BAD;
-			return true;
+		}
+
+		if (IS_AUTO(field_type)) {
+			field_type = typeof_value(default_value);
+			field_type = untyped_to_typed(field_type);
 		}
 		has_default = true;
 	}
@@ -479,6 +489,9 @@ static struct haste_value analyze_primary(struct analyzer *self, struct haste_as
 			return VAL_UNINIT;
 		}
 		value = symbol->value;
+		if (not symbol->is_constant) {
+			value.is_lvalue = true;
+		}
 	} else {
 		value = token_to_value(self, node->token);
 	}
@@ -604,15 +617,20 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 
 	if (IS_AUTO(type)) {
 		type = typeof_value(value);
-	} else if (not type_can_assign(type, typeof_value(value))) {
-		report_error(self, node->variable.name,
-			"cannot assign a value of type '{value}' to '{value}'.", typeof_value(value), type);
-		fail_var_decl(self, target_scope, name, is_constant, node);
 	} else if (IS_UNINIT(value))
 		value = default_for_type(self->allocator, type);
 
 	if (not type_equal(type, typeof_value(value))) {
-		value = value_cast(self->allocator, type, value);
+		struct haste_type orig_type = typeof_value(value);
+		struct haste_value slot = make_value(self->allocator, type);
+		slot.is_lvalue = true;
+		catch(result, err, value_assign(self->allocator, &slot, value)) {
+			discard err;
+			report_error(self, node->variable.name,
+				"cannot assign a value of type '{value}' to '{value}'.", orig_type, type);
+			fail_var_decl(self, target_scope, name, is_constant, node);
+		}
+		value = result;
 	}
 
 	if (IS_TYPE(value)) {
@@ -859,6 +877,7 @@ struct haste_value analyze_node(struct analyzer *self, struct haste_ast_node *no
 	case ND_STRUCT_TYPE:      return analyze_struct_type(self, node, expected_type);
 	case ND_STRUCT_LITERAL:   return analyze_struct_literal(self, node, expected_type);
 	case ND_VAR_DECL:         return analyze_var_decl(self, node, expected_type);
+	default:                  unreachable();
 	}
 }
 

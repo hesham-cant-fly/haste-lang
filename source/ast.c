@@ -19,7 +19,7 @@ static const char *HASTE_AST_NODE_KIND[] =
 	[ND_STRUCT_LITERAL]   = "struct_literal",
 	[ND_STRUCT_LIT_FIELD] = "struct_lit_field",
 
-	[ND_VAR_DECL] = "var_decl",
+	[ND_VAR_DECL]   = "var_decl",
 };
 
 static int print_haste_ast_node_kind(stream_t file, const enum haste_ast_node_kind kind)

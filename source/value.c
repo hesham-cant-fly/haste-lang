@@ -352,6 +352,77 @@ DEFINE_ARITH(value_sub, ARITH_SUB)
 DEFINE_ARITH(value_mul, ARITH_MUL)
 DEFINE_ARITH(value_div, ARITH_DIV)
 
+struct haste_value value_implicit_cast(struct Allocator alloc, const struct haste_type to, const struct haste_value value)
+{
+	struct haste_type from = typeof_value(value);
+
+	if (type_equal(to, from)) {
+		return value;
+	}
+
+	if (type_is_untyped_integer(from) and type_is_number(to)) {
+		if (type_is_float(to)) {
+			return VAL_SCALAR(AS_TYPEID(to), .floating = (double)value.integer);
+		}
+		return VAL_SCALAR(AS_TYPEID(to), .integer = value.integer);
+	}
+
+	if (type_is_untyped_float(from) and type_is_float(to)) {
+		return VAL_SCALAR(AS_TYPEID(to), .floating = value.floating);
+	}
+
+	if (type_equal(from, ty_untyped_string)) {
+		if (type_equal(to, ty_string)) {
+			struct haste_string_object *s = (struct haste_string_object*)value.obj;
+			struct haste_value so = make_value(alloc, to);
+			struct_set_field(alloc, &so, (size_t)0,
+				VAL_OBJ(AS_TYPEID(ty_cstr), value.obj));
+			struct_set_field(alloc, &so, (size_t)1,
+				VAL_SCALAR(AS_TYPEID(ty_usize), .integer = (int64_t)s->len));
+			return so;
+		}
+		if (type_equal(to, ty_cstr)) {
+			return VAL_OBJ(AS_TYPEID(to), value.obj);
+		}
+	}
+
+	return VAL_BAD_ERROR(ERR_INVALID_IMPLICIT_CAST);
+}
+
+struct haste_value value_assign(struct Allocator alloc, struct haste_value *lvalue, struct haste_value rvalue)
+{
+	if (not lvalue->is_lvalue)
+		return VAL_BAD_ERROR(ERR_INVALID_ASSIGNMET);
+
+	struct haste_type lhs_type = typeof_value(*lvalue);
+
+	struct haste_value result = value_implicit_cast(alloc, lhs_type, rvalue);
+	if (IS_BAD(result)) {
+		if (IS_ZERO(rvalue)) {
+			result = zero_for_type(alloc, lhs_type);
+		} else if (IS_UNINIT(rvalue)) {
+			result = default_for_type(alloc, lhs_type);
+		} else if (IS_STRUCT_TYPE(lhs_type) and IS_AUTO_STRUCT_TYPE(typeof_value(rvalue))) {
+			result = value_cast(alloc, lhs_type, rvalue);
+		}
+	}
+	if (IS_BAD(result)) return VAL_BAD_ERROR(ERR_INVALID_ASSIGNMET);
+
+	if (IS_STRUCT(*lvalue) and IS_STRUCT(result)) {
+		struct haste_struct_object *lso = AS_STRUCT(*lvalue);
+		struct haste_struct_object *rso = AS_STRUCT(result);
+		struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(lhs_type);
+		iarreach (i, *st) {
+			lso->fields[i] = rso->fields[i];
+		}
+	} else {
+		*lvalue = result;
+	}
+
+	result.is_lvalue = false;
+	return result;
+}
+
 struct haste_object *create_struct(struct Allocator alloc, struct haste_struct_type_info *st)
 {
 	assert(st != NULL);
@@ -540,24 +611,12 @@ struct haste_value struct_set_field_by_index(struct Allocator allocator,
 		return VAL_BAD_ERROR(ERR_FIELD_DOESNT_EXIST);
 	}
 
-	struct haste_struct_field field = st->items[idx];
-	if (not type_can_assign(field.type, typeof_value(new_value))) {
+	struct haste_struct_object *so = AS_STRUCT(*value);
+	struct haste_value casted = value_cast(allocator, st->items[idx].type, new_value);
+	if (IS_BAD(casted)) {
 		return VAL_BAD_ERROR(ERR_INVALID_ASSIGNMET);
 	}
-
-	struct haste_struct_object *so = AS_STRUCT(*value);
-	so->fields[idx] = new_value;
-
-	if (IS_BAD(new_value)) {
-		return new_value;
-	}
-
-	if (not type_equal(field.type, typeof_value(new_value))) {
-		so->fields[idx] = value_cast(allocator, field.type, new_value);
-	} else {
-		so->fields[idx] = new_value;
-	}
-
+	so->fields[idx] = casted;
 	return *value;
 }
 

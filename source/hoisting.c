@@ -17,7 +17,7 @@ Error hoist(struct Allocator allocator, const source_file_id src)
 {
 	struct haste_ast_node *root = get_source_file_ast(src);
 	leach (struct haste_ast_node, current, root) {
-		assert(node_is_declaration(current) and "Has to be a declaration.");
+		if (not node_is_declaration(current)) continue;
 
 		const char *name = declaration_name(current);
 		
