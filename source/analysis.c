@@ -309,10 +309,8 @@ static bool read_struct_field(struct analyzer *self,
 		if (not IS_AUTO(field_type)) {
 			struct haste_type default_value_type = typeof_value(default_value);
 			if (not type_equal(field_type, default_value_type)) {
-				struct haste_value slot = make_value(self->allocator, field_type);
-				slot.is_lvalue = true;
-				catch(result, err, value_assign(self->allocator, &slot, default_value)) {
-					discard err;
+				struct haste_value result = value_coerce(self->allocator, field_type, default_value);
+				if (IS_BAD(result)) {
 					report_error(self, field->struct_field.default_value,
 								 "Cannot set the default value of type '{value}' to '{value}'",
 								 default_value_type, field_type);
@@ -622,15 +620,12 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 
 	if (not type_equal(type, typeof_value(value))) {
 		struct haste_type orig_type = typeof_value(value);
-		struct haste_value slot = make_value(self->allocator, type);
-		slot.is_lvalue = true;
-		catch(result, err, value_assign(self->allocator, &slot, value)) {
-			discard err;
+		value = value_coerce(self->allocator, type, value);
+		if (IS_BAD(value)) {
 			report_error(self, node->variable.name,
 				"cannot assign a value of type '{value}' to '{value}'.", orig_type, type);
 			fail_var_decl(self, target_scope, name, is_constant, node);
 		}
-		value = result;
 	}
 
 	if (IS_TYPE(value)) {

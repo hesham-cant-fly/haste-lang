@@ -610,6 +610,7 @@ struct haste_object *create_string(struct Allocator alloc, const char *str, size
   */
 struct haste_value value_cast(struct Allocator alloc, const struct haste_type to, const struct haste_value value);
 struct haste_value value_implicit_cast(struct Allocator alloc, const struct haste_type to, const struct haste_value value);
+struct haste_value value_coerce(struct Allocator alloc, const struct haste_type to, const struct haste_value value);
 struct haste_value zero_for_type(struct Allocator alloc, struct haste_type to);
 struct haste_value default_for_type(struct Allocator alloc, struct haste_type to);
 
