@@ -36,6 +36,7 @@ static void *c_alloc_virt(void *self, size_t alignment, size_t size)
 {
 	((void)self);
 	((void)alignment);
+	allocated += size;
 	return malloc(size);
 }
 
@@ -44,13 +45,14 @@ static void *c_realloc_virt(void *self, size_t old_size, void *ptr, size_t align
 	((void)self);
 	(void)old_size;
 	((void)alignment);
+	allocated += size - old_size;
 	return realloc(ptr, size);
 }
 
 static void c_free_virt(void *self, size_t size, void *ptr)
 {
 	((void)self);
-	(void)size;
+	allocated -= size;
 	free(ptr);
 }
 

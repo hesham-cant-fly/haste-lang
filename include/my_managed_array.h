@@ -52,9 +52,10 @@
 
 #define marrgrow(array_) \
 	do { \
-		const size_t new_cap_ = (array_).cap == 0 ? (INITIAL_CAP) : (array_).cap * (GROW_FACTOR); \
+		size_t old_cap_ = (array_).cap; \
+		const size_t new_cap_ = old_cap_ == 0 ? (INITIAL_CAP) : old_cap_ * (GROW_FACTOR); \
 		(array_).cap = new_cap_; \
-		(array_).items = recreate((array_).allocator, (array_).cap * sizeof(*(array_).items), (array_).items); \
+		(array_).items = xrecreate((array_).allocator, old_cap_ * sizeof(*(array_).items), new_cap_ * sizeof(*(array_).items), (array_).items); \
 	} while (0)
 
 #define marrinsert(array_, item_, pos_) \
@@ -84,7 +85,7 @@
 		while (new_cap_ < (min_cap_)) { \
 			new_cap_ *= (GROW_FACTOR);			  \
 		} \
-		(array_).items = recreate((array_).allocator, 16, (new_cap_ * sizeof(*(array_).items)), (array_).items); \
+		(array_).items = xrecreate((array_).allocator, (array_).cap * sizeof(*(array_).items), new_cap_ * sizeof(*(array_).items), (array_).items); \
 		(array_).cap = new_cap_; \
 	} while (0)
 

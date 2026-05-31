@@ -215,6 +215,7 @@ cleanup:
 	if (g_options.do_measure and exit_code == 0) {
 		print_timing_report(timers);
 	}
+	marrfree(timers);
 
 	arena_free(&analysis_arena);
 	deinit_intern_table();

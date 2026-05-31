@@ -117,15 +117,25 @@ static inline void print_timing_report(struct timer_list timers)
 		struct timed_result r = format_duration(totals_ns[i]);
 		double pct = grand_total_ns > 0 ? totals_ns[i] / grand_total_ns * 100 : 0;
 
-		double size = (double)timers.items[i].total_allocated_memory;
-		const char *unit = "B";
-		if (size >= 1024) { size /= 1024; unit = "kB"; }
-		if (size >= 1024) { size /= 1024; unit = "MB"; }
-		if (size >= 1024) { size /= 1024; unit = "GB"; }
+		double total = (double)timers.items[i].total_allocated_memory;
+		const char *total_unit = "B";
+		if (total >= 1024) { total /= 1024; total_unit = "kB"; }
+		if (total >= 1024) { total /= 1024; total_unit = "MB"; }
+		if (total >= 1024) { total /= 1024; total_unit = "GB"; }
 
-		fprintf(stderr, "  %-*s took %.2f %-2s (%05.2f%%) allocated (%.2f %s)\n",
+		double used = (double)timers.items[i].total_allocated_memory;
+		if (i != 0) {
+			used -= (double) timers.items[i - 1].total_allocated_memory;
+		}
+		const char *used_unit = "B";
+		if (used >= 1024) { used /= 1024; used_unit = "kB"; }
+		if (used >= 1024) { used /= 1024; used_unit = "MB"; }
+		if (used >= 1024) { used /= 1024; used_unit = "GB"; }
+
+		fprintf(stderr, "  %-*s took %7.2f %-2s (%6.2f%%) used (%.2f %s) total (%.2f %s)\n",
 				name_width, timers.items[i].name, r.value, time_unit_str(r.unit), pct,
-				size, unit);
+				used, used_unit,
+				total, total_unit);
 	}
 
 	fprintf(stderr, "  ─────────────\n");

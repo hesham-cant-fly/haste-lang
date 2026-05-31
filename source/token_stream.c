@@ -29,7 +29,7 @@ static const char *decode_string(const char *start, size_t len)
 	chars[j] = '\0';
 
 	const char *result = intern_cstr(chars);
-	delete(chars);
+	xdelete(len + 1, chars);
 	return result;
 }
 

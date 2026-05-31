@@ -27,8 +27,7 @@ char *tsprintf(const char *fmt, ...);
 #define tcreate(T_, ...)            (create(get_temporary_allocator(), T_, __VA_ARGS__))
 #define talloc(size_)               (alloc(get_temporary_allocator(), size_))
 #define talign_alloc(align_, size_) (align_alloc(get_temporary_allocator(), align_, size_))
-#define tdestroy(...)               (destroy(get_temporary_allocator(), __VA_ARGS__))
-#define trecreate(new_size_, ...)   (recreate(get_temporary_allocator(), new_size_, __VA_ARGS__))
+#define trecreate(new_size_, ...)   (txrecreate(0, new_size_, __VA_ARGS__))
 
 #define txdestroy(size_, ...)                 (xdestroy(get_temporary_allocator(), size_, __VA_ARGS__))
 #define txrecreate(old_size_, new_size_, ...) (xrecreate(get_temporary_allocator(), old_size_, new_size_, __VA_ARGS__))
@@ -73,7 +72,7 @@ static struct AllocatorInterface temporary_allocator_vtable = {
 void setup_temporary_allocator(size_t size)
 {
 	if (is_using_heap()) {
-		global_temporary.buffer = renew(size, global_temporary.buffer);
+		global_temporary.buffer = xrenew(global_temporary.cap, size, global_temporary.buffer);
 		return;
 	}
 
@@ -83,7 +82,7 @@ void setup_temporary_allocator(size_t size)
 void free_temporary_allocator(void)
 {
 	if (is_using_heap()) {
-		delete(global_temporary.buffer);
+		xdelete(global_temporary.cap, global_temporary.buffer);
 	}
 
 	global_temporary.cap = TEMPORARY_ALLOCATOR_DEFAULT_CAP;
