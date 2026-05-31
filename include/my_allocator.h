@@ -28,6 +28,9 @@ union max_align_t_ {
 	double d;
 	long double ld;
 };
+
+extern size_t allocated;
+
 #define MY_DEFAULT_ALIGNMENT \
 	(sizeof(union max_align_t_))
 
@@ -81,6 +84,7 @@ char *clone_string(struct Allocator allocator, const char *str);
 char *nclone_string(struct Allocator allocator, const char *str, const size_t len);
 
 #ifdef MY_ALLOCATOR_IMPL
+size_t allocated = 0;
 struct Allocator default_allocator_ = {0};
 
 void set_default_allocator(struct Allocator allocator)
@@ -123,6 +127,7 @@ void *allocator_alloc(
 	size_t size)
 {
 	assert(allocator.vtable);
+	allocated += size;
 	return allocator.vtable->allocate(allocator.data, alignment, size);
 }
 
@@ -134,6 +139,7 @@ void *allocator_realloc(
 	size_t new_size)
 {
 	assert(allocator.vtable);
+	allocated += new_size - old_size;
 	return allocator.vtable->reallocate(allocator.data, old_size, ptr, alignment, new_size);
 }
 
@@ -143,6 +149,7 @@ void allocator_free(
 	void *ptr)
 {
 	assert(allocator.vtable);
+	allocated -= size;
 	allocator.vtable->free(allocator.data, size, ptr);
 }
 

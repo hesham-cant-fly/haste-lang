@@ -147,7 +147,8 @@ static struct token *add_token(struct token_stream *self, enum token_kind kind)
 		token(
 			kind,
 			self->start,
-			self->current);
+			self->current,
+			.src = self->src);
 	struct token *result = &self->items[self->write_cursor % STREAM_DATA_COUNT];
 	self->write_cursor += 1;
 	populate_token_value(self, result);

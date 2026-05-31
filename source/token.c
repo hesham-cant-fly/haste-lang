@@ -48,16 +48,9 @@ static const char *TOKEN_KIND_LIT[] =
 	[TK_EOF]          = "eof",
 };
 
-struct span token_to_span(struct token token)
-{
-	discard token;
-	/* return span(token.start, token.len); */
-	return span(NULL, 0);
-}
-
 int print_token(stream_t f, struct token token)
 {
-	return sprint(f, "Token({s}, {span:#})",
+	return sprint(f, "Token({s}, {string:#})",
 				  TOKEN_KIND_LIT[token.kind],
-				  token_to_span(token));
+				  as_string(token));
 }

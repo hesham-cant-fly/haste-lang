@@ -1,6 +1,3 @@
-#include <errno.h>
-#include <stdio.h>
-#include <locale.h>
 #define MY_COMMONS_IMPLEMENTATION
 #define MY_ALLOCATOR_IMPL
 #define MY_ARENA_ALLOCATOR_IMPL
@@ -8,6 +5,9 @@
 #define MY_TEMPORARY_ALLOCATOR_IMPL
 #define MY_HASHTABLE_IMPL
 #define MY_STREAM_IMPL
+#include <errno.h>
+#include <stdio.h>
+#include <locale.h>
 #include "haste.h"
 #include "my_timing.h"
 #include "cwalk.h"
@@ -42,18 +42,18 @@ static void print_errno(void)
 	fprintf(stderr, " * [%d] %s\n", errno, strerror(errno));
 }
 
-static int custom_format_span(stream_t stream, struct modifier_stream mod, va_list args)
+static int custom_format_string(stream_t stream, struct modifier_stream mod, va_list args)
 {
 	discard mod;
-	struct span span = va_arg(args, struct span);
-	if (span.start == NULL) {
+	struct string string = va_arg(args, struct string);
+	if (string.chars == NULL) {
 		return sprint(stream, "(nil)");
 	}
 
 	if (match_modifier(&mod, '#')) {
-		return sprint(stream, "{s:#*}", span.start, (int)span.len);
+		return sprint(stream, "{s:#*}", string.chars, (int)string.len);
 	}
-	return sprint(stream, "{s:*}", span.start, (int)span.len);
+	return sprint(stream, "{s:*}", string.chars, (int)string.len);
 }
 
 static int custom_format_token(stream_t stream, struct modifier_stream mod, va_list args)
@@ -61,11 +61,11 @@ static int custom_format_token(stream_t stream, struct modifier_stream mod, va_l
 	struct token token = va_arg(args, struct token);
 	if (match_modifier(&mod, '#')) {
 		if (match_modifier(&mod, '#')) {
-			return sprint(stream, "{span:#}", token_to_span(token));
+			return sprint(stream, "{string:#}", as_string(token));
 		}
 		return print_token(stream, token);
 	}
-	return sprint(stream, "{span}", token_to_span(token));
+	return sprint(stream, "{string}", as_string(token));
 }
 
 static int custom_format_value(stream_t stream, struct modifier_stream mod, va_list args)
@@ -97,7 +97,7 @@ int main(int argc, char *argv[argc])
 	Error err = parse_arguments(argc, (const char **)argv);
 	if (err) return 1;
 
-	define_format_specifier("span", custom_format_span);
+	define_format_specifier("string", custom_format_string);
 	define_format_specifier("token", custom_format_token);
 	define_format_specifier("value", custom_format_value);
 	define_format_specifier("obj", custom_format_object);
@@ -121,9 +121,9 @@ int main(int argc, char *argv[argc])
 	struct Arena analysis_arena = Arena(c_allocator);
 	struct Allocator analysis_alloc = arena_get_allocator(&analysis_arena);
 
-	enum { PHASE_PARSE, PHASE_HOIST, PHASE_ANALYZE, PHASE_CODEGEN, PHASE_COUNT };
-	struct timer timers[PHASE_COUNT] = {0};
-	const char *phase_names[PHASE_COUNT] = { "parser", "hoisting", "analysis", "codegen" };
+	struct timer_list timers = {
+		.allocator = get_default_allocator(),
+	};
 
 	const source_file_id src = obtain_source_file_id(NULL, g_options.source_path);
 
@@ -138,15 +138,20 @@ int main(int argc, char *argv[argc])
 		goto cleanup;
 	}
 
-	timer_start(&timers[PHASE_PARSE]);
+	timer_start(&timers, "parser");
 	err = parse(arena_allocator, src);
-	timer_stop(&timers[PHASE_PARSE]);
+	timer_stop(&timers, allocated);
 
 	if (err) { exit_code = 1; goto cleanup; }
+	if (g_options.only_parse) {
+		exit_code = 0;
+		goto cleanup;
+	}
 
-	timer_start(&timers[PHASE_HOIST]);
+	timer_start(&timers, "hoisting");
 	err = hoist(c_allocator,  src);
-	timer_stop(&timers[PHASE_HOIST]);
+	timer_stop(&timers, allocated);
+
 	if (err) { exit_code = 1; goto cleanup; }
 
 	if (g_options.dump_ast) {
@@ -158,9 +163,9 @@ int main(int argc, char *argv[argc])
 		goto cleanup;
 	}
 
-	timer_start(&timers[PHASE_ANALYZE]);
+	timer_start(&timers, "analysis");
 	err = analyze(analysis_alloc, arena_allocator,  src);
-	timer_stop(&timers[PHASE_ANALYZE]);
+	timer_stop(&timers, allocated);
 	if (err) { exit_code = 1; goto cleanup; }
 
 	if (g_options.dump_sema) {
@@ -185,32 +190,32 @@ int main(int argc, char *argv[argc])
 				llvm_path = llvm_path_buf;
 			}
 		}
-		timer_start(&timers[PHASE_CODEGEN]);
+		timer_start(&timers, "codegen");
 		err = codegen(c_allocator, src,  llvm_path, llvm_to_stderr);
-		timer_stop(&timers[PHASE_CODEGEN]);
+		timer_stop(&timers, allocated);
 		if (err) { exit_code = 1; goto cleanup; }
-		if (g_options.do_measure)
-			print_timing_report(timers, phase_names, PHASE_COUNT);
 		goto cleanup;
 	}
 
-	timer_start(&timers[PHASE_CODEGEN]);
+	timer_start(&timers, "codegen");
 	err = codegen(c_allocator, src,  NULL, false);
-	timer_stop(&timers[PHASE_CODEGEN]);
+	timer_stop(&timers, allocated);
 	if (err) { exit_code = 1; goto cleanup; }
-
-	if (g_options.do_measure)
-		print_timing_report(timers, phase_names, PHASE_COUNT);
 
 	// Cleanup source files
 	for (size_t i = 0; i < sources.len; i++) {
-		destroy(sources.allocator, sources.items[i].path);
-		destroy(sources.allocator, sources.items[i].content);
-		hmfree(sources.allocator, sources.items[i].declarations);
+		struct source_file item = sources.items[i];
+		xdestroy(sources.allocator, strlen(item.path), item.path);
+		xdestroy(sources.allocator, strlen(item.content), item.content);
+		hmfree(sources.allocator, item.declarations);
 	}
 	marrfree(sources);
 
 cleanup:
+	if (g_options.do_measure and exit_code == 0) {
+		print_timing_report(timers);
+	}
+
 	arena_free(&analysis_arena);
 	deinit_intern_table();
 	arena_free(&arena);

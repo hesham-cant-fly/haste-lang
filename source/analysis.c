@@ -31,7 +31,7 @@ struct analyzer {
 	struct Allocator allocator;
 	struct Allocator arena_allocator;
 	struct scope *global, *local;
-	const source_file_id src;
+	source_file_id src;
 	bool had_error;
 };
 
@@ -79,20 +79,17 @@ static struct haste_value analyze_node(struct analyzer *self, struct haste_ast_n
 
 // ── Error helpers ────────────────────────────────────────────────
 
-static void _vreport(struct analyzer *self, struct token token, const char *kind, bool set_error, const char *restrict fmt, va_list args)
+static void _vreport(struct analyzer *self, struct location location, const char *kind, bool set_error, const char *restrict fmt, va_list args)
 {
-	if (self->src != -1) f_vreport_at_token(self->src, kind, token, fmt, args);
-	else {
-		eprintln(fmt, args);
-	}
+	f_vreport_at_location(kind, location, fmt, args);
 	if (set_error) self->had_error = true;
 }
 
 #define DEFINE_REPORT_FN(name, color, label, set_error) \
 	static void _report_##name##_node(struct analyzer *self, struct haste_ast_node *node, const char *restrict fmt, ...) \
-	{ va_list args; va_start(args, fmt); _vreport(self, node->start, color label, set_error, fmt, args); va_end(args); } \
+	{ va_list args; va_start(args, fmt); _vreport(self, node->location, color label, set_error, fmt, args); va_end(args); } \
 	static void _report_##name##_token(struct analyzer *self, struct token token, const char *restrict fmt, ...) \
-	{ va_list args; va_start(args, fmt); _vreport(self, token, color label, set_error, fmt, args); va_end(args); }
+	{ va_list args; va_start(args, fmt); _vreport(self, as_location(token), color label, set_error, fmt, args); va_end(args); }
 
 DEFINE_REPORT_FN(error,   ANSI_CODE_RED,    "Error",   true)
 DEFINE_REPORT_FN(note,    ANSI_CODE_GREEN,  "Note",   false)
@@ -127,7 +124,7 @@ static void end_scope(struct analyzer *self)
 	struct scope *scope = self->local;
 	self->local = scope->next;
 	hmfree(self->allocator, *scope);
-	destroy(self->allocator, scope);
+	xdestroy(self->allocator, sizeof(*scope), scope);
 }
 
 // ── Symbol table ─────────────────────────────────────────────────
@@ -267,7 +264,7 @@ static void inject_struct_type(struct analyzer *self, struct haste_ast_node *nod
 	struct haste_ast_node *ty_node = (struct haste_ast_node*)create(
 		self->arena_allocator,
 		struct haste_ast_value,
-		.base.start = lit->base.start);
+		.base.location = lit->base.location);
 	inject(self->arena_allocator, ty_node, into_value(field_type));
 	lit->type_expr = ty_node;
 }

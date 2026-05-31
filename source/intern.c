@@ -18,7 +18,7 @@ void init_intern_table(struct Allocator allocator, struct Allocator arena)
 
 void deinit_intern_table(void)
 {
-	destroy(g_intern_table.allocator, g_intern_table.entries);
+	xdestroy(g_intern_table.allocator, sizeof(*g_intern_table.entries) * g_intern_table.cap, g_intern_table.entries);
 	g_intern_table = (struct intern_table){0};
 }
 
@@ -51,7 +51,7 @@ static void grow_and_rehash(void)
 	}
 
 	g_intern_table.cap = new_cap;
-	destroy(g_intern_table.allocator, old_entries);
+	xdestroy(g_intern_table.allocator, sizeof(*g_intern_table.entries) * g_intern_table.cap, old_entries);
 }
 
 const char *intern_str(const char *start, size_t len)

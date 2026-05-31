@@ -24,7 +24,7 @@ Error hoist(struct Allocator allocator, const source_file_id src)
 		const char *name = declaration_name(current);
 		
 		if (hmget(sources.items[src].declarations, name)) {
-			f_report_at_token(src, ANSI_CODE_RED "Error", current->start, "a redifinition of this global.");
+			f_report_at_location(ANSI_CODE_RED "Error", current->location, "a redifinition of this global.");
 			return ERROR;
 		}
 

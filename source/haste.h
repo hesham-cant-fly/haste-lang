@@ -55,6 +55,7 @@ struct options {
 	bool do_measure  : 1;
 	bool do_dump     : 1;
 	bool disable_fun : 1;
+	bool only_parse  : 1;
 	const char *source_path;
 	const char *output_path;
 };
@@ -62,19 +63,6 @@ struct options {
 extern struct options g_options;
 
 Error parse_arguments(const int argc, const char *argv[argc]);
-
-//
-// span.c
-//
-struct span {
-	const char *start;
-	uint32_t len;
-};
-
-#define span(...) ((struct span) { __VA_ARGS__ })
-#define SPAN_FMT(...) ((int)(__VA_ARGS__).len), (__VA_ARGS__).start
-
-struct span span_to_trimed(struct span span);
 
 //
 // source.c
@@ -179,7 +167,7 @@ struct haste_ast_node *get_source_file_ast(const source_file_id id);
   */
 struct haste_declarations get_source_file_declarations(const source_file_id id);
 
-// TODO: a location struct
+//
 // token.c
 //
 enum token_kind {
@@ -230,6 +218,7 @@ enum token_kind {
 struct token {
 	uint32_t start;
 	uint32_t len;
+	source_file_id src;
 	enum token_kind kind : 8;
 
 	union {
@@ -248,14 +237,11 @@ struct token {
 		__VA_ARGS__ \
 	}
 
-#define TOKEN_FMT(...) SPAN_FMT(token_to_span(__VA_ARGS__))
-
 struct token_list {
 	size_t len, cap;
 	struct token *items;
 };
 
-struct span token_to_span(struct token token);
 int print_token(stream_t stream, struct token token);
 
 //
@@ -280,6 +266,43 @@ bool token_stream_ended(const struct token_stream *stream);
 struct token token_stream_peek(struct token_stream *stream);
 struct token token_stream_peek_next(struct token_stream *stream);
 struct token token_stream_advance(struct token_stream *stream);
+
+//
+// location.c
+//
+struct string {
+	const char *chars;
+	uint32_t len;
+};
+
+struct location {
+	uint32_t start;
+	uint32_t len;
+	source_file_id src;
+};
+
+#define location(...) ((struct location) { __VA_ARGS__ })
+#define string(...) ((struct string) { __VA_ARGS__ })
+
+#define as_string(...) \
+	_Generic((__VA_ARGS__), \
+		const char *: cstr_as_string, \
+		char *: cstr_as_string, \
+		struct location: location_as_string, \
+		struct token: token_as_string \
+	) (__VA_ARGS__)
+
+struct string string_to_trimed(struct string span);
+
+struct string cstr_as_string(const char *cstr);
+struct string location_as_string(struct location location);
+struct string token_as_string(struct token token);
+
+struct location as_location(struct token token);
+
+struct location location_conjoin(
+    struct location a,
+    struct location b);
 
 //
 // unicode.c
@@ -631,33 +654,35 @@ uint64_t type_hash(const struct haste_type t);
 //
 // ast.c
 //
+enum haste_ast_node_kind {
+	/* Generated during analysis */
+	ND_VALUE,    // value
+
+	/* Expresion */
+	ND_BINARY,   // lhs, rhs, op
+	ND_UNARY,    // rhs, op
+	ND_ACCESS,   // access
+	ND_PRIMARY,  // struct token token
+	ND_GROUPING, // struct haste_ast_node *body
+	ND_DISTINCT, // struct haste_ast_node *body
+
+	ND_CAST,     // struct { ... } cast
+
+	/* Structs */
+	ND_STRUCT_TYPE,       // struct { fields... }
+	ND_STRUCT_FIELD,      // name: type [= default]
+	ND_STRUCT_LITERAL,    // Type{...} or .{...}
+	ND_STRUCT_LIT_FIELD,  // name: value
+
+	/* Statements */
+	ND_VAR_DECL, // struct { ... } variable
+};
+
 struct haste_ast_node {
-	enum haste_ast_node_kind {
-		/* Generated during analysis */
-		ND_VALUE,    // value
-
-		/* Expresion */
-		ND_BINARY,   // lhs, rhs, op
-		ND_UNARY,    // rhs, op
-		ND_ACCESS,   // access
-		ND_PRIMARY,  // struct token token
-		ND_GROUPING, // struct haste_ast_node *body
-		ND_DISTINCT, // struct haste_ast_node *body
-
-		ND_CAST,     // struct { ... } cast
-
-		/* Structs */
-		ND_STRUCT_TYPE,       // struct { fields... }
-		ND_STRUCT_FIELD,      // name: type [= default]
-		ND_STRUCT_LITERAL,    // Type{...} or .{...}
-		ND_STRUCT_LIT_FIELD,  // name: value
-
-		/* Statements */
-		ND_VAR_DECL, // struct { ... } variable
-	} kind : 8;
-	struct haste_type type;
 	struct haste_ast_node *next;
-	struct token start;
+	struct haste_type type;
+	struct location location;
+	enum haste_ast_node_kind kind : 8;
 };
 
 struct haste_ast_value {
@@ -754,8 +779,10 @@ bool node_is_declaration(const struct haste_ast_node *node);
 //
 void f_report_at(const source_file_id src, const char *kind, const char *start, const char *fmt, ...);
 void f_vreport_at(const source_file_id src, const char *kind, const char *start, const char *fmt, va_list args);
-void f_report_at_token(const source_file_id src, const char *kind, struct token token, const char *fmt, ...);
-void f_vreport_at_token(const source_file_id src, const char *kind, struct token token, const char *fmt, va_list args);
+void f_report_at_token(const char *kind, struct token token, const char *fmt, ...);
+void f_vreport_at_token(const char *kind, struct token token, const char *fmt, va_list args);
+void f_report_at_location(const char *kind, struct location location, const char *fmt, ...);
+void f_vreport_at_location(const char *kind, struct location location, const char *fmt, va_list args);
 
 //
 // parse.c
