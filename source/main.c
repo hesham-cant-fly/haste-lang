@@ -148,12 +148,6 @@ int main(int argc, char *argv[argc])
 		goto cleanup;
 	}
 
-	timer_start(&timers, "hoisting");
-	err = hoist(c_allocator,  src);
-	timer_stop(&timers, allocated);
-
-	if (err) { exit_code = 1; goto cleanup; }
-
 	if (g_options.dump_ast) {
 		char path_buf[4096];
 		stream_t out = open_dump_stream(".json", path_buf, sizeof(path_buf));
@@ -207,7 +201,6 @@ int main(int argc, char *argv[argc])
 		struct source_file item = sources.items[i];
 		xdestroy(sources.allocator, strlen(item.path), item.path);
 		xdestroy(sources.allocator, strlen(item.content), item.content);
-		hmfree(sources.allocator, item.declarations);
 	}
 	marrfree(sources);
 

@@ -1,3 +1,6 @@
-home/hesham/Documents/Projects/haste-lang/test/errors/redefine_global.haste:2:1: Error: a redifinition of this global.
+home/hesham/Documents/Projects/haste-lang/test/errors/redefine_global.haste:2:1: Error: A redifinition of this global.
     2 | const x = 2;
+        ^ 
+home/hesham/Documents/Projects/haste-lang/test/errors/redefine_global.haste:1:1: Note: already defined here.
+    1 | const x = 1;
         ^ 

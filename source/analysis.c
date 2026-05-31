@@ -3,6 +3,21 @@
 #include "my_common.h"
 #include "my_stream.h"
 #include "my_termcolor.h"
+#include <unistd.h>
+
+// symbols has three levels
+// -1: ahhhhh:    not even defined, its local for sure tho
+// 0: undefined:  used to out-of-order declaration.
+// 2: defined:    means it just defined, you can't use its value
+//                in its initialization. but you can obtain its address.
+// 3: declared:  means its value is ready
+
+enum symbol_level : int8_t {
+	SYM_AHH        = -1,
+	SYM_UNDEFINED  = 0,
+	SYM_DEFINED = 1,
+	SYM_DECLARED = 2,
+};
 
 struct scope {
 	struct scope *next;
@@ -11,9 +26,7 @@ struct scope {
 		const char *key;
 		bool is_constant : 1;
 		bool is_explicitly_comptime : 1;
-		enum symbol_kind {
-			SYM_VAR,
-		} kind;
+		enum symbol_level level;
 		struct haste_type type;
 		struct haste_value value;
 		struct haste_ast_node *node;
@@ -67,10 +80,10 @@ struct analyzer {
 #define IS_AUTO(type) \
 	type_equal(type, ty_auto)
 
-#define fail_var_decl(self_, scope_, name_, is_constant_, node_) \
+#define fail_var_decl(symbol_, node_) \
 	do { \
 		reset_new_type_counter(); \
-		emit_error_symbol(self_, scope_, name_, is_constant_, node_); \
+		emit_error_symbol(symbol_, node_); \
 	} while (0)
 
 static struct haste_value analyze_node(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type);
@@ -130,6 +143,7 @@ static void end_scope(struct analyzer *self)
 #define put_local_symbol(self_, name_, ...) put_symbol(self_, (self_)->local, name_, __VA_ARGS__)
 #define put_global_symbol(self_, name_, ...) put_symbol(self_, (self_)->global, name_, __VA_ARGS__)
 #define put_symbol(self_, scope_, name_, ...) _put_symbol((self_), (scope_), (name_), (struct symbol) { __VA_ARGS__ })
+
 static bool _put_symbol(struct analyzer *self, struct scope *scope, const char *name, struct symbol symbol)
 {
 	symbol.key = name;
@@ -138,13 +152,12 @@ static bool _put_symbol(struct analyzer *self, struct scope *scope, const char *
 	return false;
 }
 
-#define emit_error_symbol(self_, scope_, name_, is_constant_, node_) \
+#define emit_error_symbol(symbol_, node_)	\
 	do { \
-		put_symbol(self_, scope_, name_, \
-			.value = VAL_BAD, \
-			.type = into_type(VAL_BAD), \
-			.is_constant = is_constant_, \
-			.node = node_); \
+		(symbol_)->value = VAL_BAD;	\
+		(symbol_)->type = into_type(VAL_BAD); \
+		(symbol_)->node = (node_); \
+		(symbol_)->level = SYM_DECLARED; \
 		return VAL_BAD; \
 	} while (0)
 
@@ -154,95 +167,23 @@ static struct symbol *find_local_first(struct analyzer *self, const char *name)
 {
 	leach (struct scope, scope, self->local) {
 		struct symbol *s = hmget(*scope, name);
-		if (s != NULL) return s;
+		if (s == NULL) continue;
+		if (s->level == SYM_DEFINED) {
+			report_error(
+				self, s->node,
+				"Recursive declaration is not allowed");
+			return &_recursion_sentinel;
+		}
+
+		if (s->level == SYM_UNDEFINED) {
+			discard analyze_node(self, s->node, (struct haste_type){0});
+			return s;
+		}
+		return s;
 	}
 
-	struct haste_declaration *decl = hmget(sources.items[self->src].declarations, name);
-	if (decl == NULL) return NULL;
-
-	if (decl->analyzing) {
-		report_error(self, decl->node, "Recursive declrations is not allowed");
-		return &_recursion_sentinel;
-	}
-
-	decl->analyzing = true;
-	analyze_node(self, decl->node, (struct haste_type){0});
-	decl->analyzing = false;
-
-	return find_local_first(self, name);
+	return NULL;
 }
-
-static void symbol_set_add(struct Allocator alloc, struct symbol_set *set, struct symbol s)
-{
-	arrpush(alloc, *set, s);
-}
-
-static struct symbol_set find_all_symbols(struct analyzer *self, const char *name)
-{
-	struct symbol_set result = {0};
-	leach (struct scope, scope, self->local) {
-		struct symbol *s = hmget(*scope, name);
-		if (s != NULL) symbol_set_add(self->allocator, &result, *s);
-	}
-
-	struct haste_declaration *decl = hmget(sources.items[self->src].declarations, name);
-	if (decl == NULL) return result;
-
-	if (not decl->analyzing) {
-		decl->analyzing = true;
-		analyze_node(self, decl->node, (struct haste_type){0});
-		decl->analyzing = false;
-
-		struct symbol *s = hmget(*self->global, name);
-		if (s != NULL) symbol_set_add(self->allocator, &result, *s);
-	}
-
-	return result;
-}
-
-// ── Token → value ──────────────────────────────────────────────
-
-/* static struct haste_value token_to_value(struct analyzer *self, struct token token) */
-/* { */
-/* 	switch (token.kind) { */
-/* 	case TK_IDENT:    unimplemented(); */
-/* 	case TK_STR: { */
-/* 		size_t len = strlen(token.str); */
-/* 		struct haste_object *obj = create_string(self->arena_allocator, (char *)token.str, len); */
-/* 		return VAL_OBJ(AS_TYPEID(ty_untyped_string), obj); */
-/* 	} */
-/* 	case TK_INT: */
-/* 		if (token.ival == 0) return VAL_ZERO; */
-/* 		return VAL_SCALAR(AS_TYPEID(ty_untyped_int), .integer = token.ival); */
-/* 	case TK_FLOAT: */
-/* 		return VAL_SCALAR(AS_TYPEID(ty_untyped_float), .floating = token.fval); */
-/* 	case TK_KW_INT_BITS: */
-/* 	case TK_KW_UINT_BITS: { */
-/* 		const bool is_signed = token.kind == TK_KW_INT_BITS; */
-/* 		if (token.ival == 0) */
-/* 			return bail(self, token, "Bit width must be greater than 0"); */
-/* 		if (token.ival > STANDARD_BITWIDTH_LIMIT) { */
-/* 			run_at_percent (20.0f) { */
-/* 				report_error(self, token, "Amigo! u mama is too big."); */
-/* 			} else { */
-/* 				report_error(self, token, "Bit width bigger than {d} is not supported", STANDARD_BITWIDTH_LIMIT); */
-/* 			} */
-/* 			return VAL_BAD; */
-/* 		} */
-/* 		return type_get_int(token.ival, is_signed); */
-/* 	} */
-/* 	case TK_KW_STRING: return into_value(ty_string); */
-/* 	case TK_KW_CSTR:   return into_value(ty_cstr); */
-/* 	case TK_KW_UINT:   return into_value(ty_uint); */
-/* 	case TK_KW_INT:    return into_value(ty_int); */
-/* 	case TK_KW_FLOAT:  return into_value(ty_float); */
-/* 	case TK_KW_USIZE:  return into_value(ty_usize); */
-/* 	case TK_KW_VOID:   return into_value(ty_void); */
-/* 	case TK_KW_TYPE:   return into_value(ty_type); */
-/* 	case TK_KW_AUTO:   return into_value(ty_auto); */
-/* 	default:           unreachable(); */
-/* 	} */
-/* } */
 
 // ── Struct helpers ─────────────────────────────────────────────
 
@@ -477,6 +418,10 @@ static struct haste_value analyze_integer_lit(
 	struct haste_type expected_type)
 {
 	discard expected_type;
+	if (node->value == 0) {
+		inject(self->arena_allocator, node, VAL_ZERO);
+		return VAL_ZERO;
+	}
 	struct haste_value result = VAL_SCALAR(AS_TYPEID(ty_untyped_int), .integer = node->value);
 	inject(self->arena_allocator, node, result);
 	return result;
@@ -540,9 +485,9 @@ static struct haste_value analyze_int_bits(
 
 	if (node->bits > STANDARD_BITWIDTH_LIMIT) {
 		run_at_percent (20.0f) {
-			report_error(self, &node->base, "Amigo! u mama is too big.");
+			return bail(self, &node->base, "Amigo! u mama is too big.");
 		} else {
-			report_error(self, &node->base, "Bit width bigger than {d} is not supported", STANDARD_BITWIDTH_LIMIT);
+			return bail(self, &node->base, "Bit width bigger than {d} is not supported", STANDARD_BITWIDTH_LIMIT);
 		}
 	}
 
@@ -564,9 +509,9 @@ static struct haste_value analyze_uint_bits(
 
 	if (node->bits > STANDARD_BITWIDTH_LIMIT) {
 		run_at_percent (20.0f) {
-			report_error(self, &node->base, "Amigo! u mama is too big.");
+			return bail(self, &node->base, "Amigo! u mama is too big.");
 		} else {
-			report_error(self, &node->base, "Bit width bigger than {d} is not supported", STANDARD_BITWIDTH_LIMIT);
+			return bail(self, &node->base, "Bit width bigger than {d} is not supported", STANDARD_BITWIDTH_LIMIT);
 		}
 	}
 
@@ -746,53 +691,54 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 {
 	discard expected_type;
 	const char *name = node->name.ident;
-	const bool is_constant = node->is_constant;
-	struct scope *target_scope = node->is_global then self->global otherwise self->local;
+	struct symbol *symbol = find_local_first(self, name);
+	symbol->is_constant = node->is_constant;
+	symbol->level = SYM_DEFINED;
 
 	if (node->type == NULL and node->value == NULL) {
 		report_error(self, &node->base, "You need to either specify the type or the value or both.");
-		fail_var_decl(self, target_scope, name, is_constant, &node->base);
 	}
 
 	struct haste_type type = ty_auto;
 	if (node->type != NULL) {
 		struct haste_value tp = analyze_node(self, node->type, (struct haste_type){0});
 		if (IS_BAD(tp)) {
-			fail_var_decl(self, target_scope, name, is_constant, &node->base);
+			fail_var_decl(symbol, &node->base);
 		}
 		if (not IS_TYPE(tp)) {
 			report_error(self, node->type,
 						 "Expected a {value} got '{value}' instead.", ty_type, typeof_value(tp));
-			fail_var_decl(self, target_scope, name, is_constant, &node->base);
+			fail_var_decl(symbol, &node->base);
 		}
 		type = into_type(tp);
 	}
 
 	struct haste_value value = VAL_UNINIT;
 	if (node->value != NULL) {
-		struct haste_declaration *struct_decl = node->value->kind == ND_STRUCT_TYPE
-			then hmget(sources.items[self->src].declarations, name)
-			otherwise NULL;
+		/* struct haste_declaration *struct_decl = node->value->kind == ND_STRUCT_TYPE */
+		/* 	then hmget(sources.items[self->src].declarations, name) */
+		/* 	otherwise NULL; */
 
-		if (struct_decl != NULL) struct_decl->analyzing = true;
+		/* if (struct_decl != NULL) struct_decl->analyzing = true; */
 
-		if (not IS_AUTO(type)) {
-			inject_struct_type(self, node->value, type);
-		}
+		/* if (not IS_AUTO(type)) { */
+		/* 	inject_struct_type(self, node->value, type); */
+		/* } */
 
 		value = analyze_node(self, node->value, type);
 
-		if (struct_decl != NULL) struct_decl->analyzing = false;
+		/* if (struct_decl != NULL) struct_decl->analyzing = false; */
 
 		if (IS_BAD(value)) {
-			fail_var_decl(self, target_scope, name, is_constant, &node->base);
+			fail_var_decl(symbol, &node->base);
 		}
 	}
 
 	if (IS_AUTO(type)) {
 		type = typeof_value(value);
-	} else if (IS_UNINIT(value))
+	} else if (IS_UNINIT(value)) {
 		value = default_for_type(self->allocator, type);
+	}
 
 	if (not type_equal(type, typeof_value(value))) {
 		struct haste_type orig_type = typeof_value(value);
@@ -800,7 +746,7 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 		if (IS_BAD(value)) {
 			report_error(self, node->name,
 				"cannot assign a value of type '{value}' to '{value}'.", orig_type, type);
-			fail_var_decl(self, target_scope, name, is_constant, &node->base);
+			fail_var_decl(symbol, &node->base);
 		}
 	}
 
@@ -811,19 +757,11 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 	}
 
 	const bool is_explicitly_comptime = node->is_explicitly_comptime
-		or (is_constant and type_equal(type, ty_type));
+		or (symbol->is_constant and type_equal(type, ty_type));
 
-	if (_put_symbol(self, target_scope, name, (struct symbol){
-		.type = type, .value = value,
-		.is_constant = is_constant,
-		.is_explicitly_comptime = is_explicitly_comptime,
-		.node = (void*)node,
-	})) {
-		report_error(self, node->name,
-			"duplicate declaration of '{s}'.", name);
-		reset_new_type_counter();
-		return VAL_BAD;
-	}
+	symbol->type = type;
+	symbol->value = value;
+	symbol->level = SYM_DECLARED;
 
 	node->base.type = type;
 	node->is_explicitly_comptime = is_explicitly_comptime;
@@ -1032,9 +970,10 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 
 struct haste_value analyze_node(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type)
 {
-	if (node->kind == ND_VALUE) {
+	if (node->kind == ND_VALUE or node->analyzed) {
 		return node->kind == ND_VALUE then ((struct haste_ast_value*)node)->value otherwise VAL_BAD;
 	}
+	node->analyzed = true;
 
 	switch (node->kind) {
 	case ND_STRUCT_FIELD:     unreachable();
@@ -1068,6 +1007,71 @@ struct haste_value analyze_node(struct analyzer *self, struct haste_ast_node *no
 	}
 }
 
+static const char *declaration_name(struct haste_ast_node *node)
+{
+	assert(node_is_declaration(node) and "Has to be a declaration.");
+
+	switch (node->kind) {
+	case ND_VAR_DECL: {
+		struct haste_ast_var_decl *var = (void*)node;
+		return var->name.ident;
+	} break;
+	default:
+		unreachable();
+	}
+}
+
+Error prepare_out_of_order_declaration(struct analyzer *self)
+{
+	Error result = OK;
+
+	struct haste_ast_node *root = get_source_file_ast(self->src);
+	leach (struct haste_ast_node, node, root) {
+		if (not node_is_declaration(node)) continue;
+
+		const char *name = declaration_name(node);
+		struct symbol *symbol = hmget(*self->local, name);
+		if (symbol != NULL) {
+			report_error(
+				self, node,
+				"A redifinition of this global.");
+			report_note(
+				self, symbol->node,
+				"already defined here.");
+			result = ERROR;
+			continue;
+		}
+		put_local_symbol(
+			self, name,
+			.level = SYM_UNDEFINED,
+			.node = node);
+	}
+
+	return result;
+}
+
+Error analyze(struct Allocator allocator,
+              struct Allocator arena_allocator,
+              const source_file_id src)
+{
+	struct analyzer analyzer = {
+		.allocator = allocator,
+		.arena_allocator = arena_allocator,
+		.src = src,
+	};
+	with_scope(&analyzer) {
+		Error err = prepare_out_of_order_declaration(&analyzer);
+		if (err) return ERROR;
+
+		struct haste_ast_node *root = get_source_file_ast(src);
+		leach (struct haste_ast_node, node, root) {
+			analyze_node(&analyzer, node, (struct haste_type){0});
+			reset_temporary_allocator();
+		}
+	}
+	return analyzer.had_error then ERROR otherwise OK;
+}
+
 Error analyze_one_node(
 	struct Allocator allocator,
 	struct Allocator arena_allocator,
@@ -1081,25 +1085,6 @@ Error analyze_one_node(
 	};
 	with_scope(&analyzer) {
 		*out = analyze_node(&analyzer, node, into_type(VAL_NONE));
-	}
-	return analyzer.had_error then ERROR otherwise OK;
-}
-
-Error analyze(struct Allocator allocator,
-              struct Allocator arena_allocator,
-              const source_file_id src)
-{
-	struct analyzer analyzer = {
-		.allocator = allocator,
-		.arena_allocator = arena_allocator,
-		.src = src,
-	};
-	with_scope(&analyzer) {
-		struct haste_ast_node *root = get_source_file_ast(src);
-		leach (struct haste_ast_node, node, root) {
-			analyze_node(&analyzer, node, (struct haste_type){0});
-			reset_temporary_allocator();
-		}
 	}
 	return analyzer.had_error then ERROR otherwise OK;
 }

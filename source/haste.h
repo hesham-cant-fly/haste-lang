@@ -80,15 +80,6 @@ struct source_file {
 	size_t len;
 	enum source_file_type type;
 	struct haste_ast_node *root; // NULL by default
-
-	struct haste_declarations {
-		size_t len;
-		struct haste_declaration {
-			const char *key; // name
-			struct haste_ast_node *node;
-			bool analyzing : 1;
-		} *items;
-	} declarations;
 };
 
 struct source_file_list {
@@ -699,6 +690,7 @@ struct haste_ast_node {
 	struct haste_type type;
 	struct location location;
 	enum haste_ast_node_kind kind : 8;
+	bool analyzed : 1;
 };
 
 struct haste_ast_value { // ND_VALUE
@@ -829,12 +821,6 @@ void f_vreport_at_location(const char *kind, struct location location, const cha
 // parse.c
 //
 Error parse(struct Allocator allocator, const source_file_id src);
-
-//
-// hoisting.c
-//
-Error hoist(struct Allocator allocator,
-            const source_file_id src);
 
 //
 // analysis.c

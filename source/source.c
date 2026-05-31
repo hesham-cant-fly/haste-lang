@@ -144,4 +144,4 @@ const char *get_source_file_end(const source_file_id id)
 
 SOURCE_GETTER(enum source_file_type, get_source_file_type, type)
 SOURCE_GETTER(struct haste_ast_node *, get_source_file_ast, root)
-SOURCE_GETTER(struct haste_declarations, get_source_file_declarations, declarations)
+/* SOURCE_GETTER(struct haste_declarations, get_source_file_declarations, declarations) */
