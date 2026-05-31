@@ -3,16 +3,32 @@
 
 static const char *HASTE_AST_NODE_KIND[] =
 {
-	[ND_VALUE]    = "value",
+	[ND_VALUE]      = "value",
+
+	[ND_INTEGER_LIT] = "integer_lit",
+	[ND_FLOAT_LIT]   = "float_lit",
+	[ND_STRING_LIT]  = "string_lit",
+	[ND_IDENT]       = "ident",
 
 	[ND_BINARY]   = "binary",
 	[ND_UNARY]    = "unary",
 	[ND_ACCESS]   = "access",
-	[ND_PRIMARY]  = "primary",
+	[ND_INT_BITS] = "int_bits",
+	[ND_UINT_BITS]= "uint_bits",
 	[ND_GROUPING] = "grouping",
 	[ND_DISTINCT] = "distinct",
 
 	[ND_CAST]     = "cast",
+
+	[ND_STRING]   = "string",
+	[ND_CSTR]     = "cstr",
+	[ND_INT]      = "int",
+	[ND_UINT]     = "uint",
+	[ND_FLOAT]    = "float",
+	[ND_USIZE]    = "usize",
+	[ND_VOID]     = "void",
+	[ND_AUTO]     = "auto",
+	[ND_TYPE]     = "type",
 
 	[ND_STRUCT_TYPE]      = "struct_type",
 	[ND_STRUCT_FIELD]     = "struct_field",
@@ -73,12 +89,6 @@ static int print_haste_ast_node(stream_t file, const struct haste_ast_node *node
 			printed_amount += sprint(file, "\"lhs\": {ast},\"rhs\": {token:##}", n->lhs, n->rhs);
 		}
 		break;
-	case ND_PRIMARY:
-		{
-			const struct haste_ast_primary *n = (const struct haste_ast_primary*)node;
-			printed_amount += sprint(file, "\"token\": {token:##}", n->token);
-		}
-		break;
 	case ND_DISTINCT:
 	case ND_GROUPING:
 		{
@@ -111,7 +121,43 @@ static int print_haste_ast_node(stream_t file, const struct haste_ast_node *node
 			else printed_amount += sprint(file, "null");
 		}
 		break;
-		case ND_STRUCT_TYPE:
+	case ND_INTEGER_LIT:
+		{
+			const struct haste_ast_integer_lit *n = (const struct haste_ast_integer_lit*)node;
+			printed_amount += sprint(file, "\"value\": {i64}", n->value);
+		}
+		break;
+	case ND_FLOAT_LIT:
+		{
+			const struct haste_ast_float_lit *n = (const struct haste_ast_float_lit*)node;
+			printed_amount += sprint(file, "\"value\": {lf}", n->value);
+		}
+		break;
+	case ND_STRING_LIT:
+		{
+			const struct haste_ast_string_lit *n = (const struct haste_ast_string_lit*)node;
+			printed_amount += sprint(file, "\"value\": \"{string:#}\"", n->value);
+		}
+		break;
+	case ND_IDENT:
+		{
+			const struct haste_ast_ident *n = (const struct haste_ast_ident*)node;
+			printed_amount += sprint(file, "\"value\": \"{string:#}\"", n->value);
+		}
+		break;
+	case ND_INT_BITS:
+		{
+			const struct haste_ast_int_bits *n = (const struct haste_ast_int_bits*)node;
+			printed_amount += sprint(file, "\"bits\": {u32}", n->bits);
+		}
+		break;
+	case ND_UINT_BITS:
+		{
+			const struct haste_ast_uint_bits *n = (const struct haste_ast_uint_bits*)node;
+			printed_amount += sprint(file, "\"bits\": {u32}", n->bits);
+		}
+		break;
+	case ND_STRUCT_TYPE:
 		{
 			const struct haste_ast_struct_type *n = (const struct haste_ast_struct_type*)node;
 			printed_amount += sprint(file, "\"fields\": ");
@@ -157,6 +203,16 @@ static int print_haste_ast_node(stream_t file, const struct haste_ast_node *node
 			printed_amount += sprint(file, "\"value\": ");
 			printed_amount += print_haste_ast_node(file, n->value);
 		}
+		break;
+	case ND_STRING:
+	case ND_CSTR:
+	case ND_INT:
+	case ND_UINT:
+	case ND_FLOAT:
+	case ND_USIZE:
+	case ND_VOID:
+	case ND_AUTO:
+	case ND_TYPE:
 		break;
 	}
 	printed_amount += sprint(file, "}");

@@ -4,8 +4,6 @@
 #include "my_stream.h"
 #include "my_termcolor.h"
 
-#define IS_NODE_ANALYZED(...) (__VA_ARGS__)->type.value.kind != 0
-
 struct scope {
 	struct scope *next;
 	size_t len;
@@ -204,47 +202,47 @@ static struct symbol_set find_all_symbols(struct analyzer *self, const char *nam
 
 // ── Token → value ──────────────────────────────────────────────
 
-static struct haste_value token_to_value(struct analyzer *self, struct token token)
-{
-	switch (token.kind) {
-	case TK_IDENT:    unimplemented();
-	case TK_STR: {
-		size_t len = strlen(token.str);
-		struct haste_object *obj = create_string(self->arena_allocator, (char *)token.str, len);
-		return VAL_OBJ(AS_TYPEID(ty_untyped_string), obj);
-	}
-	case TK_INT:
-		if (token.ival == 0) return VAL_ZERO;
-		return VAL_SCALAR(AS_TYPEID(ty_untyped_int), .integer = token.ival);
-	case TK_FLOAT:
-		return VAL_SCALAR(AS_TYPEID(ty_untyped_float), .floating = token.fval);
-	case TK_KW_INT_BITS:
-	case TK_KW_UINT_BITS: {
-		const bool is_signed = token.kind == TK_KW_INT_BITS;
-		if (token.ival == 0)
-			return bail(self, token, "Bit width must be greater than 0");
-		if (token.ival > STANDARD_BITWIDTH_LIMIT) {
-			run_at_percent (20.0f) {
-				report_error(self, token, "Amigo! u mama is too big.");
-			} else {
-				report_error(self, token, "Bit width bigger than {d} is not supported", STANDARD_BITWIDTH_LIMIT);
-			}
-			return VAL_BAD;
-		}
-		return type_get_int(token.ival, is_signed);
-	}
-	case TK_KW_STRING: return into_value(ty_string);
-	case TK_KW_CSTR:   return into_value(ty_cstr);
-	case TK_KW_UINT:   return into_value(ty_uint);
-	case TK_KW_INT:    return into_value(ty_int);
-	case TK_KW_FLOAT:  return into_value(ty_float);
-	case TK_KW_USIZE:  return into_value(ty_usize);
-	case TK_KW_VOID:   return into_value(ty_void);
-	case TK_KW_TYPE:   return into_value(ty_type);
-	case TK_KW_AUTO:   return into_value(ty_auto);
-	default:           unreachable();
-	}
-}
+/* static struct haste_value token_to_value(struct analyzer *self, struct token token) */
+/* { */
+/* 	switch (token.kind) { */
+/* 	case TK_IDENT:    unimplemented(); */
+/* 	case TK_STR: { */
+/* 		size_t len = strlen(token.str); */
+/* 		struct haste_object *obj = create_string(self->arena_allocator, (char *)token.str, len); */
+/* 		return VAL_OBJ(AS_TYPEID(ty_untyped_string), obj); */
+/* 	} */
+/* 	case TK_INT: */
+/* 		if (token.ival == 0) return VAL_ZERO; */
+/* 		return VAL_SCALAR(AS_TYPEID(ty_untyped_int), .integer = token.ival); */
+/* 	case TK_FLOAT: */
+/* 		return VAL_SCALAR(AS_TYPEID(ty_untyped_float), .floating = token.fval); */
+/* 	case TK_KW_INT_BITS: */
+/* 	case TK_KW_UINT_BITS: { */
+/* 		const bool is_signed = token.kind == TK_KW_INT_BITS; */
+/* 		if (token.ival == 0) */
+/* 			return bail(self, token, "Bit width must be greater than 0"); */
+/* 		if (token.ival > STANDARD_BITWIDTH_LIMIT) { */
+/* 			run_at_percent (20.0f) { */
+/* 				report_error(self, token, "Amigo! u mama is too big."); */
+/* 			} else { */
+/* 				report_error(self, token, "Bit width bigger than {d} is not supported", STANDARD_BITWIDTH_LIMIT); */
+/* 			} */
+/* 			return VAL_BAD; */
+/* 		} */
+/* 		return type_get_int(token.ival, is_signed); */
+/* 	} */
+/* 	case TK_KW_STRING: return into_value(ty_string); */
+/* 	case TK_KW_CSTR:   return into_value(ty_cstr); */
+/* 	case TK_KW_UINT:   return into_value(ty_uint); */
+/* 	case TK_KW_INT:    return into_value(ty_int); */
+/* 	case TK_KW_FLOAT:  return into_value(ty_float); */
+/* 	case TK_KW_USIZE:  return into_value(ty_usize); */
+/* 	case TK_KW_VOID:   return into_value(ty_void); */
+/* 	case TK_KW_TYPE:   return into_value(ty_type); */
+/* 	case TK_KW_AUTO:   return into_value(ty_auto); */
+/* 	default:           unreachable(); */
+/* 	} */
+/* } */
 
 // ── Struct helpers ─────────────────────────────────────────────
 
@@ -257,10 +255,9 @@ static void inject_struct_type(struct analyzer *self, struct haste_ast_node *nod
 {
 	if (node->kind != ND_STRUCT_LITERAL) return;
 	struct haste_ast_struct_literal *lit = (void*)node;
-	if (lit->type_expr != NULL
-		and (lit->type_expr->kind != ND_PRIMARY
-			 or ((struct haste_ast_primary*) lit->type_expr)->token.kind != TK_KW_AUTO))
+	if (lit->type_expr != NULL and lit->type_expr->kind != ND_AUTO) {
 		return;
+	}
 	struct haste_ast_node *ty_node = (struct haste_ast_node*)create(
 		self->arena_allocator,
 		struct haste_ast_value,
@@ -474,30 +471,207 @@ static struct haste_value analyze_access(struct analyzer *self, struct haste_ast
 	return VAL_NONE;
 }
 
-static struct haste_value analyze_primary(struct analyzer *self, struct haste_ast_primary *node, struct haste_type expected_type)
+static struct haste_value analyze_integer_lit(
+	struct analyzer *self,
+	struct haste_ast_integer_lit *node,
+	struct haste_type expected_type)
+{
+	discard expected_type;
+	struct haste_value result = VAL_SCALAR(AS_TYPEID(ty_untyped_int), .integer = node->value);
+	inject(self->arena_allocator, node, result);
+	return result;
+}
+
+static struct haste_value analyze_float_lit(
+	struct analyzer *self,
+	struct haste_ast_float_lit *node,
+	struct haste_type expected_type)
+{
+	discard expected_type;
+	struct haste_value result = VAL_SCALAR(AS_TYPEID(ty_untyped_float), .floating = node->value);
+	inject(self->arena_allocator, node, result);
+	return result;
+}
+
+static struct haste_value analyze_string_lit(
+	struct analyzer *self,
+	struct haste_ast_string_lit* node,
+	struct haste_type expected_type)
+{
+	discard expected_type;
+	struct haste_object *obj = create_string(self->arena_allocator, (char *)node->value.chars, node->value.len);
+	struct haste_value result = VAL_OBJ(AS_TYPEID(ty_untyped_string), obj);
+	inject(self->arena_allocator, node, result);
+	return result;
+}
+
+static struct haste_value analyze_ident(
+	struct analyzer *self,
+	struct haste_ast_ident *node,
+	struct haste_type expected_type)
 {
 	discard expected_type;
 	struct haste_value value = {0};
-	if (node->token.kind == TK_IDENT) {
-		const char *name = node->token.ident;
-		struct symbol *symbol = find_local_first(self, name);
-		if (symbol == NULL) {
-			report_error(self, &node->base, "undefined symbol '{s}'.", name);
-			return VAL_UNINIT;
-		}
-		value = symbol->value;
-		if (not symbol->is_constant) {
-			value.is_lvalue = true;
-		}
-	} else {
-		value = token_to_value(self, node->token);
+	const char *name = node->value.chars;
+	struct symbol *symbol = find_local_first(self, name);
+	if (symbol == NULL) {
+		report_error(self, &node->base, "undefined symbol '{s}'.", name);
+		return VAL_UNINIT;
+	}
+	value = symbol->value;
+	if (not symbol->is_constant) {
+		value.is_lvalue = true;
 	}
 
-	/* node->base.type = typeof_value(value); */
-	/* node->base.kind = ND_VALUE; */
-	/* node->value = value; */
 	inject(self->arena_allocator, node, value);
 	return value;
+}
+
+static struct haste_value analyze_int_bits(
+	struct analyzer *self,
+	struct haste_ast_int_bits *node,
+	struct haste_type expected_type)
+{
+	discard expected_type;
+	if (node->bits == 0) {
+		return bail(self, &node->base,
+					"Bit width must be greater than 0");
+	}
+
+	if (node->bits > STANDARD_BITWIDTH_LIMIT) {
+		run_at_percent (20.0f) {
+			report_error(self, &node->base, "Amigo! u mama is too big.");
+		} else {
+			report_error(self, &node->base, "Bit width bigger than {d} is not supported", STANDARD_BITWIDTH_LIMIT);
+		}
+	}
+
+	struct haste_value result = type_get_int(node->bits, false);
+	inject(self->arena_allocator, node, result);
+	return result;
+}
+
+static struct haste_value analyze_uint_bits(
+	struct analyzer *self,
+	struct haste_ast_uint_bits *node,
+	struct haste_type expected_type)
+{
+	discard expected_type;
+	if (node->bits == 0) {
+		return bail(self, &node->base,
+					"Bit width must be greater than 0");
+	}
+
+	if (node->bits > STANDARD_BITWIDTH_LIMIT) {
+		run_at_percent (20.0f) {
+			report_error(self, &node->base, "Amigo! u mama is too big.");
+		} else {
+			report_error(self, &node->base, "Bit width bigger than {d} is not supported", STANDARD_BITWIDTH_LIMIT);
+		}
+	}
+
+	struct haste_value result = type_get_int(node->bits, false);
+	inject(self->arena_allocator, node, result);
+	return result;
+}
+
+static struct haste_value analyze_string(
+	struct analyzer *self,
+	struct haste_ast_node *node,
+	struct haste_type expected_type)
+{
+	discard expected_type;
+	struct haste_value result = VAL_TYPE(AS_TYPEID(ty_string));
+	inject(self->arena_allocator, node, result);
+	return result;
+}
+
+static struct haste_value analyze_cstr(
+	struct analyzer *self,
+	struct haste_ast_node *node,
+	struct haste_type expected_type)
+{
+	discard expected_type;
+	struct haste_value result = VAL_TYPE(AS_TYPEID(ty_cstr));
+	inject(self->arena_allocator, node, result);
+	return result;
+}
+
+static struct haste_value analyze_int(
+	struct analyzer *self,
+	struct haste_ast_node *node,
+	struct haste_type expected_type)
+{
+	discard expected_type;
+	struct haste_value result = VAL_TYPE(AS_TYPEID(ty_int));
+	inject(self->arena_allocator, node, result);
+	return result;
+}
+
+static struct haste_value analyze_uint(
+	struct analyzer *self,
+	struct haste_ast_node *node,
+	struct haste_type expected_type)
+{
+	discard expected_type;
+	struct haste_value result = VAL_TYPE(AS_TYPEID(ty_uint));
+	inject(self->arena_allocator, node, result);
+	return result;
+}
+
+static struct haste_value analyze_float(
+	struct analyzer *self,
+	struct haste_ast_node *node,
+	struct haste_type expected_type)
+{
+	discard expected_type;
+	struct haste_value result = VAL_TYPE(AS_TYPEID(ty_float));
+	inject(self->arena_allocator, node, result);
+	return result;
+}
+
+static struct haste_value analyze_usize(
+	struct analyzer *self,
+	struct haste_ast_node *node,
+	struct haste_type expected_type)
+{
+	discard expected_type;
+	struct haste_value result = VAL_TYPE(AS_TYPEID(ty_usize));
+	inject(self->arena_allocator, node, result);
+	return result;
+}
+
+static struct haste_value analyze_void(
+	struct analyzer *self,
+	struct haste_ast_node *node,
+	struct haste_type expected_type)
+{
+	discard expected_type;
+	struct haste_value result = VAL_TYPE(AS_TYPEID(ty_void));
+	inject(self->arena_allocator, node, result);
+	return result;
+}
+
+static struct haste_value analyze_auto(
+	struct analyzer *self,
+	struct haste_ast_node *node,
+	struct haste_type expected_type)
+{
+	discard expected_type;
+	struct haste_value result = VAL_TYPE(AS_TYPEID(ty_auto));
+	inject(self->arena_allocator, node, result);
+	return result;
+}
+
+static struct haste_value analyze_type(
+	struct analyzer *self,
+	struct haste_ast_node *node,
+	struct haste_type expected_type)
+{
+	discard expected_type;
+	struct haste_value result = VAL_TYPE(AS_TYPEID(ty_type));
+	inject(self->arena_allocator, node, result);
+	return result;
 }
 
 static struct haste_value analyze_grouping(struct analyzer *self, struct haste_ast_grouping *node, struct haste_type expected_type)
@@ -858,7 +1032,7 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 
 struct haste_value analyze_node(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type)
 {
-	if (IS_NODE_ANALYZED(node)) {
+	if (node->kind == ND_VALUE) {
 		return node->kind == ND_VALUE then ((struct haste_ast_value*)node)->value otherwise VAL_BAD;
 	}
 
@@ -866,17 +1040,31 @@ struct haste_value analyze_node(struct analyzer *self, struct haste_ast_node *no
 	case ND_STRUCT_FIELD:     unreachable();
 	case ND_STRUCT_LIT_FIELD: unreachable();
 	case ND_VALUE:            unreachable();
-	case ND_BINARY:           return analyze_binary         (self, (void*)node, expected_type);
-	case ND_UNARY:            return analyze_unary          (self, (void*)node, expected_type);
-	case ND_ACCESS:           return analyze_access         (self, (void*)node, expected_type);
-	case ND_PRIMARY:          return analyze_primary        (self, (void*)node, expected_type);
-	case ND_GROUPING:         return analyze_grouping       (self, (void*)node, expected_type);
-	case ND_DISTINCT:         return analyze_distinct       (self, (void*)node, expected_type);
-	case ND_CAST:             return analyze_cast           (self, (void*)node, expected_type);
-	case ND_STRUCT_TYPE:      return analyze_struct_type    (self, (void*)node, expected_type);
-	case ND_STRUCT_LITERAL:   return analyze_struct_literal (self, (void*)node, expected_type);
-	case ND_VAR_DECL:         return analyze_var_decl       (self, (void*)node, expected_type);
-	default:                  unreachable();
+	case ND_BINARY:         return analyze_binary         (self, (void*)node, expected_type);
+	case ND_UNARY:          return analyze_unary          (self, (void*)node, expected_type);
+	case ND_ACCESS:         return analyze_access         (self, (void*)node, expected_type);
+	case ND_INTEGER_LIT:    return analyze_integer_lit    (self, (void*)node, expected_type);
+	case ND_FLOAT_LIT:      return analyze_float_lit      (self, (void*)node, expected_type);
+	case ND_STRING_LIT:     return analyze_string_lit     (self, (void*)node, expected_type);
+	case ND_IDENT:          return analyze_ident          (self, (void*)node, expected_type);
+	case ND_GROUPING:       return analyze_grouping       (self, (void*)node, expected_type);
+	case ND_DISTINCT:       return analyze_distinct       (self, (void*)node, expected_type);
+	case ND_CAST:           return analyze_cast           (self, (void*)node, expected_type);
+	case ND_STRUCT_TYPE:    return analyze_struct_type    (self, (void*)node, expected_type);
+	case ND_STRUCT_LITERAL: return analyze_struct_literal (self, (void*)node, expected_type);
+	case ND_VAR_DECL:       return analyze_var_decl       (self, (void*)node, expected_type);
+	case ND_INT_BITS:       return analyze_int_bits       (self, (void*)node, expected_type);
+	case ND_UINT_BITS:      return analyze_uint_bits      (self, (void*)node, expected_type);
+	case ND_STRING:         return analyze_string         (self, (void*)node, expected_type);
+	case ND_CSTR:           return analyze_cstr           (self, (void*)node, expected_type);
+	case ND_INT:            return analyze_int            (self, (void*)node, expected_type);
+	case ND_UINT:           return analyze_uint           (self, (void*)node, expected_type);
+	case ND_FLOAT:          return analyze_float          (self, (void*)node, expected_type);
+	case ND_USIZE:          return analyze_usize          (self, (void*)node, expected_type);
+	case ND_VOID:           return analyze_void           (self, (void*)node, expected_type);
+	case ND_AUTO:           return analyze_auto           (self, (void*)node, expected_type);
+	case ND_TYPE:           return analyze_type           (self, (void*)node, expected_type);
+	break;
 	}
 }
 

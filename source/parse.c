@@ -2,6 +2,7 @@
 #include "my_allocator.h"
 #include "my_array.h"
 #include "my_stream.h"
+#include <__stddef_unreachable.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -37,7 +38,12 @@ struct parser_rule {
 
 inline static struct haste_ast_node *_create_node(struct parser *self, void *value, size_t size)
 {
-	void *result = alloc(self->allocator, size);
+	// TODO:
+	size_t the_size = sizeof(struct haste_ast_value);
+	if (the_size < size) {
+		the_size = size;
+	}
+	void *result = alloc(self->allocator, the_size);
 	memcpy(result, value, size);
 	return result;
 }
@@ -248,16 +254,97 @@ static struct haste_ast_node *distinct(struct parser *self)
 		.child = child);
 }
 
-static struct haste_ast_node *primary(struct parser *self)
+static struct haste_ast_node *int_lit(struct parser *self)
 {
 	struct token lit = previous(self);
 	return create_node(
 		self,
-		struct haste_ast_primary,
-		.base.kind = ND_PRIMARY,
+		struct haste_ast_integer_lit,
+		.base.kind = ND_INTEGER_LIT,
 		.base.location = as_location(lit),
-		.token = lit);
+		.value = lit.ival);
 }
+
+static struct haste_ast_node *float_lit(struct parser *self)
+{
+	struct token lit = previous(self);
+	return create_node(
+		self,
+		struct haste_ast_float_lit,
+		.base.kind = ND_FLOAT_LIT,
+		.base.location = as_location(lit),
+		.value = lit.fval);
+}
+
+static struct haste_ast_node *str_lit(struct parser *self)
+{
+	struct token lit = previous(self);
+	return create_node(
+		self,
+		struct haste_ast_string_lit,
+		.base.kind = ND_STRING_LIT,
+		.base.location = as_location(lit),
+		.value = as_string(lit.str));
+}
+
+static struct haste_ast_node *ident(struct parser *self)
+{
+	struct token lit = previous(self);
+	return create_node(
+		self,
+		struct haste_ast_ident,
+		.base.kind = ND_IDENT,
+		.base.location = as_location(lit),
+		.value = as_string(lit.ident));
+}
+
+static struct haste_ast_node *int_bits(struct parser *self)
+{
+	struct token lit = previous(self);
+	return create_node(
+		self,
+		struct haste_ast_int_bits,
+		.base.kind = ND_INT_BITS,
+		.base.location = as_location(lit),
+		.bits = lit.ival);
+}
+
+static struct haste_ast_node *uint_bits(struct parser *self)
+{
+	struct token lit = previous(self);
+	return create_node(
+		self,
+		struct haste_ast_uint_bits,
+		.base.kind = ND_UINT_BITS,
+		.base.location = as_location(lit),
+		.bits = lit.ival);
+}
+
+static struct haste_ast_node *very_primitive_type(struct parser *self)
+{
+	struct token lit = previous(self);
+	enum haste_ast_node_kind kind = 0;
+	switch (lit.kind) {
+	case TK_KW_STRING: kind = ND_STRING; break;
+	case TK_KW_CSTR:   kind = ND_CSTR;   break;
+	case TK_KW_INT:    kind = ND_INT;    break;
+	case TK_KW_UINT:   kind = ND_UINT;   break;
+	case TK_KW_FLOAT:  kind = ND_FLOAT;  break;
+	case TK_KW_VOID:   kind = ND_VOID;   break;
+	case TK_KW_AUTO:   kind = ND_AUTO;   break;
+	case TK_KW_TYPE:   kind = ND_TYPE;   break;
+	case TK_KW_USIZE:  kind = ND_USIZE;  break;
+	default:
+		unreachable();
+	}
+
+	return create_node(
+		self,
+		struct haste_ast_node,
+		.kind = kind,
+		.location = as_location(lit));
+}
+
 
 static struct haste_ast_node *grouping(struct parser *self)
 {
@@ -373,32 +460,32 @@ static struct haste_ast_node *auto_struct_prefix(struct parser *self)
 struct parser_rule get_rule_from_kind(enum token_kind kind)
 {
 	switch (kind) {
-	case TK_OPEN_PAREN:   return (struct parser_rule){ grouping,           NULL,                 PREC_PRIMARY, false };
-	case TK_PLUS:         return (struct parser_rule){ unary,              binary,               PREC_TERM,    false };
-	case TK_MINUS:        return (struct parser_rule){ unary,              binary,               PREC_TERM,    false };
-	case TK_STAR:         return (struct parser_rule){ NULL,               binary,               PREC_FACTOR,  false };
-	case TK_FSLASH:       return (struct parser_rule){ NULL,               binary,               PREC_FACTOR,  false };
-	case TK_INT:          return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_FLOAT:        return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_STR:          return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_IDENT:        return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_DISTINCT:  return (struct parser_rule){ distinct,           NULL,                 PREC_UNARY,   false };
-	case TK_KW_STRING:    return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_CSTR:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_INT:       return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_UINT:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_INT_BITS:  return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_UINT_BITS: return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_FLOAT:     return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_VOID:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_AUTO:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_TYPE:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_STRUCT:    return (struct parser_rule){ struct_type_prefix, NULL,                 PREC_PRIMARY, false };
-	case TK_KW_USIZE:     return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_CAST:      return (struct parser_rule){ cast,               NULL,                 PREC_UNARY,   false };
-	case TK_OPEN_BRACE:   return (struct parser_rule){ NULL,               struct_literal_infix, PREC_PRIMARY, false };
-	case TK_DOT:          return (struct parser_rule){ auto_struct_prefix, field_access,         PREC_PRIMARY, false };
-	default:              return (struct parser_rule){ NULL,               NULL,                 PREC_NONE,    false };
+	case TK_OPEN_PAREN:   return (struct parser_rule){ grouping,            NULL,                 PREC_PRIMARY, false };
+	case TK_PLUS:         return (struct parser_rule){ unary,               binary,               PREC_TERM,    false };
+	case TK_MINUS:        return (struct parser_rule){ unary,               binary,               PREC_TERM,    false };
+	case TK_STAR:         return (struct parser_rule){ NULL,                binary,               PREC_FACTOR,  false };
+	case TK_FSLASH:       return (struct parser_rule){ NULL,                binary,               PREC_FACTOR,  false };
+	case TK_INT:          return (struct parser_rule){ int_lit,             NULL,                 PREC_PRIMARY, false };
+	case TK_FLOAT:        return (struct parser_rule){ float_lit,           NULL,                 PREC_PRIMARY, false };
+	case TK_STR:          return (struct parser_rule){ str_lit,             NULL,                 PREC_PRIMARY, false };
+	case TK_IDENT:        return (struct parser_rule){ ident,               NULL,                 PREC_PRIMARY, false };
+	case TK_KW_DISTINCT:  return (struct parser_rule){ distinct,            NULL,                 PREC_UNARY,   false };
+	case TK_KW_INT_BITS:  return (struct parser_rule){ int_bits,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_UINT_BITS: return (struct parser_rule){ uint_bits,           NULL,                 PREC_PRIMARY, false };
+	case TK_KW_STRING:    return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_CSTR:      return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_INT:       return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_UINT:      return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_FLOAT:     return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_VOID:      return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_AUTO:      return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_TYPE:      return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_USIZE:     return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_STRUCT:    return (struct parser_rule){ struct_type_prefix,  NULL,                 PREC_PRIMARY, false };
+	case TK_KW_CAST:      return (struct parser_rule){ cast,                NULL,                 PREC_UNARY,   false };
+	case TK_OPEN_BRACE:   return (struct parser_rule){ NULL,                struct_literal_infix, PREC_PRIMARY, false };
+	case TK_DOT:          return (struct parser_rule){ auto_struct_prefix,  field_access,         PREC_PRIMARY, false };
+	default:              return (struct parser_rule){ NULL,                NULL,                 PREC_NONE,    false };
 	}
 }
 
@@ -516,6 +603,7 @@ Error parse(struct Allocator allocator, const source_file_id src)
 	struct haste_ast_node *current = &head;
 	while (not ended(&parser)) {
 		struct haste_ast_node *node = decl(&parser, true);
+		if (node == NULL) return ERROR;
 		current->next = node;
 		current = current->next;
 	}

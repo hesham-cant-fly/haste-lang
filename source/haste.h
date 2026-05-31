@@ -656,26 +656,42 @@ uint64_t type_hash(const struct haste_type t);
 //
 enum haste_ast_node_kind {
 	/* Generated during analysis */
-	ND_VALUE,    // value
+	ND_VALUE,
 
 	/* Expresion */
-	ND_BINARY,   // lhs, rhs, op
-	ND_UNARY,    // rhs, op
-	ND_ACCESS,   // access
-	ND_PRIMARY,  // struct token token
-	ND_GROUPING, // struct haste_ast_node *body
-	ND_DISTINCT, // struct haste_ast_node *body
+	ND_INTEGER_LIT,
+	ND_FLOAT_LIT,
+	ND_STRING_LIT,
+	ND_IDENT,
 
-	ND_CAST,     // struct { ... } cast
+	ND_BINARY,
+	ND_UNARY,
+	ND_ACCESS,
+	ND_INT_BITS,
+	ND_UINT_BITS,
+	ND_GROUPING,
+	ND_DISTINCT,
+	ND_CAST,
+
+	/// these doesn't have a didicated struct for them
+	ND_STRING,
+	ND_CSTR,
+	ND_INT,
+	ND_UINT,
+	ND_FLOAT,
+	ND_USIZE,
+	ND_VOID,
+	ND_AUTO,
+	ND_TYPE,
 
 	/* Structs */
-	ND_STRUCT_TYPE,       // struct { fields... }
-	ND_STRUCT_FIELD,      // name: type [= default]
-	ND_STRUCT_LITERAL,    // Type{...} or .{...}
-	ND_STRUCT_LIT_FIELD,  // name: value
+	ND_STRUCT_TYPE,
+	ND_STRUCT_FIELD,
+	ND_STRUCT_LITERAL,
+	ND_STRUCT_LIT_FIELD,
 
 	/* Statements */
-	ND_VAR_DECL, // struct { ... } variable
+	ND_VAR_DECL,
 };
 
 struct haste_ast_node {
@@ -685,14 +701,39 @@ struct haste_ast_node {
 	enum haste_ast_node_kind kind : 8;
 };
 
-struct haste_ast_value {
+struct haste_ast_value { // ND_VALUE
 	struct haste_ast_node base;
 	struct haste_value value;
 };
 
-struct haste_ast_primary { // ND_PRIMARY
+struct haste_ast_integer_lit { // ND_INTEGER_LIT
 	struct haste_ast_node base;
-	struct token token;
+	int64_t value;
+};
+
+struct haste_ast_float_lit { // ND_FLOAT_LIT
+	struct haste_ast_node base;
+	double value;
+};
+
+struct haste_ast_string_lit { // ND_STRING_LIT
+	struct haste_ast_node base;
+	struct string value;
+};
+
+struct haste_ast_ident { // ND_IDENT
+	struct haste_ast_node base;
+	struct string value;
+};
+
+struct haste_ast_int_bits { // ND_INT_BITS
+	struct haste_ast_node base;
+	uint32_t bits;
+};
+
+struct haste_ast_uint_bits { // ND_UINT_BITS
+	struct haste_ast_node base;
+	uint32_t bits;
 };
 
 struct haste_ast_grouping { // ND_GROUPING
