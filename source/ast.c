@@ -86,7 +86,7 @@ static int print_haste_ast_node(stream_t file, const struct haste_ast_node *node
 	case ND_ACCESS:
 		{
 			const struct haste_ast_access *n = (const struct haste_ast_access*)node;
-			printed_amount += sprint(file, "\"lhs\": {ast},\"rhs\": {token:##}", n->lhs, n->rhs);
+			printed_amount += sprint(file, "\"lhs\": {ast},\"field\": \"{string}\"", n->lhs, n->field);
 		}
 		break;
 	case ND_DISTINCT:
@@ -169,7 +169,7 @@ static int print_haste_ast_node(stream_t file, const struct haste_ast_node *node
 			const struct haste_ast_struct_field *n = (const struct haste_ast_struct_field*)node;
 			printed_amount += sprint(file, "\"names\": [");
 			for (size_t i=0; i < n->name_count; i += 1) {
-				printed_amount += sprint(file, "{token:##}", n->names[i]);
+				printed_amount += sprint(file, "\"{string}\"", n->names[i]);
 				if (i != (n->name_count - 1)) {
 					printed_amount += sprint(file, ",");
 				}

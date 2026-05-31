@@ -48,6 +48,11 @@ static const char *TOKEN_KIND_LIT[] =
 	[TK_EOF]          = "eof",
 };
 
+const char *token_kind_name(enum token_kind kind)
+{
+	return TOKEN_KIND_LIT[kind];
+}
+
 int print_token(stream_t f, struct token token)
 {
 	return sprint(f, "Token({s}, {string:#})",

@@ -168,9 +168,9 @@ static struct token consume(struct parser *self, enum token_kind kind, const cha
 struct haste_ast_node *binary(struct parser *self, struct haste_ast_node *lhs)
 {
 	struct location start = lhs->location;
-	struct token op = previous(self);
+	struct token op_tok = previous(self);
 
-	struct parser_rule rule = get_rule(op);
+	struct parser_rule rule = get_rule(op_tok);
 	enum precedence precedence = rule.precedence + 1;
 	if (rule.right_assoc) {
 		precedence = rule.precedence;
@@ -185,7 +185,8 @@ struct haste_ast_node *binary(struct parser *self, struct haste_ast_node *lhs)
 		.base.location = location_conjoin(start, end),
 		.lhs = lhs,
 		.rhs = rhs,
-		.op = op);
+		.op = op_tok.kind,
+		.op_loc = as_location(op_tok));
 }
 
 struct haste_ast_node *field_access(struct parser *self, struct haste_ast_node *lhs)
@@ -202,13 +203,14 @@ struct haste_ast_node *field_access(struct parser *self, struct haste_ast_node *
 		.base.kind = ND_ACCESS,
 		.base.location = location_conjoin(start, end),
 		.lhs = lhs,
-		.rhs = token);
+		.field = string(.chars = token.ident, .len = token.len),
+		.field_loc = as_location(token));
 }
 
 static struct haste_ast_node *unary(struct parser *self)
 {
-	struct location start = as_location(previous(self));
-	struct token op	= previous(self);
+	struct token op = previous(self);
+	struct location start = as_location(op);
 	struct haste_ast_node *rhs = parse_precedence(self, PREC_UNARY);
 	struct location end = as_location(previous(self));
 	return create_node(
@@ -216,7 +218,8 @@ static struct haste_ast_node *unary(struct parser *self)
 		struct haste_ast_unary,
 		.base.kind = ND_UNARY,
 		.base.location = location_conjoin(start, end),
-		.op = op,
+		.op = op.kind,
+		.op_loc = as_location(op),
 		.rhs = rhs);
 }
 
@@ -387,12 +390,20 @@ static struct haste_ast_node *struct_type_prefix(struct parser *self)
 		}
 		const struct location end = as_location(consume(self, TK_SEMI_COLON, "Expected ';' after field declaration."));
 
+		struct string *name_strs = alloc(self->allocator, sizeof(struct string) * names.len);
+		struct location *name_locs = alloc(self->allocator, sizeof(struct location) * names.len);
+		for (size_t i = 0; i < names.len; i++) {
+			name_strs[i] = string(.chars = names.items[i].ident, .len = names.items[i].len);
+			name_locs[i] = as_location(names.items[i]);
+		}
+
 		current->next = create_node(
 			self,
 			struct haste_ast_struct_field,
 			.base.location = location_conjoin(start, end),
 			.name_count = names.len,
-			.names = names.items,
+			.names = name_strs,
+			.name_locs = name_locs,
 			.type = type,
 			.default_value = default_value);
 		current = current->next;
@@ -436,7 +447,8 @@ static struct haste_ast_node *struct_literal_infix(struct parser *self, struct h
 			struct haste_ast_struct_lit_field,
 			.base.kind = ND_STRUCT_LIT_FIELD,
 			.base.location = location_conjoin(start, end),
-			.name = name,
+			.name = string(.chars = name.ident, .len = name.len),
+			.name_loc = as_location(name),
 			.value = value);
 		current = current->next;
 	}
@@ -568,7 +580,8 @@ static struct haste_ast_node *variable_decl(struct parser *self, bool is_constan
 		.base.kind = ND_VAR_DECL,
 		.base.location = location_conjoin(start, end),
 		.is_constant = is_constant,
-		.name        = name,
+		.name        = string(.chars = name.ident, .len = name.len),
+		.name_loc    = as_location(name),
 		.type        = type,
 		.value       = value);
 }

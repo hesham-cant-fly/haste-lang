@@ -235,7 +235,7 @@ static LLVMValueRef codegen_global_var(struct codegen_context *ctx, const struct
 	if (node->is_explicitly_comptime) return 0;
 
 	LLVMTypeRef type = llvm_type(ctx, node->base.type);
-	const char *name = node->name.ident;
+	const char *name = node->name.chars;
 	LLVMValueRef global = LLVMAddGlobal(ctx->module, type, name);
 
 	LLVMValueRef init = node->value != NULL

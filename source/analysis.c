@@ -100,7 +100,9 @@ static void _vreport(struct analyzer *self, struct location location, const char
 	static void _report_##name##_node(struct analyzer *self, struct haste_ast_node *node, const char *restrict fmt, ...) \
 	{ va_list args; va_start(args, fmt); _vreport(self, node->location, color label, set_error, fmt, args); va_end(args); } \
 	static void _report_##name##_token(struct analyzer *self, struct token token, const char *restrict fmt, ...) \
-	{ va_list args; va_start(args, fmt); _vreport(self, as_location(token), color label, set_error, fmt, args); va_end(args); }
+	{ va_list args; va_start(args, fmt); _vreport(self, as_location(token), color label, set_error, fmt, args); va_end(args); } \
+	static void _report_##name##_location(struct analyzer *self, struct location loc, const char *restrict fmt, ...) \
+	{ va_list args; va_start(args, fmt); _vreport(self, loc, color label, set_error, fmt, args); va_end(args); }
 
 DEFINE_REPORT_FN(error,   ANSI_CODE_RED,    "Error",   true)
 DEFINE_REPORT_FN(note,    ANSI_CODE_GREEN,  "Note",   false)
@@ -109,15 +111,18 @@ DEFINE_REPORT_FN(warning, ANSI_CODE_YELLOW, "Warning", false)
 #define report_error(self_, node_, ...) \
 	_Generic((node_), \
 		struct haste_ast_node *: _report_error_node, \
-		struct token: _report_error_token)(self_, node_, __VA_ARGS__)
+		struct token: _report_error_token, \
+		struct location: _report_error_location)(self_, node_, __VA_ARGS__)
 #define report_note(self_, node_, ...) \
 	_Generic((node_), \
 		struct haste_ast_node *: _report_note_node, \
-		struct token: _report_note_token)(self_, node_, __VA_ARGS__)
+		struct token: _report_note_token, \
+		struct location: _report_note_location)(self_, node_, __VA_ARGS__)
 #define report_warning(self_, node_, ...) \
 	_Generic((node_), \
 		struct haste_ast_node *: _report_warning_node, \
-		struct token: _report_warning_token)(self_, node_, __VA_ARGS__)
+		struct token: _report_warning_token, \
+		struct location: _report_warning_location)(self_, node_, __VA_ARGS__)
 
 // ── Scope management ─────────────────────────────────────────────
 
@@ -282,13 +287,13 @@ static bool read_struct_field(struct analyzer *self,
 
 // ── Per-node-kind analysis ───────────────────────────────────────
 
-static struct haste_value resolve_binary_op(struct analyzer *self, struct haste_value lhs, struct haste_value rhs, struct token op);
+static struct haste_value resolve_binary_op(struct analyzer *self, struct haste_value lhs, struct haste_value rhs, enum token_kind op_kind, struct location op_loc);
 
 static struct haste_value analyze_binary(struct analyzer *self, struct haste_ast_binary *node, struct haste_type expected_type)
 {
 	try (lhs, analyze_node(self, node->lhs, expected_type))
 	try (rhs, analyze_node(self, node->rhs, expected_type))
-	try (result, resolve_binary_op(self, lhs, rhs, node->op))
+	try (result, resolve_binary_op(self, lhs, rhs, node->op, node->op_loc))
 	{
 		inject(self->arena_allocator, node, result);
 		return result;
@@ -303,16 +308,16 @@ static struct haste_value analyze_binary(struct analyzer *self, struct haste_ast
 			discard err; \
 			switch (err) { \
 			case ERR_INCOMPATIBLE_ARITH_TYPES: \
-				report_error(self, op, \
+				report_error(self, op_loc, \
 					op_name " is not possible between a value of type '{value}' and a value of type '{value}'", \
 					typeof_value(lhs), typeof_value(rhs)); \
 				break; \
 			case ERR_ARITH_OVERFLOW: \
-				report_error(self, op, \
+				report_error(self, op_loc, \
 					op_name " is not possible because of arithmatic overflow."); \
 				break; \
 			case ERR_DIVISION_BY_ZERO: \
-				report_error(self, op, \
+				report_error(self, op_loc, \
 					op_name " by zero is not possible."); \
 				break; \
 			default: unreachable(); \
@@ -322,24 +327,24 @@ static struct haste_value analyze_binary(struct analyzer *self, struct haste_ast
 		return value; \
 	} break
 
-static struct haste_value resolve_binary_op(struct analyzer *self, struct haste_value lhs, struct haste_value rhs, struct token op)
+static struct haste_value resolve_binary_op(struct analyzer *self, struct haste_value lhs, struct haste_value rhs, enum token_kind op_kind, struct location op_loc)
 {
-	switch (op.kind) {
+	switch (op_kind) {
 	case TK_PLUS: {
 		catch (value, err, value_add(lhs, rhs)) {
 			run_at_percent (1.5) {
-				report_error(self, op, "Addition is not impossible. (try harder)");
+				report_error(self, op_loc, "Addition is not impossible. (try harder)");
 				return VAL_BAD;
 			}
 
 			switch (err) {
 			case ERR_INCOMPATIBLE_ARITH_TYPES:
-				report_error(self, op,
+				report_error(self, op_loc,
 					"Addition is not possible between a value of type '{value}' and a value of type '{value}'",
 					typeof_value(lhs), typeof_value(rhs));
 				break;
 			case ERR_ARITH_OVERFLOW:
-				report_error(self, op,
+				report_error(self, op_loc,
 					"Addition is not possible because of arithmatic overflow.");
 				break;
 			default: unreachable();
@@ -361,7 +366,7 @@ static struct haste_value analyze_unary(struct analyzer *self, struct haste_ast_
 {
 	// TODO: This needs some refactoring
 	try (value, analyze_node(self, node->rhs, expected_type)) {
-		switch (node->op.kind) {
+		switch (node->op) {
 		case TK_MINUS:
 			if (IS_ZERO(value)) {
 				value = VAL_SCALAR(AS_TYPEID(typeof_value(value)), .integer = 0);
@@ -387,7 +392,7 @@ static struct haste_value analyze_unary(struct analyzer *self, struct haste_ast_
 		return value;
 
 	neg_error:
-		return bail(self, node->op,
+		return bail(self, node->op_loc,
 					 "Negation is not possible on '{value}'.", typeof_value(value));
 	}
 
@@ -397,11 +402,11 @@ static struct haste_value analyze_unary(struct analyzer *self, struct haste_ast_
 static struct haste_value analyze_access(struct analyzer *self, struct haste_ast_access *node, struct haste_type expected_type)
 {
 	try (lhs_value, analyze_node(self, node->lhs, expected_type)) {
-		catch (result, err, struct_get_field(lhs_value, node->rhs.ident)) {
+		catch (result, err, struct_get_field(lhs_value, node->field.chars)) {
 			discard err;
-			return bail(self, node->rhs,
-						 "Cannot access field '{token}'. no such field inside '{value}'",
-						 node->rhs, typeof_value(lhs_value));
+			return bail(self, node->field_loc,
+						 "Cannot access field '{string}'. no such field inside '{value}'",
+						 node->field, typeof_value(lhs_value));
 		}
 
 		node->base.type = typeof_value(result);
@@ -690,7 +695,7 @@ static struct haste_value analyze_cast(struct analyzer *self, struct haste_ast_c
 static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_ast_var_decl *node, struct haste_type expected_type)
 {
 	discard expected_type;
-	const char *name = node->name.ident;
+	const char *name = node->name.chars;
 	struct symbol *symbol = find_local_first(self, name);
 	symbol->is_constant = node->is_constant;
 	symbol->level = SYM_DEFINED;
@@ -744,7 +749,7 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 		struct haste_type orig_type = typeof_value(value);
 		value = value_coerce(self->allocator, type, value);
 		if (IS_BAD(value)) {
-			report_error(self, node->name,
+			report_error(self, node->name_loc,
 				"cannot assign a value of type '{value}' to '{value}'.", orig_type, type);
 			fail_var_decl(symbol, &node->base);
 		}
@@ -808,7 +813,7 @@ static struct haste_value analyze_struct_type(struct analyzer *self, struct hast
 	size_t i = 0;
 	leach (struct haste_ast_struct_field, field, node->fields) {
 		for (size_t j=0; j < field->name_count; j += 1) {
-			const char *name = field->names[j].ident;
+			const char *name = field->names[j].chars;
 			struct haste_struct_field sf = {0};
 
 			if (read_struct_field(self, name, field, &sf)) {
@@ -848,17 +853,14 @@ static struct haste_value analyze_automatic_struct_literal(struct analyzer *self
 
 	size_t i = 0;
 	leach (struct haste_ast_struct_lit_field, lit_field, node->fields) {
-		if (lit_field->name.kind == 0) {
+		if (lit_field->name.chars == NULL) {
 			return bail(self, lit_field->value,
 				"Automatic struct literals must use named fields.");
 		}
 		struct haste_value fv = analyze_node(self, lit_field->value, expected_type);
 		if (IS_BAD(fv)) return VAL_BAD;
 		st->items[i] = (struct haste_struct_field){
-			/* .name = intern_str( */
-			/* 	lit_field->name.start, */
-			/* 	lit_field->name.len), */
-			.name = lit_field->name.ident,
+			.name = lit_field->name.chars,
 			.type = typeof_value(fv),
 		};
 		so->fields[i] = fv;
@@ -914,7 +916,7 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 	size_t positional_idx = 0;
 	leach (struct haste_ast_struct_lit_field, lit_field, node->fields) {
 		ssize_t idx = -1;
-		if (lit_field->name.kind == 0) {
+		if (lit_field->name.chars == NULL) {
 			if (positional_idx >= st->len) {
 				report_error(self, lit_field->value,
 					"Too many positional fields for struct '{value}'.", struct_type);
@@ -923,10 +925,10 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 			}
 			idx = positional_idx++;
 		} else {
-			idx = find_struct_field(st, lit_field->name.ident);
+			idx = find_struct_field(st, lit_field->name.chars);
 			if (idx < 0) {
 				report_error(self, &lit_field->base,
-					"Unknown field '{token}'.", lit_field->name);
+					"Unknown field '{string}'.", lit_field->name);
 				has_error = true;
 				continue;
 			}
@@ -1014,7 +1016,7 @@ static const char *declaration_name(struct haste_ast_node *node)
 	switch (node->kind) {
 	case ND_VAR_DECL: {
 		struct haste_ast_var_decl *var = (void*)node;
-		return var->name.ident;
+		return var->name.chars;
 	} break;
 	default:
 		unreachable();

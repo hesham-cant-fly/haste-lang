@@ -47,6 +47,16 @@ struct string token_as_string(struct token token)
 		.len = token.len);
 }
 
+struct string string_as_string(struct string s)
+{
+	return s;
+}
+
+struct string token_kind_as_string(enum token_kind kind)
+{
+	return cstr_as_string(token_kind_name(kind));
+}
+
 struct location as_location(struct token token)
 {
 	return location(

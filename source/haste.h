@@ -280,7 +280,9 @@ struct location {
 		const char *: cstr_as_string, \
 		char *: cstr_as_string, \
 		struct location: location_as_string, \
-		struct token: token_as_string \
+		struct token: token_as_string, \
+		struct string: string_as_string, \
+		enum token_kind: token_kind_as_string \
 	) (__VA_ARGS__)
 
 struct string string_to_trimed(struct string span);
@@ -288,6 +290,10 @@ struct string string_to_trimed(struct string span);
 struct string cstr_as_string(const char *cstr);
 struct string location_as_string(struct location location);
 struct string token_as_string(struct token token);
+struct string string_as_string(struct string s);
+struct string token_kind_as_string(enum token_kind kind);
+
+const char *token_kind_name(enum token_kind kind);
 
 struct location as_location(struct token token);
 
@@ -731,7 +737,6 @@ struct haste_ast_uint_bits { // ND_UINT_BITS
 struct haste_ast_grouping { // ND_GROUPING
 	struct haste_ast_node base;
 	struct haste_ast_node *child;
-	char padding[8];
 };
 
 struct haste_ast_distinct { // ND_DISTINCT
@@ -744,19 +749,22 @@ struct haste_ast_binary { // ND_BINARY
 	struct haste_ast_node base;
 	struct haste_ast_node *lhs;
 	struct haste_ast_node *rhs;
-	struct token op;
+	enum token_kind op;
+	struct location op_loc;
 };
 
 struct haste_ast_unary { // ND_UNARY
 	struct haste_ast_node base;
 	struct haste_ast_node *rhs;
-	struct token op;
+	enum token_kind op;
+	struct location op_loc;
 };
 
 struct haste_ast_access { // ND_ACCESS
 	struct haste_ast_node base;
 	struct haste_ast_node *lhs;
-	struct token rhs;
+	struct string field;
+	struct location field_loc;
 };
 
 struct haste_ast_cast { // ND_CAST
@@ -767,15 +775,16 @@ struct haste_ast_cast { // ND_CAST
 
 struct haste_ast_struct_type { // ND_STRUCT_TYPE
 	struct haste_ast_node base;
-	struct haste_ast_struct_field {
-		struct haste_ast_node base;
-		size_t name_count;
-		struct token *names;
-		struct haste_ast_node *type;
-		struct haste_ast_node *default_value;
+		struct haste_ast_struct_field {
+			struct haste_ast_node base;
+			size_t name_count;
+			struct string *names;
+			struct location *name_locs;
+			struct haste_ast_node *type;
+			struct haste_ast_node *default_value;
 
-		struct haste_ast_struct_field *next;
-	} *fields;
+			struct haste_ast_struct_field *next;
+		} *fields;
 	char padding[8];
 };
 
@@ -784,7 +793,8 @@ struct haste_ast_struct_literal { // ND_STRUCT_LITERAL
 	struct haste_ast_node *type_expr;
 	struct haste_ast_struct_lit_field {
 		struct haste_ast_node base;
-		struct token name;
+		struct string name;
+		struct location name_loc;
 		struct haste_ast_node *value;
 		struct haste_ast_struct_lit_field *next;
 	} *fields;
@@ -795,7 +805,8 @@ struct haste_ast_var_decl { // ND_VAR_DECL
 	bool is_constant : 1;
 	bool is_explicitly_comptime : 1;
 	bool is_global : 1;
-	struct token name;
+	struct string name;
+	struct location name_loc;
 	struct haste_ast_node *type;
 	struct haste_ast_node *value;
 };
