@@ -251,10 +251,9 @@ static struct haste_value token_to_value(struct analyzer *self, struct token tok
 
 // ── Struct helpers ─────────────────────────────────────────────
 
-static bool field_name_matches(struct haste_struct_field field, struct token name_token)
+static bool field_name_matches(struct haste_struct_field field, const char *name)
 {
-	return strncmp(name_token.start, field.name, name_token.len) == 0
-		and field.name[name_token.len] == '\0';
+	return strcmp(name, field.name) == 0;
 }
 
 static void inject_struct_type(struct analyzer *self, struct haste_ast_node *node, struct haste_type field_type)
@@ -274,7 +273,7 @@ static void inject_struct_type(struct analyzer *self, struct haste_ast_node *nod
 }
 
 // TODO: gotta refactor this one
-static ssize_t find_struct_field(struct haste_struct_type_info *st, struct token name)
+static ssize_t find_struct_field(struct haste_struct_type_info *st, const char *name)
 {
 	iarreach (i, *st) {
 		if (field_name_matches(st->items[i], name)) {
@@ -463,7 +462,7 @@ static struct haste_value analyze_unary(struct analyzer *self, struct haste_ast_
 static struct haste_value analyze_access(struct analyzer *self, struct haste_ast_access *node, struct haste_type expected_type)
 {
 	try (lhs_value, analyze_node(self, node->lhs, expected_type)) {
-		catch (result, err, struct_get_field(lhs_value, node->rhs)) {
+		catch (result, err, struct_get_field(lhs_value, node->rhs.ident)) {
 			discard err;
 			return bail(self, node->rhs,
 						 "Cannot access field '{token}'. no such field inside '{value}'",
@@ -483,7 +482,7 @@ static struct haste_value analyze_primary(struct analyzer *self, struct haste_as
 	discard expected_type;
 	struct haste_value value = {0};
 	if (node->token.kind == TK_IDENT) {
-		const char *name = intern_token(node->token);
+		const char *name = node->token.ident;
 		struct symbol *symbol = find_local_first(self, name);
 		if (symbol == NULL) {
 			report_error(self, &node->base, "undefined symbol '{s}'.", name);
@@ -575,7 +574,7 @@ static struct haste_value analyze_cast(struct analyzer *self, struct haste_ast_c
 static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_ast_var_decl *node, struct haste_type expected_type)
 {
 	discard expected_type;
-	const char *name = intern_token(node->name);
+	const char *name = node->name.ident;
 	const bool is_constant = node->is_constant;
 	struct scope *target_scope = node->is_global then self->global otherwise self->local;
 
@@ -700,7 +699,7 @@ static struct haste_value analyze_struct_type(struct analyzer *self, struct hast
 	size_t i = 0;
 	leach (struct haste_ast_struct_field, field, node->fields) {
 		for (size_t j=0; j < field->name_count; j += 1) {
-			const char *name = intern_token(field->names[j]);
+			const char *name = field->names[j].ident;
 			struct haste_struct_field sf = {0};
 
 			if (read_struct_field(self, name, field, &sf)) {
@@ -747,9 +746,10 @@ static struct haste_value analyze_automatic_struct_literal(struct analyzer *self
 		struct haste_value fv = analyze_node(self, lit_field->value, expected_type);
 		if (IS_BAD(fv)) return VAL_BAD;
 		st->items[i] = (struct haste_struct_field){
-			.name = intern_str(
-				lit_field->name.start,
-				lit_field->name.len),
+			/* .name = intern_str( */
+			/* 	lit_field->name.start, */
+			/* 	lit_field->name.len), */
+			.name = lit_field->name.ident,
 			.type = typeof_value(fv),
 		};
 		so->fields[i] = fv;
@@ -814,7 +814,7 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 			}
 			idx = positional_idx++;
 		} else {
-			idx = find_struct_field(st, lit_field->name);
+			idx = find_struct_field(st, lit_field->name.ident);
 			if (idx < 0) {
 				report_error(self, &lit_field->base,
 					"Unknown field '{token}'.", lit_field->name);

@@ -46,6 +46,10 @@ static int custom_format_span(stream_t stream, struct modifier_stream mod, va_li
 {
 	discard mod;
 	struct span span = va_arg(args, struct span);
+	if (span.start == NULL) {
+		return sprint(stream, "(nil)");
+	}
+
 	if (match_modifier(&mod, '#')) {
 		return sprint(stream, "{s:#*}", span.start, (int)span.len);
 	}

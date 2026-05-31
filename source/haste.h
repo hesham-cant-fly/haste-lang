@@ -79,7 +79,7 @@ struct span span_to_trimed(struct span span);
 //
 // source.c
 //
-typedef int32_t source_file_id;
+typedef int16_t source_file_id;
 
 enum source_file_type {
 	SRC_HASTE,   // .haste
@@ -179,7 +179,7 @@ struct haste_ast_node *get_source_file_ast(const source_file_id id);
   */
 struct haste_declarations get_source_file_declarations(const source_file_id id);
 
-//
+// TODO: a location struct
 // token.c
 //
 enum token_kind {
@@ -228,10 +228,9 @@ enum token_kind {
 };
 
 struct token {
-	enum token_kind kind : 8;
-	const char *start;
+	uint32_t start;
 	uint32_t len;
-	uint32_t line;
+	enum token_kind kind : 8;
 
 	union {
 		int64_t ival;
@@ -245,7 +244,7 @@ struct token {
 	(struct token) { \
 		.kind = (kind_), \
 		.start = (start_), \
-		.len = (uint32_t)((uintptr_t)(end_) - (uintptr_t)(start_)), \
+		.len = (end_) - (start_), \
 		__VA_ARGS__ \
 	}
 
@@ -269,7 +268,8 @@ struct token_stream {
 	size_t read_cursor, write_cursor;
 
 	source_file_id src;
-	const char *start, *current, *end;
+	const char *content, *end;
+	uint32_t start, current;
 	bool has_error : 1;
 	bool ended : 1;
 };
@@ -308,7 +308,7 @@ void init_intern_table(struct Allocator allocator, struct Allocator arena);
 void deinit_intern_table(void);
 
 const char *intern_str(const char *start, size_t len);
-const char *intern_token(struct token token);
+// const char *intern_token(struct token token);
 const char *intern_cstr(const char *str);
 
 //
@@ -475,12 +475,10 @@ bool is_comptime_known(const struct haste_value v);
 #define struct_get_field(v_, ...) _Generic((__VA_ARGS__), \
 	const char *: struct_get_field_by_name, \
 	char *: struct_get_field_by_name, \
-	struct token: struct_get_field_by_token, \
 	size_t: struct_get_field_by_index) (v_, (__VA_ARGS__))
 #define struct_set_field(allocator_, v_, key_, ...) _Generic((key_), \
 	const char *: struct_set_field_by_name, \
 	char *: struct_set_field_by_name, \
-	struct token: struct_set_field_by_token, \
 	size_t: struct_set_field_by_index) (allocator_, v_, key_, (__VA_ARGS__))
 #define struct_has_field(v_, ...) _Generic((__VA_ARGS__), \
 	const char *: struct_has_field_name \
@@ -488,22 +486,15 @@ bool is_comptime_known(const struct haste_value v);
 	struct token: struct_has_field_token) (v_, (__VA_ARGS__)))
 
 bool struct_has_field_name(const struct haste_value value, const char *name);
-bool struct_has_field_token(const struct haste_value value, struct token token);
 
 struct haste_value struct_get_field_by_name(const struct haste_value value,
 											const char *name);
-struct haste_value struct_get_field_by_token(const struct haste_value value,
-											 const struct token name);
 struct haste_value struct_get_field_by_index(const struct haste_value value,
 											 const size_t idx);
 struct haste_value struct_set_field_by_name(struct Allocator,
 											struct haste_value *value,
 											const char *name,
 											const struct haste_value new_value);
-struct haste_value struct_set_field_by_token(struct Allocator,
-											 struct haste_value *value,
-											 const struct token name,
-											 const struct haste_value new_value);
 struct haste_value struct_set_field_by_index(struct Allocator,
 											 struct haste_value *value,
 											 const size_t idx,

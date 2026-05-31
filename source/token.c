@@ -1,4 +1,5 @@
 #include "haste.h"
+#include "my_common.h"
 
 static const char *TOKEN_KIND_LIT[] =
 {
@@ -49,7 +50,9 @@ static const char *TOKEN_KIND_LIT[] =
 
 struct span token_to_span(struct token token)
 {
-	return span(token.start, token.len);
+	discard token;
+	/* return span(token.start, token.len); */
+	return span(NULL, 0);
 }
 
 int print_token(stream_t f, struct token token)

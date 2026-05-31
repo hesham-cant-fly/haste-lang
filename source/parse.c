@@ -35,7 +35,7 @@ struct parser_rule {
 #define create_node(self_, T_, ...) \
 	(void*)_create_node((self_), &(T_) { __VA_ARGS__ }, sizeof(T_))
 
-static struct haste_ast_node *_create_node(struct parser *self, void *value, size_t size)
+inline static struct haste_ast_node *_create_node(struct parser *self, void *value, size_t size)
 {
 	void *result = alloc(self->allocator, size);
 	memcpy(result, value, size);
@@ -425,7 +425,8 @@ static struct haste_ast_node *parse_precedence(struct parser *self, enum precede
 		ParseInfixFn infix_rule = get_rule(tok).infix;
 		if (infix_rule == NULL) {
 			run_at_percent (3) {
-				if (strncmp(left->start.start, "cat", left->start.len) == 0) {
+				auto content = get_source_file_content(self->src);
+				if (strncmp(content, "cat", left->start.len) == 0) {
 					report_error_at(self, tok,
 									"meow! sorry, but purrs of a cat not gonna write useful software :(.", tok);
 				} else {

@@ -87,18 +87,18 @@ const char *intern_str(const char *start, size_t len)
 	}
 }
 
-const char *intern_token(struct token token)
-{
-	switch (token.kind) {
-	case TK_STR: return intern_cstr(token.str);
-	case TK_IDENT:
-		// return intern_str(table, token.start, token.len);
-		return intern_cstr(token.ident);
-	default:
-		break;
-	}
-	return intern_str(token.start, token.len);
-}
+/* const char *intern_token(struct token token) */
+/* { */
+/* 	switch (token.kind) { */
+/* 	case TK_STR: return intern_cstr(token.str); */
+/* 	case TK_IDENT: */
+/* 		// return intern_str(table, token.start, token.len); */
+/* 		return intern_cstr(token.ident); */
+/* 	default: */
+/* 		break; */
+/* 	} */
+/* 	return intern_str(token.start, token.len); */
+/* } */
 
 const char *intern_cstr(const char *str)
 {

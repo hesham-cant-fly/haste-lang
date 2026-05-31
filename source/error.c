@@ -81,13 +81,15 @@ void f_vreport_at(const source_file_id src, const char *kind, const char *start,
 
 void f_report_at_token(const source_file_id src, const char *kind, struct token token, const char *fmt, ...)
 {
+	auto content = get_source_file_content(src);
 	va_list args;
 	va_start(args, fmt);
-	report_at_with_src(src, kind, token.start, fmt, args);
+	report_at_with_src(src, kind, content + token.start, fmt, args);
 	va_end(args);
 }
 
 void f_vreport_at_token(const source_file_id src, const char *kind, struct token token, const char *fmt, va_list args)
 {
-	report_at_with_src(src, kind, token.start, fmt, args);
+	auto content = get_source_file_content(src);
+	report_at_with_src(src, kind, content + token.start, fmt, args);
 }

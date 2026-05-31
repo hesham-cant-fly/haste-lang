@@ -2,6 +2,7 @@
 #include "my_common.h"
 #include "my_stream.h"
 #include "llvm-c/Core.h"
+#include <__stddef_unreachable.h>
 #include <llvm-c/Types.h>
 
 struct type_map_entry {
@@ -204,11 +205,12 @@ static LLVMValueRef codegen_value(struct codegen_context *ctx, const struct hast
 		return llvm_value(ctx, node->value);
 	}
 	if (node->value.is_lvalue) {
-		const char *name = intern_token(node->base.start);
-		LLVMValueRef global = LLVMGetNamedGlobal(ctx->module, name);
-		assert(global != NULL);
-		return LLVMBuildLoad2(ctx->builder,
-							  llvm_type(ctx, node->base.type), global, "load");
+		unimplemented();
+		/* const char *name = intern_token(node->base.start); */
+		/* LLVMValueRef global = LLVMGetNamedGlobal(ctx->module, name); */
+		/* assert(global != NULL); */
+		/* return LLVMBuildLoad2(ctx->builder, */
+		/* 					  llvm_type(ctx, node->base.type), global, "load"); */
 	}
 	if (IS_RUNTIME(node->value)) {
 		return codegen_expr(ctx, node->value.runtime);
@@ -233,7 +235,7 @@ static LLVMValueRef codegen_global_var(struct codegen_context *ctx, const struct
 	if (node->is_explicitly_comptime) return 0;
 
 	LLVMTypeRef type = llvm_type(ctx, node->base.type);
-	const char *name = intern_token(node->name);
+	const char *name = node->name.ident;
 	LLVMValueRef global = LLVMAddGlobal(ctx->module, type, name);
 
 	LLVMValueRef init = node->value != NULL
