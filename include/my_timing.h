@@ -1,26 +1,48 @@
-#ifndef MY_TIMING_H
-#define MY_TIMING_H
+#ifndef MY_TIMING_H_
+#define MY_TIMING_H_
 
+#include <assert.h>
+#include <stddef.h>
+#include <string.h>
 #include <time.h>
 #include <stdio.h>
+#include "my_allocator.h"
+#include "my_managed_array.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 struct timer {
+	const char *name;
+	size_t total_allocated_memory;
 	struct timespec start;
 	struct timespec end;
 };
 
-static inline void timer_start(struct timer *t)
+struct timer_list {
+	struct Allocator allocator;
+	size_t len;
+	size_t cap;
+	struct timer *items;
+};
+
+static inline void timer_start(
+	struct timer_list *self,
+	const char *name)
 {
-	timespec_get(&t->start, TIME_UTC);
+	struct timer result = {
+		.name = name,
+	};
+	timespec_get(&result.start, TIME_UTC);
+	marrpush(*self, result);
 }
 
-static inline void timer_stop(struct timer *t)
+static inline void timer_stop(struct timer_list *self, size_t total_allocated_memory)
 {
-	timespec_get(&t->end, TIME_UTC);
+	assert(self->len > 0);
+	timespec_get(&self->items[self->len - 1].end, TIME_UTC);
+	self->items[self->len - 1].total_allocated_memory = total_allocated_memory;
 }
 
 static inline double timer_elapsed_ns(struct timer *t)
@@ -70,20 +92,19 @@ static inline struct timed_result format_duration(double ns)
 	return (struct timed_result){ ns / 1e9, TU_S };
 }
 
-static inline void print_timing_report(struct timer timers[], const char *names[], int count)
+static inline void print_timing_report(struct timer_list timers)
 {
-	double totals_ns[count];
+	double totals_ns[timers.len];
 	double grand_total_ns = 0;
 
-	for (int i = 0; i < count; i++) {
-		totals_ns[i] = timer_elapsed_ns(&timers[i]);
+	for (size_t i = 0; i < timers.len; i++) {
+		totals_ns[i] = timer_elapsed_ns(&timers.items[i]);
 		grand_total_ns += totals_ns[i];
 	}
 
 	int name_width = 0;
-	for (int i = 0; i < count; i++) {
-		int w = 0;
-		for (const char *p = names[i]; *p; p++) w++;
+	for (size_t i = 0; i < timers.len; i++) {
+		int w = strlen(timers.items[i].name);
 		if (w > name_width) name_width = w;
 	}
 
@@ -92,11 +113,29 @@ static inline void print_timing_report(struct timer timers[], const char *names[
 	fprintf(stderr, "\n  timing report\n");
 	fprintf(stderr, "  ─────────────\n");
 
-	for (int i = 0; i < count; i++) {
+	for (size_t i = 0; i < timers.len; i++) {
 		struct timed_result r = format_duration(totals_ns[i]);
 		double pct = grand_total_ns > 0 ? totals_ns[i] / grand_total_ns * 100 : 0;
-		fprintf(stderr, "  %-*s took %.2f %-2s (%05.2f%%)\n",
-			name_width, names[i], r.value, time_unit_str(r.unit), pct);
+
+		double total = (double)timers.items[i].total_allocated_memory;
+		const char *total_unit = "B";
+		if (total >= 1024) { total /= 1024; total_unit = "kB"; }
+		if (total >= 1024) { total /= 1024; total_unit = "MB"; }
+		if (total >= 1024) { total /= 1024; total_unit = "GB"; }
+
+		double used = (double)timers.items[i].total_allocated_memory;
+		if (i != 0) {
+			used -= (double) timers.items[i - 1].total_allocated_memory;
+		}
+		const char *used_unit = "B";
+		if (used >= 1024) { used /= 1024; used_unit = "kB"; }
+		if (used >= 1024) { used /= 1024; used_unit = "MB"; }
+		if (used >= 1024) { used /= 1024; used_unit = "GB"; }
+
+		fprintf(stderr, "  %-*s took %7.2f %-2s (%6.2f%%) used (%.2f %s) total (%.2f %s)\n",
+				name_width, timers.items[i].name, r.value, time_unit_str(r.unit), pct,
+				used, used_unit,
+				total, total_unit);
 	}
 
 	fprintf(stderr, "  ─────────────\n");
@@ -108,4 +147,4 @@ static inline void print_timing_report(struct timer timers[], const char *names[
 }
 #endif
 
-#endif // MY_TIMING_H
+#endif // MY_TIMING_H_

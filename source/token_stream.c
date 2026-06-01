@@ -1,6 +1,8 @@
 #include "haste.h"
 #include "my_stream.h"
+#include "my_temporary_allocator.h"
 #include "my_termcolor.h"
+#include <stdint.h>
 
 static bool is_digit(uint32_t c) { return c >= '0' and c <= '9'; }
 
@@ -27,25 +29,27 @@ static const char *decode_string(const char *start, size_t len)
 	chars[j] = '\0';
 
 	const char *result = intern_cstr(chars);
-	delete(chars);
+	xdelete(len + 1, chars);
 	return result;
 }
 
 static void populate_token_value(struct token_stream *self, struct token *tok)
 {
 	discard self;
+	auto source = get_source_file_content(self->src);
+
     switch (tok->kind) {
 	case TK_INT: {
-		char *buf = tsprint("{s:*}", tok->start, (int)tok->len);
+		char *buf = tsprint("{s:*}", self->content + tok->start, (int)tok->len);
 		tok->ival = strtoll(buf, NULL, 10);
 	} break;
 	case TK_FLOAT: {
-		char *buf = tsprint("{s:*}", tok->start, (int)tok->len);
+		char *buf = tsprint("{s:*}", self->content + tok->start, (int)tok->len);
 		tok->fval = strtold(buf, NULL);
 	} break;
 	case TK_IDENT:
-		if (tok->len > 3 and strncmp(tok->start, "int", 3) == 0) {
-			const char *rest = tok->start + 3;
+		if (tok->len > 3 and strncmp(source + tok->start, "int", 3) == 0) {
+			const char *rest = source + tok->start + 3;
 			size_t rest_len = tok->len - 3;
 			bool all_digits = true;
 			for (size_t i = 0; i < rest_len; i++)
@@ -55,8 +59,8 @@ static void populate_token_value(struct token_stream *self, struct token *tok)
 				tok->ival = strtoll(rest, NULL, 10);
 				break;
 			}
-		} else if (tok->len > 4 and strncmp(tok->start, "uint", 4) == 0) {
-			const char *rest = tok->start + 4;
+		} else if (tok->len > 4 and strncmp(source + tok->start, "uint", 4) == 0) {
+			const char *rest = source + tok->start + 4;
 			size_t rest_len = tok->len - 4;
 			bool all_digits = true;
 			for (size_t i = 0; i < rest_len; i++)
@@ -67,10 +71,10 @@ static void populate_token_value(struct token_stream *self, struct token *tok)
 				break;
 			}
 		}
-		tok->ident = intern_str(tok->start, tok->len);
+		tok->ident = intern_str(source + tok->start, tok->len);
 		break;
 	case TK_STR: {
-		tok->str = decode_string(tok->start + 1, tok->len - 2);
+		tok->str = decode_string(source + tok->start + 1, tok->len - 2);
 	} break;
 	default:
 		break;
@@ -84,29 +88,31 @@ static bool ended(const struct token_stream *self)
 	return self->ended;
 }
 
-static uint32_t peek(struct token_stream *self)
+static char peek(struct token_stream *self)
 {
 	if (ended(self)) return '\0';
-	const uint32_t result = decode_utf8(NULL, self->current, self->src);
-	if (result == '\0') {
+	// const uint32_t result = decode_utf8(NULL, self->current, self->src);
+	if (self->content[self->current] == '\0') {
 		self->ended = true;
 	}
-	return result;
+	return self->content[self->current];
 }
 
-static uint32_t advance(struct token_stream *self)
+static char advance(struct token_stream *self)
 {
 	if (ended(self)) {
 		return '\0';
 	}
-	const uint32_t result = decode_utf8(&self->current, self->current, self->src);
+	// const uint32_t result = decode_utf8(&self->current, self->current, self->src);
+	const char result = peek(self);
 	if (result == '\0') {
 		self->ended = true;
 	}
+	self->current += 1;
 	return result;
 }
 
-static bool check(struct token_stream *self, uint32_t ch)
+static bool check(struct token_stream *self, char ch)
 {
 	if (ended(self)) return false;
 	return peek(self) == ch;
@@ -114,11 +120,11 @@ static bool check(struct token_stream *self, uint32_t ch)
 
 static bool matches(struct token_stream *self, char *str)
 {
-	const size_t remaining = self->end - self->current;
+	const size_t remaining = (uintptr_t)self->end - self->current;
 	const size_t str_len = strlen(str);
 	if (str_len > remaining) return false;
 
-	if (strncmp(self->current, str, str_len) != 0)
+	if (strncmp(self->content + self->current, str, str_len) != 0)
 		return false;
 
 	for (size_t i=0; i<str_len; i+=1) {
@@ -141,7 +147,8 @@ static struct token *add_token(struct token_stream *self, enum token_kind kind)
 		token(
 			kind,
 			self->start,
-			self->current);
+			self->current,
+			.src = self->src);
 	struct token *result = &self->items[self->write_cursor % STREAM_DATA_COUNT];
 	self->write_cursor += 1;
 	populate_token_value(self, result);
@@ -179,7 +186,7 @@ static void scan_string(struct token_stream *self)
 		advance(self);
 	}
 
-	report_error(self, self->start, "unterminated string literal");
+	report_error(self, self->content + self->start, "unterminated string literal");
 }
 
 static void skip_whitespace(struct token_stream *self)
@@ -216,12 +223,12 @@ static void scan_identifiers(struct token_stream *self)
 		{0}
 	};
 
-	const char *start = self->start;
-	const char *current = self->current;
+	const char *start = self->content + self->start;
+	const char *current = self->content + self->current;
 	advance(self);
 	while (not ended(self) and is_ident2(peek(self))) {
 		advance(self);
-		current = self->current;
+		current = self->content + self->current;
 	}
 
 	const size_t lexem_len = (uintptr_t)current - (uintptr_t)start;
@@ -247,14 +254,14 @@ static void scan_lexem(struct token_stream *self)
 
 	// skip block comment
 	if (matches(self, "/*")) {
-		const char *begining = self->current - 2;
+		const char *begining = self->content + self->current - 2;
 		while (not ended(self)) {
 			if (matches(self, "*/")) {
 				return;
 			}
 			advance(self);
 		}
-		report_error(self, self->current - 1, "unclosed block comment");
+		report_error(self, self->content + self->current - 1, "unclosed block comment");
 		report_note(self, begining, "it opened right here");
 		return;
 	}
@@ -308,7 +315,7 @@ static void scan_lexem(struct token_stream *self)
 		}
 	}
 
-	const char *pos = self->current;
+	const char *pos = self->content + self->current;
 	const uint32_t ch = advance(self);
 	if (ch == '\0') return;
 
@@ -338,8 +345,9 @@ struct token_stream token_stream(source_file_id src)
 {
 	const char *source = get_source_file_content(src);
 	return (struct token_stream) {
-		.current = source,
-		.start = source,
+		.current = 0,
+		.start = 0,
+		.content = source,
 		.end = get_source_file_end(src),
 		.src = src,
 	};
@@ -355,7 +363,7 @@ struct token token_stream_peek(struct token_stream *stream)
 	if (is_empty(stream)) {
 		start_scanning(stream);
 		if (is_empty(stream)) {
-			return token(TK_EOF, NULL, NULL);
+			return token(TK_EOF, 0, 0);
 		}
 	}
 
@@ -371,7 +379,7 @@ struct token token_stream_peek_next(struct token_stream *stream)
 	if (stream->write_cursor - stream->read_cursor < 2) {
 		start_scanning(stream);
 		if (stream->write_cursor - stream->read_cursor < 2) {
-			return token(TK_EOF, NULL, NULL);
+			return token(TK_EOF, 0, 0);
 		}
 	}
 

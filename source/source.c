@@ -23,7 +23,7 @@ char* get_current_working_directory(void)
 		cwd = buffer;
 		return buffer;
 	}
-	destroy(allocator, buffer);
+	xdestroy(allocator, FILENAME_MAX, buffer);
 	return NULL;
 #else
 	long path_max = pathconf("/", _PC_PATH_MAX);
@@ -34,7 +34,7 @@ char* get_current_working_directory(void)
 		cwd = buffer;
 		return buffer;
 	}
-	destroy(allocator, buffer);
+	xdestroy(allocator, path_max + 1, buffer);
 	return NULL;
 #endif
 }
@@ -49,7 +49,7 @@ char* get_absolute_path(struct Allocator allocator, const char* relative_path)
 	if (buffer == NULL) return NULL;
 
 	if (GetFullPathNameA(relative_path, len, buffer, NULL) == 0) {
-		destroy(allocator, buffer);
+		xdestroy(allocator, len + 1, buffer);
 		return NULL;
 	}
 	return buffer;
@@ -144,4 +144,4 @@ const char *get_source_file_end(const source_file_id id)
 
 SOURCE_GETTER(enum source_file_type, get_source_file_type, type)
 SOURCE_GETTER(struct haste_ast_node *, get_source_file_ast, root)
-SOURCE_GETTER(struct haste_declarations, get_source_file_declarations, declarations)
+/* SOURCE_GETTER(struct haste_declarations, get_source_file_declarations, declarations) */

@@ -55,6 +55,7 @@ struct options {
 	bool do_measure  : 1;
 	bool do_dump     : 1;
 	bool disable_fun : 1;
+	bool only_parse  : 1;
 	const char *source_path;
 	const char *output_path;
 };
@@ -64,22 +65,9 @@ extern struct options g_options;
 Error parse_arguments(const int argc, const char *argv[argc]);
 
 //
-// span.c
-//
-struct span {
-	const char *start;
-	uint32_t len;
-};
-
-#define span(...) ((struct span) { __VA_ARGS__ })
-#define SPAN_FMT(...) ((int)(__VA_ARGS__).len), (__VA_ARGS__).start
-
-struct span span_to_trimed(struct span span);
-
-//
 // source.c
 //
-typedef int32_t source_file_id;
+typedef int16_t source_file_id;
 
 enum source_file_type {
 	SRC_HASTE,   // .haste
@@ -92,15 +80,6 @@ struct source_file {
 	size_t len;
 	enum source_file_type type;
 	struct haste_ast_node *root; // NULL by default
-
-	struct haste_declarations {
-		size_t len;
-		struct haste_declaration {
-			const char *key; // name
-			struct haste_ast_node *node;
-			bool analyzing : 1;
-		} *items;
-	} declarations;
 };
 
 struct source_file_list {
@@ -228,10 +207,10 @@ enum token_kind {
 };
 
 struct token {
-	enum token_kind kind : 8;
-	const char *start;
+	uint32_t start;
 	uint32_t len;
-	uint32_t line;
+	source_file_id src;
+	enum token_kind kind : 8;
 
 	union {
 		int64_t ival;
@@ -245,18 +224,15 @@ struct token {
 	(struct token) { \
 		.kind = (kind_), \
 		.start = (start_), \
-		.len = (uint32_t)((uintptr_t)(end_) - (uintptr_t)(start_)), \
+		.len = (end_) - (start_), \
 		__VA_ARGS__ \
 	}
-
-#define TOKEN_FMT(...) SPAN_FMT(token_to_span(__VA_ARGS__))
 
 struct token_list {
 	size_t len, cap;
 	struct token *items;
 };
 
-struct span token_to_span(struct token token);
 int print_token(stream_t stream, struct token token);
 
 //
@@ -269,7 +245,8 @@ struct token_stream {
 	size_t read_cursor, write_cursor;
 
 	source_file_id src;
-	const char *start, *current, *end;
+	const char *content, *end;
+	uint32_t start, current;
 	bool has_error : 1;
 	bool ended : 1;
 };
@@ -280,6 +257,49 @@ bool token_stream_ended(const struct token_stream *stream);
 struct token token_stream_peek(struct token_stream *stream);
 struct token token_stream_peek_next(struct token_stream *stream);
 struct token token_stream_advance(struct token_stream *stream);
+
+//
+// location.c
+//
+struct string {
+	const char *chars;
+	uint32_t len;
+};
+
+struct location {
+	uint32_t start;
+	uint32_t len;
+	source_file_id src;
+};
+
+#define location(...) ((struct location) { __VA_ARGS__ })
+#define string(...) ((struct string) { __VA_ARGS__ })
+
+#define as_string(...) \
+	_Generic((__VA_ARGS__), \
+		const char *: cstr_as_string, \
+		char *: cstr_as_string, \
+		struct location: location_as_string, \
+		struct token: token_as_string, \
+		struct string: string_as_string, \
+		enum token_kind: token_kind_as_string \
+	) (__VA_ARGS__)
+
+struct string string_to_trimed(struct string span);
+
+struct string cstr_as_string(const char *cstr);
+struct string location_as_string(struct location location);
+struct string token_as_string(struct token token);
+struct string string_as_string(struct string s);
+struct string token_kind_as_string(enum token_kind kind);
+
+const char *token_kind_name(enum token_kind kind);
+
+struct location as_location(struct token token);
+
+struct location location_conjoin(
+    struct location a,
+    struct location b);
 
 //
 // unicode.c
@@ -303,6 +323,13 @@ struct intern_table {
 		size_t len;
 	} *entries;
 };
+
+void init_intern_table(struct Allocator allocator, struct Allocator arena);
+void deinit_intern_table(void);
+
+const char *intern_str(const char *start, size_t len);
+// const char *intern_token(struct token token);
+const char *intern_cstr(const char *str);
 
 //
 // type pool
@@ -468,12 +495,10 @@ bool is_comptime_known(const struct haste_value v);
 #define struct_get_field(v_, ...) _Generic((__VA_ARGS__), \
 	const char *: struct_get_field_by_name, \
 	char *: struct_get_field_by_name, \
-	struct token: struct_get_field_by_token, \
 	size_t: struct_get_field_by_index) (v_, (__VA_ARGS__))
 #define struct_set_field(allocator_, v_, key_, ...) _Generic((key_), \
 	const char *: struct_set_field_by_name, \
 	char *: struct_set_field_by_name, \
-	struct token: struct_set_field_by_token, \
 	size_t: struct_set_field_by_index) (allocator_, v_, key_, (__VA_ARGS__))
 #define struct_has_field(v_, ...) _Generic((__VA_ARGS__), \
 	const char *: struct_has_field_name \
@@ -481,22 +506,15 @@ bool is_comptime_known(const struct haste_value v);
 	struct token: struct_has_field_token) (v_, (__VA_ARGS__)))
 
 bool struct_has_field_name(const struct haste_value value, const char *name);
-bool struct_has_field_token(const struct haste_value value, struct token token);
 
 struct haste_value struct_get_field_by_name(const struct haste_value value,
 											const char *name);
-struct haste_value struct_get_field_by_token(const struct haste_value value,
-											 const struct token name);
 struct haste_value struct_get_field_by_index(const struct haste_value value,
 											 const size_t idx);
 struct haste_value struct_set_field_by_name(struct Allocator,
 											struct haste_value *value,
 											const char *name,
 											const struct haste_value new_value);
-struct haste_value struct_set_field_by_token(struct Allocator,
-											 struct haste_value *value,
-											 const struct token name,
-											 const struct haste_value new_value);
 struct haste_value struct_set_field_by_index(struct Allocator,
 											 struct haste_value *value,
 											 const size_t idx,
@@ -616,10 +634,6 @@ struct haste_value default_for_type(struct Allocator alloc, struct haste_type to
 
 bool type_equal(const struct haste_type t1,
                 const struct haste_type t2);
-// bool type_can_assign(const struct haste_type assignable,
-//                      const struct haste_type value);
-// bool type_can_cast(const struct haste_type to,
-//                    const struct haste_type from);
 
 struct haste_type untyped_to_typed(struct haste_type type);
 
@@ -632,94 +646,174 @@ bool type_is_untyped_integer(const struct haste_type t);
 bool type_is_untyped_number(const struct haste_type t);
 bool type_is_any_string(const struct haste_type t);
 
-// bool type_equal_struct(const struct haste_type_info *t1, const struct haste_type_info *t2);
 uint64_t type_hash(const struct haste_type t);
 
 //
 // ast.c
 //
-struct haste_ast_node {
-	enum haste_ast_node_kind {
-		/* Generated during analysis */
-		ND_VALUE,    // value
+enum haste_ast_node_kind {
+	/* Generated during analysis */
+	ND_VALUE,
 
-		/* Expresion */
-		ND_BINARY,   // lhs, rhs, op
-		ND_UNARY,    // rhs, op
-		ND_ACCESS,   // access
-		ND_PRIMARY,  // struct token token
-		ND_GROUPING, // struct haste_ast_node *body
-		ND_DISTINCT, // struct haste_ast_node *body
+	/* Expresion */
+	ND_INTEGER_LIT,
+	ND_FLOAT_LIT,
+	ND_STRING_LIT,
+	ND_IDENT,
 
-		ND_CAST,     // struct { ... } cast
+	ND_BINARY,
+	ND_UNARY,
+	ND_ACCESS,
+	ND_INT_BITS,
+	ND_UINT_BITS,
+	ND_GROUPING,
+	ND_DISTINCT,
+	ND_CAST,
 
-		/* Structs */
-		ND_STRUCT_TYPE,       // struct { fields... }
-		ND_STRUCT_FIELD,      // name: type [= default]
-		ND_STRUCT_LITERAL,    // Type{...} or .{...}
-		ND_STRUCT_LIT_FIELD,  // name: value
+	/// these doesn't have a didicated struct for them
+	ND_STRING,
+	ND_CSTR,
+	ND_INT,
+	ND_UINT,
+	ND_FLOAT,
+	ND_USIZE,
+	ND_VOID,
+	ND_AUTO,
+	ND_TYPE,
 
-		/* Statements */
-		ND_VAR_DECL, // struct { ... } variable
-	} kind : 8;
-	struct haste_type type;
-	struct haste_ast_node *next;
-	struct token start;
+	/* Structs */
+	ND_STRUCT_TYPE,
+	ND_STRUCT_FIELD,
+	ND_STRUCT_LITERAL,
+	ND_STRUCT_LIT_FIELD,
 
-	union {
-		struct token token;          // ND_PRIMARY
-		struct haste_ast_node *body; // ND_GROUPING, ND_DISTINCT
-		struct haste_value value;    // ND_VALUE
-		struct {                     // ND_BINARY, ND_UNARY
-			struct haste_ast_node *lhs;
-			struct haste_ast_node *rhs;
-			struct token op;
-		};
-		struct {
-			struct haste_ast_node *lhs;
-			struct token rhs;
-		} access;
-
-		struct {                     // ND_CAST
-			struct haste_ast_node *to;
-			struct haste_ast_node *expr;
-		} cast;
-
-		struct {                     // ND_STRUCT_TYPE
-			struct haste_ast_node *fields;
-		} struct_type;
-
-		struct {                     // ND_STRUCT_FIELD
-			size_t name_count;
-			struct token *names;
-			struct haste_ast_node *type;
-			struct haste_ast_node *default_value;
-		} struct_field;
-
-		struct {                     // ND_STRUCT_LITERAL
-			struct haste_ast_node *type_expr;
-			struct haste_ast_node *fields;
-		} struct_literal;
-
-		struct {                     // ND_STRUCT_LIT_FIELD
-			struct token name;
-			struct haste_ast_node *value;
-		} struct_lit_field;
-
-		struct {                     // ND_VAR_DECL
-			bool is_constant : 1;
-			bool is_explicitly_comptime : 1;
-			bool is_global : 1;
-			struct token name;
-			struct haste_ast_node *type;
-			struct haste_ast_node *value;
-		} variable;
-	};
+	/* Statements */
+	ND_VAR_DECL,
 };
 
-struct haste_ast_node * node_into_value(
+struct haste_ast_node {
+	struct haste_ast_node *next;
+	struct haste_type type;
+	struct location location;
+	enum haste_ast_node_kind kind : 8;
+	bool analyzed : 1;
+};
+
+struct haste_ast_value { // ND_VALUE
+	struct haste_ast_node base;
+	struct haste_value value;
+};
+
+struct haste_ast_integer_lit { // ND_INTEGER_LIT
+	struct haste_ast_node base;
+	int64_t value;
+};
+
+struct haste_ast_float_lit { // ND_FLOAT_LIT
+	struct haste_ast_node base;
+	double value;
+};
+
+struct haste_ast_string_lit { // ND_STRING_LIT
+	struct haste_ast_node base;
+	struct string value;
+};
+
+struct haste_ast_ident { // ND_IDENT
+	struct haste_ast_node base;
+	struct string value;
+};
+
+struct haste_ast_int_bits { // ND_INT_BITS
+	struct haste_ast_node base;
+	uint32_t bits;
+};
+
+struct haste_ast_uint_bits { // ND_UINT_BITS
+	struct haste_ast_node base;
+	uint32_t bits;
+};
+
+struct haste_ast_grouping { // ND_GROUPING
+	struct haste_ast_node base;
+	struct haste_ast_node *child;
+};
+
+struct haste_ast_distinct { // ND_DISTINCT
+	struct haste_ast_node base;
+	struct haste_ast_node *child;
+	char padding[8];
+};
+
+struct haste_ast_binary { // ND_BINARY
+	struct haste_ast_node base;
+	struct haste_ast_node *lhs;
+	struct haste_ast_node *rhs;
+	enum token_kind op;
+	struct location op_loc;
+};
+
+struct haste_ast_unary { // ND_UNARY
+	struct haste_ast_node base;
+	struct haste_ast_node *rhs;
+	enum token_kind op;
+	struct location op_loc;
+};
+
+struct haste_ast_access { // ND_ACCESS
+	struct haste_ast_node base;
+	struct haste_ast_node *lhs;
+	struct string field;
+	struct location field_loc;
+};
+
+struct haste_ast_cast { // ND_CAST
+	struct haste_ast_node base;
+	struct haste_ast_node *to;
+	struct haste_ast_node *expr;
+};
+
+struct haste_ast_struct_type { // ND_STRUCT_TYPE
+	struct haste_ast_node base;
+		struct haste_ast_struct_field {
+			struct haste_ast_node base;
+			size_t name_count;
+			struct string *names;
+			struct location *name_locs;
+			struct haste_ast_node *type;
+			struct haste_ast_node *default_value;
+
+			struct haste_ast_struct_field *next;
+		} *fields;
+	char padding[8];
+};
+
+struct haste_ast_struct_literal { // ND_STRUCT_LITERAL
+	struct haste_ast_node base;
+	struct haste_ast_node *type_expr;
+	struct haste_ast_struct_lit_field {
+		struct haste_ast_node base;
+		struct string name;
+		struct location name_loc;
+		struct haste_ast_node *value;
+		struct haste_ast_struct_lit_field *next;
+	} *fields;
+};
+
+struct haste_ast_var_decl { // ND_VAR_DECL
+	struct haste_ast_node base;
+	bool is_constant : 1;
+	bool is_explicitly_comptime : 1;
+	bool is_global : 1;
+	struct string name;
+	struct location name_loc;
+	struct haste_ast_node *type;
+	struct haste_ast_node *value;
+};
+
+void *node_into_value(
 	struct Allocator allocator,
-	struct haste_ast_node *node,
+	void *nd,
 	struct haste_value value);
 int print_haste_ast(stream_t file, const struct haste_ast_node *root);
 bool node_is_declaration(const struct haste_ast_node *node);
@@ -729,26 +823,15 @@ bool node_is_declaration(const struct haste_ast_node *node);
 //
 void f_report_at(const source_file_id src, const char *kind, const char *start, const char *fmt, ...);
 void f_vreport_at(const source_file_id src, const char *kind, const char *start, const char *fmt, va_list args);
-void f_report_at_token(const source_file_id src, const char *kind, struct token token, const char *fmt, ...);
-void f_vreport_at_token(const source_file_id src, const char *kind, struct token token, const char *fmt, va_list args);
-
-void init_intern_table(struct Allocator allocator, struct Allocator arena);
-void deinit_intern_table(void);
-
-const char *intern_str(const char *start, size_t len);
-const char *intern_token(struct token token);
-const char *intern_cstr(const char *str);
+void f_report_at_token(const char *kind, struct token token, const char *fmt, ...);
+void f_vreport_at_token(const char *kind, struct token token, const char *fmt, va_list args);
+void f_report_at_location(const char *kind, struct location location, const char *fmt, ...);
+void f_vreport_at_location(const char *kind, struct location location, const char *fmt, va_list args);
 
 //
 // parse.c
 //
 Error parse(struct Allocator allocator, const source_file_id src);
-
-//
-// hoisting.c
-//
-Error hoist(struct Allocator allocator,
-            const source_file_id src);
 
 //
 // analysis.c

@@ -58,7 +58,8 @@
 	do { \
 		size_t _old_cc_ = (array_).chunk_count; \
 		size_t _new_cc_ = _old_cc_ == 0 ? 1 : _old_cc_ * 2; \
-		(array_).chunks = recreate((array_).allocator, \
+		(array_).chunks = xrecreate((array_).allocator, \
+			_old_cc_ * sizeof(*(array_).chunks), \
 			_new_cc_ * sizeof(*(array_).chunks), \
 			(array_).chunks); \
 		for (size_t _i_ = _old_cc_; _i_ < _new_cc_; _i_++) \

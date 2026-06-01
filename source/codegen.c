@@ -2,6 +2,8 @@
 #include "my_common.h"
 #include "my_stream.h"
 #include "llvm-c/Core.h"
+#include <__stddef_unreachable.h>
+#include <llvm-c/Types.h>
 
 struct type_map_entry {
 	TypeID haste_type;
@@ -169,10 +171,10 @@ static LLVMValueRef llvm_value(struct codegen_context *ctx, struct haste_value v
 
 static LLVMValueRef codegen_expr(struct codegen_context *ctx, const struct haste_ast_node *node);
 
-static LLVMValueRef codegen_cast(struct codegen_context *ctx, const struct haste_ast_node *node)
+static LLVMValueRef codegen_cast(struct codegen_context *ctx, const struct haste_ast_cast *node)
 {
-	LLVMValueRef val = codegen_expr(ctx, node->cast.expr);
-	LLVMTypeRef target_type = llvm_type(ctx, node->type);
+	LLVMValueRef val = codegen_expr(ctx, node->expr);
+	LLVMTypeRef target_type = llvm_type(ctx, node->base.type);
 	LLVMTypeRef src_type = LLVMTypeOf(val);
 
 	if (LLVMGetTypeKind(src_type) == LLVMGetTypeKind(target_type))
@@ -197,48 +199,59 @@ static LLVMValueRef codegen_cast(struct codegen_context *ctx, const struct haste
 	unreachable();
 }
 
+static LLVMValueRef codegen_value(struct codegen_context *ctx, const struct haste_ast_value *node)
+{
+	if (is_comptime_known(node->value)) {
+		return llvm_value(ctx, node->value);
+	}
+	if (node->value.is_lvalue) {
+		unimplemented();
+		/* const char *name = intern_token(node->base.start); */
+		/* LLVMValueRef global = LLVMGetNamedGlobal(ctx->module, name); */
+		/* assert(global != NULL); */
+		/* return LLVMBuildLoad2(ctx->builder, */
+		/* 					  llvm_type(ctx, node->base.type), global, "load"); */
+	}
+	if (IS_RUNTIME(node->value)) {
+		return codegen_expr(ctx, node->value.runtime);
+	}
+	unreachable();
+
+}
+
 static LLVMValueRef codegen_expr(struct codegen_context *ctx, const struct haste_ast_node *node)
 {
 	switch (node->kind) {
-	case ND_VALUE:
-		if (is_comptime_known(node->value)) {
-			return llvm_value(ctx, node->value);
-		}
-		if (node->value.is_lvalue) {
-			const char *name = intern_token(node->start);
-			LLVMValueRef global = LLVMGetNamedGlobal(ctx->module, name);
-			assert(global != NULL);
-			return LLVMBuildLoad2(ctx->builder,
-				llvm_type(ctx, node->type), global, "load");
-		}
-		if (IS_RUNTIME(node->value)) {
-			return codegen_expr(ctx, node->value.runtime);
-		}
-		unreachable();
-	case ND_CAST:
-		return codegen_cast(ctx, node);
+	case ND_VALUE: return codegen_value(ctx, (void*)node);
+	case ND_CAST:  return codegen_cast(ctx, (void*)node);
 	default: unimplemented();
 	}
 }
 
 // ── Global declaration codegen ────────────────────────────────────
 
+static LLVMValueRef codegen_global_var(struct codegen_context *ctx, const struct haste_ast_var_decl *node)
+{
+	if (node->is_explicitly_comptime) return 0;
+
+	LLVMTypeRef type = llvm_type(ctx, node->base.type);
+	const char *name = node->name.chars;
+	LLVMValueRef global = LLVMAddGlobal(ctx->module, type, name);
+
+	LLVMValueRef init = node->value != NULL
+		then codegen_expr(ctx, node->value)
+		otherwise LLVMConstNull(type);
+	LLVMSetInitializer(global, init);
+	LLVMSetGlobalConstant(global, node->is_constant);
+	return global;
+}
+
 static Error codegen_global_node(struct codegen_context *ctx, const struct haste_ast_node *node)
 {
 	switch (node->kind) {
-	case ND_VAR_DECL: {
-		if (node->variable.is_explicitly_comptime) return OK;
-
-		LLVMTypeRef type = llvm_type(ctx, node->type);
-		const char *name = intern_token(node->variable.name);
-		LLVMValueRef global = LLVMAddGlobal(ctx->module, type, name);
-
-		LLVMValueRef init = node->variable.value != NULL
-			then codegen_expr(ctx, node->variable.value)
-			otherwise LLVMConstNull(type);
-		LLVMSetInitializer(global, init);
-		LLVMSetGlobalConstant(global, node->variable.is_constant);
-	} break;
+	case ND_VAR_DECL:
+		codegen_global_var(ctx, (void*)node);
+		break;
 	default: unreachable();
 	}
 

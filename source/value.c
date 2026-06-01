@@ -629,11 +629,6 @@ bool struct_has_field_name(const struct haste_value value, const char *name)
 	return find_named_field(typeof_value(value), name) > 0;
 }
 
-bool struct_has_field_token(const struct haste_value value, struct token token)
-{
-	return find_named_field(typeof_value(value), intern_token(token)) > 0;
-}
-
 struct haste_value struct_get_field_by_name(const struct haste_value value,
 											const char *name)
 {
@@ -648,12 +643,6 @@ struct haste_value struct_get_field_by_name(const struct haste_value value,
 	}
 
 	return struct_get_field_by_index(value, idx);
-}
-
-struct haste_value struct_get_field_by_token(const struct haste_value value,
-											 const struct token name)
-{
-	return struct_get_field_by_name(value, intern_token(name));
 }
 
 struct haste_value struct_get_field_by_index(const struct haste_value value,
@@ -691,14 +680,6 @@ struct haste_value struct_set_field_by_name(struct Allocator allocator,
 	}
 
 	return struct_set_field_by_index(allocator, value, idx, new_value);
-}
-
-struct haste_value struct_set_field_by_token(struct Allocator allocator,
-											 struct haste_value *value,
-											 const struct token name,
-											 const struct haste_value new_value)
-{
-	return struct_set_field_by_name(allocator, value, intern_token(name), new_value);
 }
 
 struct haste_value struct_set_field_by_index(struct Allocator allocator,

@@ -1,12 +1,15 @@
 #include "haste.h"
+#include "my_allocator.h"
 #include "my_array.h"
 #include "my_stream.h"
+#include <__stddef_unreachable.h>
+#include <stddef.h>
 #include <string.h>
 
 struct parser {
 	struct Allocator allocator;
 	struct token_stream stream;
-	source_file_id src;
+	// source_file_id src;
 	struct token previous;
 	bool has_error;
 };
@@ -29,6 +32,21 @@ struct parser_rule {
 	enum precedence precedence;
 	bool right_assoc;
 };
+
+#define create_node(self_, T_, ...) \
+	(void*)_create_node((self_), &(T_) { __VA_ARGS__ }, sizeof(T_))
+
+inline static struct haste_ast_node *_create_node(struct parser *self, void *value, size_t size)
+{
+	// TODO:
+	size_t the_size = sizeof(struct haste_ast_value);
+	if (the_size < size) {
+		the_size = size;
+	}
+	void *result = alloc(self->allocator, the_size);
+	memcpy(result, value, size);
+	return result;
+}
 
 static struct parser_rule get_rule(struct token token);
 static struct haste_ast_node *expr(struct parser *self);
@@ -69,7 +87,7 @@ static struct token previous(const struct parser *self)
 static void report_error_at(struct parser *self, struct token token, const char *restrict fmt, ...)
 {
 	va_list args; va_start(args, fmt);
-	if (self->src >= 0) f_vreport_at_token(self->src, "Error", token, fmt, args);
+	f_vreport_at_token("Error", token, fmt, args);
 	va_end(args);
 	self->has_error = true;
 	exit(1);
@@ -79,7 +97,7 @@ static void report_error(struct parser *self, const char *restrict fmt, ...)
 {
 	struct token token = peek(self);
 	va_list args; va_start(args, fmt);
-	if (self->src >= 0) f_vreport_at_token(self->src, "Error", token, fmt, args);
+	f_vreport_at_token("Error", token, fmt, args);
 	va_end(args);
 	self->has_error = true;
 	exit(1);
@@ -88,7 +106,7 @@ static void report_error(struct parser *self, const char *restrict fmt, ...)
 static void vreport_error(struct parser *self, const char *restrict fmt, va_list args)
 {
 	struct token token = peek(self);
-	if (self->src >= 0) f_vreport_at_token(self->src, "Error", token, fmt, args);
+	f_vreport_at_token("Error", token, fmt, args);
 	self->has_error = true;
 	exit(1);
 }
@@ -149,60 +167,65 @@ static struct token consume(struct parser *self, enum token_kind kind, const cha
 
 struct haste_ast_node *binary(struct parser *self, struct haste_ast_node *lhs)
 {
-	struct token op = previous(self);
+	struct location start = lhs->location;
+	struct token op_tok = previous(self);
 
-	struct parser_rule rule = get_rule(op);
+	struct parser_rule rule = get_rule(op_tok);
 	enum precedence precedence = rule.precedence + 1;
 	if (rule.right_assoc) {
 		precedence = rule.precedence;
 	}
 
 	struct haste_ast_node *rhs = parse_precedence(self, precedence);
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_BINARY,
-		.start = lhs->start,
+	struct location end = as_location(previous(self));
+	return (void*) create_node(
+		self,
+		struct haste_ast_binary,
+		.base.kind = ND_BINARY,
+		.base.location = location_conjoin(start, end),
 		.lhs = lhs,
 		.rhs = rhs,
-		.op = op);
+		.op = op_tok.kind,
+		.op_loc = as_location(op_tok));
 }
 
 struct haste_ast_node *field_access(struct parser *self, struct haste_ast_node *lhs)
 {
-	struct token start = lhs->start;
+	struct location start = lhs->location;
 	struct token token = peek(self);
 	if (not _match(self, TK_IDENT)) {
 		report_error(self, "Expected a name. got '{token}' instead.", token);
 	}
 
-	return create(self->allocator,
-		struct haste_ast_node,
-		.kind = ND_ACCESS,
-		.start = start,
-		.access = {
-			.lhs = lhs,
-			.rhs = token,
-		});
+	struct location end = as_location(token);
+	return create_node(self,
+		struct haste_ast_access,
+		.base.kind = ND_ACCESS,
+		.base.location = location_conjoin(start, end),
+		.lhs = lhs,
+		.field = string(.chars = token.ident, .len = token.len),
+		.field_loc = as_location(token));
 }
 
 static struct haste_ast_node *unary(struct parser *self)
 {
-	struct token start = previous(self);
-	struct token op	= previous(self);
+	struct token op = previous(self);
+	struct location start = as_location(op);
 	struct haste_ast_node *rhs = parse_precedence(self, PREC_UNARY);
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_UNARY,
-		.start = start,
-		.op = op,
+	struct location end = as_location(previous(self));
+	return create_node(
+		self,
+		struct haste_ast_unary,
+		.base.kind = ND_UNARY,
+		.base.location = location_conjoin(start, end),
+		.op = op.kind,
+		.op_loc = as_location(op),
 		.rhs = rhs);
 }
 
 static struct haste_ast_node *cast(struct parser *self)
 {
-	struct token start = previous(self);
+	struct location start = as_location(previous(self));
 	struct haste_ast_node *to = NULL;
 	if (match(self, TK_OPEN_BRAKET)) {
 		if (not match(self, TK_CLOSE_BRAKET)) {
@@ -212,63 +235,144 @@ static struct haste_ast_node *cast(struct parser *self)
 	}
 
 	struct haste_ast_node *child_expr = parse_precedence(self, PREC_UNARY);
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_CAST,
-		.start = start,
-		.cast = {
-			.to = to,
-			.expr = child_expr
-		});
+	return create_node(
+		self,
+		struct haste_ast_cast,
+		.base.kind = ND_CAST,
+		.base.location = location_conjoin(start, child_expr->location),
+		.to = to,
+		.expr = child_expr);
 }
 
 static struct haste_ast_node *distinct(struct parser *self)
 {
-	struct token start = previous(self);
-	struct haste_ast_node *body = parse_precedence(self, PREC_UNARY);
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_DISTINCT,
-		.start = start,
-		.body = body);
+	struct location start = as_location(previous(self));
+	struct haste_ast_node *child = parse_precedence(self, PREC_UNARY);
+	struct location end = as_location(previous(self));
+	return create_node(
+		self,
+		struct haste_ast_distinct,
+		.base.kind = ND_DISTINCT,
+		.base.location = location_conjoin(start, end),
+		.child = child);
 }
 
-static struct haste_ast_node *primary(struct parser *self)
+static struct haste_ast_node *int_lit(struct parser *self)
 {
 	struct token lit = previous(self);
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_PRIMARY,
-		.start = lit,
-		.token = lit);
+	return create_node(
+		self,
+		struct haste_ast_integer_lit,
+		.base.kind = ND_INTEGER_LIT,
+		.base.location = as_location(lit),
+		.value = lit.ival);
 }
+
+static struct haste_ast_node *float_lit(struct parser *self)
+{
+	struct token lit = previous(self);
+	return create_node(
+		self,
+		struct haste_ast_float_lit,
+		.base.kind = ND_FLOAT_LIT,
+		.base.location = as_location(lit),
+		.value = lit.fval);
+}
+
+static struct haste_ast_node *str_lit(struct parser *self)
+{
+	struct token lit = previous(self);
+	return create_node(
+		self,
+		struct haste_ast_string_lit,
+		.base.kind = ND_STRING_LIT,
+		.base.location = as_location(lit),
+		.value = as_string(lit.str));
+}
+
+static struct haste_ast_node *ident(struct parser *self)
+{
+	struct token lit = previous(self);
+	return create_node(
+		self,
+		struct haste_ast_ident,
+		.base.kind = ND_IDENT,
+		.base.location = as_location(lit),
+		.value = as_string(lit.ident));
+}
+
+static struct haste_ast_node *int_bits(struct parser *self)
+{
+	struct token lit = previous(self);
+	return create_node(
+		self,
+		struct haste_ast_int_bits,
+		.base.kind = ND_INT_BITS,
+		.base.location = as_location(lit),
+		.bits = lit.ival);
+}
+
+static struct haste_ast_node *uint_bits(struct parser *self)
+{
+	struct token lit = previous(self);
+	return create_node(
+		self,
+		struct haste_ast_uint_bits,
+		.base.kind = ND_UINT_BITS,
+		.base.location = as_location(lit),
+		.bits = lit.ival);
+}
+
+static struct haste_ast_node *very_primitive_type(struct parser *self)
+{
+	struct token lit = previous(self);
+	enum haste_ast_node_kind kind = 0;
+	switch (lit.kind) {
+	case TK_KW_STRING: kind = ND_STRING; break;
+	case TK_KW_CSTR:   kind = ND_CSTR;   break;
+	case TK_KW_INT:    kind = ND_INT;    break;
+	case TK_KW_UINT:   kind = ND_UINT;   break;
+	case TK_KW_FLOAT:  kind = ND_FLOAT;  break;
+	case TK_KW_VOID:   kind = ND_VOID;   break;
+	case TK_KW_AUTO:   kind = ND_AUTO;   break;
+	case TK_KW_TYPE:   kind = ND_TYPE;   break;
+	case TK_KW_USIZE:  kind = ND_USIZE;  break;
+	default:
+		unreachable();
+	}
+
+	return create_node(
+		self,
+		struct haste_ast_node,
+		.kind = kind,
+		.location = as_location(lit));
+}
+
 
 static struct haste_ast_node *grouping(struct parser *self)
 {
-	struct token start = previous(self);
+	struct location start = as_location(previous(self));
 	struct haste_ast_node *child = expr(self);
-	consume(self, TK_CLOSE_PAREN, "Expected ')', got '%.*s' instead.", TOKEN_FMT(peek(self)));
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_GROUPING,
-		.start = start,
-		.body = child);
+	struct location end = as_location(consume(self, TK_CLOSE_PAREN, "Expected ')', got '{token}' instead.", peek(self)));
+	return create_node(
+		self,
+		struct haste_ast_grouping,
+		.base.kind = ND_GROUPING,
+		.base.location = location_conjoin(start, end),
+		.child = child);
 }
 
 // ── Struct parsing ────────────────────────────────────────────────
 
 static struct haste_ast_node *struct_type_prefix(struct parser *self)
 {
-	struct token start = previous(self);
+	const struct location start = as_location(previous(self));
 	consume(self, TK_OPEN_BRACE, "Expected '{' after 'struct'.");
 
-	struct haste_ast_node head = {0};
-	struct haste_ast_node *current = &head;
+	struct haste_ast_struct_field head = {0};
+	struct haste_ast_struct_field *current = &head;
 	while (not check(self, TK_CLOSE_BRACE) and not ended(self)) {
+		const struct location start = as_location(peek(self));
 		struct token_list names = {0};
 		arrpush(self->allocator, names, consume(self, TK_IDENT, "Expected field name."));
 		while (match(self, TK_COMMA)) {
@@ -284,38 +388,44 @@ static struct haste_ast_node *struct_type_prefix(struct parser *self)
 			type = expr(self);
 			if (match(self, TK_EQ)) default_value = expr(self);
 		}
-		consume(self, TK_SEMI_COLON, "Expected ';' after field declaration.");
+		const struct location end = as_location(consume(self, TK_SEMI_COLON, "Expected ';' after field declaration."));
 
-		current->next = create(
-			self->allocator,
-			struct haste_ast_node,
-			.kind = ND_STRUCT_FIELD,
-			.start = names.items[0],
-			.struct_field = {
-				.name_count = names.len,
-				.names = names.items,
-				.type = type,
-				.default_value = default_value,
-			});
+		struct string *name_strs = alloc(self->allocator, sizeof(struct string) * names.len);
+		struct location *name_locs = alloc(self->allocator, sizeof(struct location) * names.len);
+		for (size_t i = 0; i < names.len; i++) {
+			name_strs[i] = string(.chars = names.items[i].ident, .len = names.items[i].len);
+			name_locs[i] = as_location(names.items[i]);
+		}
+
+		current->next = create_node(
+			self,
+			struct haste_ast_struct_field,
+			.base.location = location_conjoin(start, end),
+			.name_count = names.len,
+			.names = name_strs,
+			.name_locs = name_locs,
+			.type = type,
+			.default_value = default_value);
 		current = current->next;
 	}
 
-	consume(self, TK_CLOSE_BRACE, "Expected '}' after struct fields.");
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_STRUCT_TYPE,
-		.start = start,
-		.struct_type = { .fields = head.next });
+	const struct location end = as_location(consume(self, TK_CLOSE_BRACE, "Expected '}' after struct fields."));
+	return create_node(
+		self,
+		struct haste_ast_struct_type,
+		.base.kind = ND_STRUCT_TYPE,
+		.base.location = location_conjoin(start, end),
+		.fields = (void*)head.next);
 }
 
 static struct haste_ast_node *struct_literal_infix(struct parser *self, struct haste_ast_node *type_expr)
 {
-	struct token start = type_expr != NULL then type_expr->start otherwise previous(self);
-	struct haste_ast_node head = {0};
-	struct haste_ast_node *current = &head;
+	struct location start = type_expr != NULL then type_expr->location otherwise as_location(previous(self));
+	struct haste_ast_struct_lit_field head = {0};
+	struct haste_ast_struct_lit_field *current = &head;
 
 	while (not check(self, TK_CLOSE_BRACE) and not ended(self)) {
+		const struct location start = as_location(peek(self));
 		struct token name = {0};
 		struct haste_ast_node *value = NULL;
 
@@ -331,28 +441,26 @@ static struct haste_ast_node *struct_literal_infix(struct parser *self, struct h
 		else if (not check(self, TK_CLOSE_BRACE))
 			consume(self, TK_COMMA, "Expected ',' or '}' after field value.");
 
-		current->next = create(
-			self->allocator,
-			struct haste_ast_node,
-			.kind = ND_STRUCT_LIT_FIELD,
-			.start = name,
-			.struct_lit_field = {
-				.name = name,
-				.value = value,
-			});
+		const struct location end = as_location(previous(self));
+		current->next = create_node(
+			self,
+			struct haste_ast_struct_lit_field,
+			.base.kind = ND_STRUCT_LIT_FIELD,
+			.base.location = location_conjoin(start, end),
+			.name = string(.chars = name.ident, .len = name.len),
+			.name_loc = as_location(name),
+			.value = value);
 		current = current->next;
 	}
 
-	consume(self, TK_CLOSE_BRACE, "Expected '}' after struct literal fields.");
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_STRUCT_LITERAL,
-		.start = start,
-		.struct_literal = {
-			.type_expr = type_expr,
-			.fields = head.next,
-		});
+	const struct location end = as_location(consume(self, TK_CLOSE_BRACE, "Expected '}' after struct literal fields."));
+	return create_node(
+		self,
+		struct haste_ast_struct_literal,
+		.base.kind = ND_STRUCT_LITERAL,
+		.base.location = location_conjoin(start, end),
+		.type_expr = type_expr,
+		.fields = (void*)head.next);
 }
 
 static struct haste_ast_node *auto_struct_prefix(struct parser *self)
@@ -364,32 +472,32 @@ static struct haste_ast_node *auto_struct_prefix(struct parser *self)
 struct parser_rule get_rule_from_kind(enum token_kind kind)
 {
 	switch (kind) {
-	case TK_OPEN_PAREN:   return (struct parser_rule){ grouping,           NULL,                 PREC_PRIMARY, false };
-	case TK_PLUS:         return (struct parser_rule){ unary,              binary,               PREC_TERM,    false };
-	case TK_MINUS:        return (struct parser_rule){ unary,              binary,               PREC_TERM,    false };
-	case TK_STAR:         return (struct parser_rule){ NULL,               binary,               PREC_FACTOR,  false };
-	case TK_FSLASH:       return (struct parser_rule){ NULL,               binary,               PREC_FACTOR,  false };
-	case TK_INT:          return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_FLOAT:        return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_STR:          return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_IDENT:        return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_DISTINCT:  return (struct parser_rule){ distinct,           NULL,                 PREC_UNARY,   false };
-	case TK_KW_STRING:    return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_CSTR:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_INT:       return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_UINT:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_INT_BITS:  return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_UINT_BITS: return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_FLOAT:     return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_VOID:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_AUTO:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_TYPE:      return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_STRUCT:    return (struct parser_rule){ struct_type_prefix, NULL,                 PREC_PRIMARY, false };
-	case TK_KW_USIZE:     return (struct parser_rule){ primary,            NULL,                 PREC_PRIMARY, false };
-	case TK_KW_CAST:      return (struct parser_rule){ cast,               NULL,                 PREC_UNARY,   false };
-	case TK_OPEN_BRACE:   return (struct parser_rule){ NULL,               struct_literal_infix, PREC_PRIMARY, false };
-	case TK_DOT:          return (struct parser_rule){ auto_struct_prefix, field_access,         PREC_PRIMARY, false };
-	default:              return (struct parser_rule){ NULL,               NULL,                 PREC_NONE,    false };
+	case TK_OPEN_PAREN:   return (struct parser_rule){ grouping,            NULL,                 PREC_PRIMARY, false };
+	case TK_PLUS:         return (struct parser_rule){ unary,               binary,               PREC_TERM,    false };
+	case TK_MINUS:        return (struct parser_rule){ unary,               binary,               PREC_TERM,    false };
+	case TK_STAR:         return (struct parser_rule){ NULL,                binary,               PREC_FACTOR,  false };
+	case TK_FSLASH:       return (struct parser_rule){ NULL,                binary,               PREC_FACTOR,  false };
+	case TK_INT:          return (struct parser_rule){ int_lit,             NULL,                 PREC_PRIMARY, false };
+	case TK_FLOAT:        return (struct parser_rule){ float_lit,           NULL,                 PREC_PRIMARY, false };
+	case TK_STR:          return (struct parser_rule){ str_lit,             NULL,                 PREC_PRIMARY, false };
+	case TK_IDENT:        return (struct parser_rule){ ident,               NULL,                 PREC_PRIMARY, false };
+	case TK_KW_DISTINCT:  return (struct parser_rule){ distinct,            NULL,                 PREC_UNARY,   false };
+	case TK_KW_INT_BITS:  return (struct parser_rule){ int_bits,            NULL,                 PREC_PRIMARY, false };
+	case TK_KW_UINT_BITS: return (struct parser_rule){ uint_bits,           NULL,                 PREC_PRIMARY, false };
+	case TK_KW_STRING:    return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_CSTR:      return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_INT:       return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_UINT:      return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_FLOAT:     return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_VOID:      return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_AUTO:      return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_TYPE:      return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_USIZE:     return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
+	case TK_KW_STRUCT:    return (struct parser_rule){ struct_type_prefix,  NULL,                 PREC_PRIMARY, false };
+	case TK_KW_CAST:      return (struct parser_rule){ cast,                NULL,                 PREC_UNARY,   false };
+	case TK_OPEN_BRACE:   return (struct parser_rule){ NULL,                struct_literal_infix, PREC_PRIMARY, false };
+	case TK_DOT:          return (struct parser_rule){ auto_struct_prefix,  field_access,         PREC_PRIMARY, false };
+	default:              return (struct parser_rule){ NULL,                NULL,                 PREC_NONE,    false };
 	}
 }
 
@@ -424,7 +532,8 @@ static struct haste_ast_node *parse_precedence(struct parser *self, enum precede
 		ParseInfixFn infix_rule = get_rule(tok).infix;
 		if (infix_rule == NULL) {
 			run_at_percent (3) {
-				if (strncmp(left->token.start, "cat", left->token.len) == 0) {
+				struct string str = as_string(left->location);
+				if (strncmp(str.chars, "cat", left->location.len) == 0) {
 					report_error_at(self, tok,
 									"meow! sorry, but purrs of a cat not gonna write useful software :(.", tok);
 				} else {
@@ -449,7 +558,7 @@ static struct haste_ast_node *expr(struct parser *self)
 
 static struct haste_ast_node *variable_decl(struct parser *self, bool is_constant)
 {
-	struct token start = previous(self);
+	const struct location start = as_location(previous(self));
 	struct token name = consume(self, TK_IDENT, "expected a variable name.");
 
 	struct haste_ast_node *type = NULL;
@@ -464,28 +573,26 @@ static struct haste_ast_node *variable_decl(struct parser *self, bool is_constan
 
 	if (value == NULL and match(self, TK_EQ)) value = expr(self);
 
-	consume(self, TK_SEMI_COLON, "Expected ';' at the end of the variable declaration.");
-
-	return create(
-		self->allocator,
-		struct haste_ast_node,
-		.kind = ND_VAR_DECL,
-		.start = start,
-		.variable = {
-			.is_constant = is_constant,
-			.name        = name,
-			.type        = type,
-			.value       = value,
-		});
+	const struct location end = as_location(consume(self, TK_SEMI_COLON, "Expected ';' at the end of the variable declaration."));
+	return create_node(
+		self,
+		struct haste_ast_var_decl,
+		.base.kind = ND_VAR_DECL,
+		.base.location = location_conjoin(start, end),
+		.is_constant = is_constant,
+		.name        = string(.chars = name.ident, .len = name.len),
+		.name_loc    = as_location(name),
+		.type        = type,
+		.value       = value);
 }
 
 static struct haste_ast_node *decl(struct parser *self, const bool error_on_unexpected)
 {
 	struct token token = peek(self);
 	if (match(self, TK_KW_CONST, TK_KW_VAR)) {
-		struct haste_ast_node *node = variable_decl(self, token.kind == TK_KW_CONST);
-		node->variable.is_global = true;
-		return node;
+		struct haste_ast_var_decl *node = (void*)variable_decl(self, token.kind == TK_KW_CONST);
+		node->is_global = true;
+		return (void*)node;
 	}
 
 	if (not error_on_unexpected) return NULL;
@@ -502,7 +609,6 @@ Error parse(struct Allocator allocator, const source_file_id src)
 {
 	struct parser parser = {
 		.allocator = allocator,
-		.src = src,
 		.stream = token_stream(src),
 	};
 
@@ -510,6 +616,7 @@ Error parse(struct Allocator allocator, const source_file_id src)
 	struct haste_ast_node *current = &head;
 	while (not ended(&parser)) {
 		struct haste_ast_node *node = decl(&parser, true);
+		if (node == NULL) return ERROR;
 		current->next = node;
 		current = current->next;
 	}

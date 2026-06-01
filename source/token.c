@@ -1,4 +1,5 @@
 #include "haste.h"
+#include "my_common.h"
 
 static const char *TOKEN_KIND_LIT[] =
 {
@@ -47,14 +48,14 @@ static const char *TOKEN_KIND_LIT[] =
 	[TK_EOF]          = "eof",
 };
 
-struct span token_to_span(struct token token)
+const char *token_kind_name(enum token_kind kind)
 {
-	return span(token.start, token.len);
+	return TOKEN_KIND_LIT[kind];
 }
 
 int print_token(stream_t f, struct token token)
 {
-	return sprint(f, "Token({s}, {span:#})",
+	return sprint(f, "Token({s}, {string:#})",
 				  TOKEN_KIND_LIT[token.kind],
-				  token_to_span(token));
+				  as_string(token));
 }
