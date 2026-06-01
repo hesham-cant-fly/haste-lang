@@ -2,7 +2,6 @@
 #include "my_allocator.h"
 #include "my_array.h"
 #include "my_stream.h"
-#include <__stddef_unreachable.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -50,7 +49,11 @@ inline static struct haste_ast_node *_create_node(struct parser *self, void *val
 
 static struct parser_rule get_rule(struct token token);
 static struct haste_ast_node *expr(struct parser *self);
+static struct haste_ast_node *stmt(struct parser *self);
 static struct haste_ast_node *parse_precedence(struct parser *self, enum precedence prec);
+static struct haste_ast_node *func_call_infix(struct parser *self, struct haste_ast_node *callee);
+static struct haste_ast_node *return_prefix(struct parser *self);
+static struct haste_ast_node *do_prefix(struct parser *self);
 
 static struct token peek(struct parser *self);
 
@@ -472,7 +475,7 @@ static struct haste_ast_node *auto_struct_prefix(struct parser *self)
 struct parser_rule get_rule_from_kind(enum token_kind kind)
 {
 	switch (kind) {
-	case TK_OPEN_PAREN:   return (struct parser_rule){ grouping,            NULL,                 PREC_PRIMARY, false };
+	case TK_OPEN_PAREN:   return (struct parser_rule){ grouping,            func_call_infix,      PREC_PRIMARY, false };
 	case TK_PLUS:         return (struct parser_rule){ unary,               binary,               PREC_TERM,    false };
 	case TK_MINUS:        return (struct parser_rule){ unary,               binary,               PREC_TERM,    false };
 	case TK_STAR:         return (struct parser_rule){ NULL,                binary,               PREC_FACTOR,  false };
@@ -495,6 +498,8 @@ struct parser_rule get_rule_from_kind(enum token_kind kind)
 	case TK_KW_USIZE:     return (struct parser_rule){ very_primitive_type, NULL,                 PREC_PRIMARY, false };
 	case TK_KW_STRUCT:    return (struct parser_rule){ struct_type_prefix,  NULL,                 PREC_PRIMARY, false };
 	case TK_KW_CAST:      return (struct parser_rule){ cast,                NULL,                 PREC_UNARY,   false };
+	case TK_KW_RETURN:    return (struct parser_rule){ return_prefix,       NULL,                 PREC_NONE,    false };
+	case TK_KW_DO:        return (struct parser_rule){ do_prefix,           NULL,                 PREC_NONE,    false };
 	case TK_OPEN_BRACE:   return (struct parser_rule){ NULL,                struct_literal_infix, PREC_PRIMARY, false };
 	case TK_DOT:          return (struct parser_rule){ auto_struct_prefix,  field_access,         PREC_PRIMARY, false };
 	default:              return (struct parser_rule){ NULL,                NULL,                 PREC_NONE,    false };
@@ -574,6 +579,7 @@ static struct haste_ast_node *variable_decl(struct parser *self, bool is_constan
 	if (value == NULL and match(self, TK_EQ)) value = expr(self);
 
 	const struct location end = as_location(consume(self, TK_SEMI_COLON, "Expected ';' at the end of the variable declaration."));
+	/* const struct location end = as_location(previous(self)); */
 	return create_node(
 		self,
 		struct haste_ast_var_decl,
@@ -586,6 +592,157 @@ static struct haste_ast_node *variable_decl(struct parser *self, bool is_constan
 		.value       = value);
 }
 
+static struct haste_ast_node *func_decl(struct parser *self)
+{
+	const struct location start = as_location(previous(self));
+	struct token name = consume(self, TK_IDENT, "Expected function name after 'func'.");
+
+	// params: ( name, name: type, ... )
+	consume(self, TK_OPEN_PAREN, "Expected '(' after function name.");
+	struct haste_ast_func_param head = {0};
+	struct haste_ast_func_param *current = &head;
+	while (not check(self, TK_CLOSE_PAREN) and not ended(self)) {
+		const struct location param_start = as_location(peek(self));
+		// parse names: x or x, y
+		struct token_list names = {0};
+		arrpush(self->allocator, names, consume(self, TK_IDENT, "Expected parameter name."));
+		while (match(self, TK_COMMA)) {
+			if (check(self, TK_CLOSE_PAREN) or check(self, TK_COLON)) break;
+			arrpush(self->allocator, names, consume(self, TK_IDENT, "Expected parameter name."));
+		}
+		consume(self, TK_COLON, "Expected ':' after parameter name(s).");
+		struct haste_ast_node *type = expr(self);
+
+		struct string *name_strs = alloc(self->allocator, sizeof(struct string) * names.len);
+		struct location *name_locs = alloc(self->allocator, sizeof(struct location) * names.len);
+		for (size_t i = 0; i < names.len; i++) {
+			name_strs[i] = string(.chars = names.items[i].ident, .len = names.items[i].len);
+			name_locs[i] = as_location(names.items[i]);
+		}
+
+		const struct location param_end = as_location(previous(self));
+		current->next = create_node(
+			self,
+			struct haste_ast_func_param,
+			.base.kind = ND_FUNC_PARAM,
+			.base.location = location_conjoin(param_start, param_end),
+			.name_count = names.len,
+			.names = name_strs,
+			.name_locs = name_locs,
+			.type = type);
+		current = current->next;
+
+		if (check(self, TK_COMMA)) advance(self);
+	}
+	consume(self, TK_CLOSE_PAREN, "Expected ')' after parameters.");
+
+	// optional return type
+	struct haste_ast_node *return_type = NULL;
+	if (match(self, TK_COLON)) {
+		return_type = expr(self);
+	}
+
+	// body: = expr;  or  do ... end
+	struct haste_ast_node *body = NULL;
+	struct location end_loc = start;
+	if (match(self, TK_EQ)) {
+		body = expr(self);
+		struct token semi = consume(self, TK_SEMI_COLON, "Expected ';' after function body.");
+		end_loc = as_location(semi);
+	} else if (match(self, TK_KW_DO)) {
+		body = do_prefix(self);
+		end_loc = body->location;
+	} else {
+		report_error(self, "Expected '=' or 'do' after function signature.");
+	}
+
+	return create_node(
+		self,
+		struct haste_ast_func_decl,
+		.base.kind = ND_FUNC_DECL,
+		.base.location = location_conjoin(start, end_loc),
+		.name = string(.chars = name.ident, .len = name.len),
+		.name_loc = as_location(name),
+		.params = (void*)head.next,
+		.return_type = return_type,
+		.body = body);
+}
+
+static struct haste_ast_node *func_call_infix(struct parser *self, struct haste_ast_node *callee)
+{
+	struct location start = callee->location;
+	struct haste_ast_func_call_arg head = {0};
+	struct haste_ast_func_call_arg *current = &head;
+
+	while (not check(self, TK_CLOSE_PAREN) and not ended(self)) {
+		struct haste_ast_node *arg = expr(self);
+		current->next = create_node(
+			self,
+			struct haste_ast_func_call_arg,
+			.base.kind = ND_FUNC_CALL_ARG,
+			.base.location = arg->location,
+			.value = arg);
+		current = current->next;
+
+		if (check(self, TK_COMMA)) advance(self);
+		else if (not check(self, TK_CLOSE_PAREN))
+			consume(self, TK_COMMA, "Expected ',' or ')' after argument.");
+	}
+
+	struct location end = as_location(consume(self, TK_CLOSE_PAREN, "Expected ')' after arguments."));
+	return create_node(
+		self,
+		struct haste_ast_func_call,
+		.base.kind = ND_FUNC_CALL,
+		.base.location = location_conjoin(start, end),
+		.callee = callee,
+		.args = (void*)head.next);
+}
+
+static struct haste_ast_node *do_prefix(struct parser *self)
+{
+	struct location start = as_location(previous(self));
+	struct haste_ast_node block_head_stmts = {0};
+	struct haste_ast_node *block_current = &block_head_stmts;
+
+	while (not check(self, TK_KW_END) and not ended(self)) {
+		struct haste_ast_node *stamt = stmt(self);
+		block_current->next = stamt;
+		block_current = block_current->next;
+
+		if (match(self, TK_SEMI_COLON)) {
+			while (match(self, TK_SEMI_COLON));
+			// statement continues
+		}
+		/* else { */
+		/* 	break; */
+		/* } */
+	}
+
+	struct location end = as_location(consume(self, TK_KW_END, "Expected 'end' after block."));
+	return create_node(
+		self,
+		struct haste_ast_block,
+		.base.kind = ND_BLOCK,
+		.base.location = location_conjoin(start, end),
+		.stmts = block_head_stmts.next);
+}
+
+static struct haste_ast_node *return_prefix(struct parser *self)
+{
+	struct location start = as_location(previous(self));
+	struct haste_ast_node *value = NULL;
+	if (not check(self, TK_SEMI_COLON) and not check(self, TK_KW_END) and not check(self, TK_CLOSE_PAREN) and not check(self, TK_EOF)) {
+		value = expr(self);
+	}
+	return create_node(
+		self,
+		struct haste_ast_return,
+		.base.kind = ND_RETURN,
+		.base.location = start,
+		.value = value);
+}
+
 static struct haste_ast_node *decl(struct parser *self, const bool error_on_unexpected)
 {
 	struct token token = peek(self);
@@ -593,6 +750,10 @@ static struct haste_ast_node *decl(struct parser *self, const bool error_on_unex
 		struct haste_ast_var_decl *node = (void*)variable_decl(self, token.kind == TK_KW_CONST);
 		node->is_global = true;
 		return (void*)node;
+	}
+
+	if (match(self, TK_KW_FUNC)) {
+		return func_decl(self);
 	}
 
 	if (not error_on_unexpected) return NULL;
@@ -605,6 +766,29 @@ static struct haste_ast_node *decl(struct parser *self, const bool error_on_unex
 	return NULL;
 }
 
+static struct haste_ast_node *stmt(struct parser *self)
+{
+	struct haste_ast_node *result = decl(self, false);
+	if (result) return result;
+
+	if (match(self, TK_KW_RETURN)) {
+		struct haste_ast_node *ret_value = NULL;
+		if (not check(self, TK_SEMI_COLON) and not check(self, TK_KW_END)) {
+			ret_value = expr(self);
+		}
+		result = create_node(
+			self,
+			struct haste_ast_return,
+			.base.kind = ND_RETURN,
+			.base.location = as_location(previous(self)),
+			.value = ret_value);
+		match(self, TK_SEMI_COLON);
+		return result;
+	}
+
+	return expr(self);
+}
+
 Error parse(struct Allocator allocator, const source_file_id src)
 {
 	struct parser parser = {
@@ -615,6 +799,8 @@ Error parse(struct Allocator allocator, const source_file_id src)
 	struct haste_ast_node head = {0};
 	struct haste_ast_node *current = &head;
 	while (not ended(&parser)) {
+		while (match(&parser, TK_SEMI_COLON));
+
 		struct haste_ast_node *node = decl(&parser, true);
 		if (node == NULL) return ERROR;
 		current->next = node;

@@ -1,5 +1,5 @@
-; ModuleID = ''
-source_filename = ""
+; ModuleID = 'test/integration/cast_empty_bracket.haste'
+source_filename = "test/integration/cast_empty_bracket.haste"
 
 @a = constant float 0x401ACCCCC0000000
 @b = constant i32 6

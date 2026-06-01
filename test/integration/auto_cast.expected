@@ -1,5 +1,5 @@
-; ModuleID = ''
-source_filename = ""
+; ModuleID = 'test/integration/auto_cast.haste'
+source_filename = "test/integration/auto_cast.haste"
 
 @a = constant float 0x401ACCCCC0000000
 @b = constant i32 6

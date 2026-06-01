@@ -1,5 +1,5 @@
-; ModuleID = ''
-source_filename = ""
+; ModuleID = 'test/integration/type_alias.haste'
+source_filename = "test/integration/type_alias.haste"
 
 @a = constant i32 42
 @b = constant i32 3

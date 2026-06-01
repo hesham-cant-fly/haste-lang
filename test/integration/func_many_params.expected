@@ -1,0 +1,26 @@
+; ModuleID = 'test/integration/func_many_params.haste'
+source_filename = "test/integration/func_many_params.haste"
+
+define i32 @sum5(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4) {
+entry:
+  %a = alloca i32, align 4
+  store i32 %0, ptr %a, align 4
+  %b = alloca i32, align 4
+  store i32 %1, ptr %b, align 4
+  %c = alloca i32, align 4
+  store i32 %2, ptr %c, align 4
+  %d = alloca i32, align 4
+  store i32 %3, ptr %d, align 4
+  %e = alloca i32, align 4
+  store i32 %4, ptr %e, align 4
+  %a1 = load i32, ptr %a, align 4
+  %b2 = load i32, ptr %b, align 4
+  %addtmp = add i32 %a1, %b2
+  %c3 = load i32, ptr %c, align 4
+  %addtmp4 = add i32 %addtmp, %c3
+  %d5 = load i32, ptr %d, align 4
+  %addtmp6 = add i32 %addtmp4, %d5
+  %e7 = load i32, ptr %e, align 4
+  %addtmp8 = add i32 %addtmp6, %e7
+  ret i32 %addtmp8
+}

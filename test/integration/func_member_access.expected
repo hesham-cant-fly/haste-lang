@@ -1,0 +1,13 @@
+; ModuleID = 'test/integration/func_member_access.haste'
+source_filename = "test/integration/func_member_access.haste"
+
+%struct.type.Vec2.0 = type { i32, i32 }
+
+define i32 @get_x(%struct.type.Vec2.0 %0) {
+entry:
+  %v = alloca %struct.type.Vec2.0, align 8
+  store %struct.type.Vec2.0 %0, ptr %v, align 4
+  %x = getelementptr inbounds nuw %struct.type.Vec2.0, ptr %v, i32 0, i32 0
+  %x1 = load i32, ptr %x, align 4
+  ret i32 %x1
+}

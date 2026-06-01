@@ -1,0 +1,11 @@
+func add1(x: int, y: int): int = x + y;
+func add2(x, y: int): int = x + y;
+func add3(x: int, y: int): int do
+	// last statement without a semi colon is considered
+	// the return value
+	x + y
+end
+func add4(x, y: int): int do
+	return x + y;
+end
+// NOTE: do ... end is an expression

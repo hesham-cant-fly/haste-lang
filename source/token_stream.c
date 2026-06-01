@@ -36,7 +36,7 @@ static const char *decode_string(const char *start, size_t len)
 static void populate_token_value(struct token_stream *self, struct token *tok)
 {
 	discard self;
-	auto source = get_source_file_content(self->src);
+	const char *source = get_source_file_content(self->src);
 
     switch (tok->kind) {
 	case TK_INT: {
@@ -220,6 +220,13 @@ static void scan_identifiers(struct token_stream *self)
 		{"var",    TK_KW_VAR},
 		{"struct", TK_KW_STRUCT},
 		{"distinct", TK_KW_DISTINCT},
+		{"func", TK_KW_FUNC},
+		{"do", TK_KW_DO},
+		{"end", TK_KW_END},
+		{"return", TK_KW_RETURN},
+		{"if", TK_KW_IF},
+		{"then", TK_KW_THEN},
+		{"else", TK_KW_ELSE},
 		{0}
 	};
 

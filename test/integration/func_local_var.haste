@@ -1,0 +1,4 @@
+func double(x: int): int do
+	const y = x + x;
+	y
+end

@@ -4,7 +4,6 @@
 #include "my_common.h"
 #include "my_stream.h"
 #include <assert.h>
-#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -27,20 +26,15 @@ static struct haste_type_info *ensure_reserved_type(TypeID id)
 		: (uint16_t)(id - HASTE_TID_RESERVED_UINT_BASE);
 	size_t bytes = (bits + 7) / 8;
 
-	struct haste_type_info type = {0};
-	memset(&type, 0, sizeof(type));
-	type = TYPE_INFO(
+	*slot = TYPE_INFO(
 		.pool_id = id,
 		.kind = is_signed ? HASTE_TY_INT : HASTE_TY_UINT,
 		.is_integer = true,
 		.is_unsigned = !is_signed,
-		.is_untyped = false,
 		.bit_size = bits,
 		.size = bytes,
 		.align = bytes < 8 ? bytes : 8,
 	);
-
-	memcpy(slot, &type, sizeof(struct haste_type_info));
 	return slot;
 }
 
@@ -192,7 +186,7 @@ void setup_builtins(struct Allocator allocator)
 			.name = "len",
 			.type = ty_usize,
 		};
-		const auto string_type_info = TYPE_INFO(
+		const struct haste_type_info string_type_info = TYPE_INFO(
 			.kind = HASTE_TY_STRUCT,
 			.structure = {
 				.len = 2,
@@ -262,7 +256,6 @@ static struct haste_value arith_float(enum arith_op op, struct haste_value lhs, 
 		break;
 	}
 
-	/* if (typeof_value(lhs).value.kind == HASTE_TY_FLOAT or typeof_value(rhs).value.kind == HASTE_TY_UNTYPED_FLOAT) */
 	if (type_is_float(typeof_value(lhs)) or type_is_untyped_float(typeof_value(rhs)))
 		return VAL_SCALAR(AS_TYPEID(ty_float), .floating = res);
 
@@ -325,17 +318,14 @@ static struct haste_value value_do_arith(
 	if (IS_ZERO(lhs)) lhs = VAL_SCALAR(AS_TYPEID(ty_untyped_int), .integer = 0);
 	if (IS_ZERO(rhs)) rhs = VAL_SCALAR(AS_TYPEID(ty_untyped_int), .integer = 0);
 
-	if (not (value_is_any_int(lhs) or value_is_any_float(lhs))) {
+	if (not (value_is_any_int(lhs) or value_is_any_float(lhs))
+	    or not (value_is_any_int(rhs) or value_is_any_float(rhs)))
 		return VAL_BAD_ERROR(ERR_INCOMPATIBLE_ARITH_TYPES);
-	}
-	if (not (value_is_any_int(rhs) or value_is_any_float(rhs))) {
+
+	if (not type_is_untyped(typeof_value(lhs))
+	    and not type_is_untyped(typeof_value(rhs))
+	    and not type_equal(typeof_value(lhs), typeof_value(rhs)))
 		return VAL_BAD_ERROR(ERR_INCOMPATIBLE_ARITH_TYPES);
-	}
-	if (not type_equal(typeof_value(lhs), typeof_value(rhs))
-	    and not type_is_untyped(typeof_value(lhs))
-	    and not type_is_untyped(typeof_value(rhs))) {
-		return VAL_BAD_ERROR(ERR_INCOMPATIBLE_ARITH_TYPES);
-	}
 
 	if (value_is_any_float(lhs) or value_is_any_float(rhs))
 		return arith_float(op, lhs, rhs);
@@ -413,6 +403,56 @@ static struct haste_value construct_from_raw(struct haste_type to, RawNumber raw
 	unreachable();
 }
 
+static struct haste_value value_cast_string_to_struct(struct Allocator alloc, const struct haste_type to, const struct haste_value value)
+{
+	struct haste_string_object *s = (struct haste_string_object*)value.obj;
+	struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(to);
+	struct haste_value so = make_value(alloc, to);
+	struct_set_field(alloc, &so, (size_t)0, value_cast(alloc, st->items[0].type, value));
+	struct_set_field(alloc, &so, (size_t)1, VAL_SCALAR(AS_TYPEID(ty_usize), .integer = (int64_t)s->len));
+	return so;
+}
+
+static struct haste_value value_cast_auto_struct(
+	struct Allocator alloc,
+	const struct haste_type to,
+	const struct haste_value value,
+	const struct haste_type value_type)
+{
+	const struct haste_struct_type_info *to_st = AS_STRUCT_TYPE_INFO(to);
+	const struct haste_struct_type_info *val_st = AS_STRUCT_TYPE_INFO(value_type);
+	const struct haste_struct_object *val_so = AS_STRUCT(value);
+
+	struct haste_value result = default_for_type(alloc, to);
+	struct haste_struct_object *so = AS_STRUCT(result);
+
+	for (size_t i = 0; i < to_st->len; i += 1) {
+		for (size_t j = 0; j < val_st->len; j += 1) {
+			if (strcmp(to_st->items[i].name, val_st->items[j].name) == 0) {
+				so->fields[i] = value_cast(alloc, to_st->items[i].type, val_so->fields[j]);
+				break;
+			}
+		}
+	}
+	return result;
+}
+
+static struct haste_value value_cast_runtime(struct Allocator alloc, const struct haste_type to, const struct haste_value value)
+{
+	if (type_equal(to, typeof_value(value))) return value;
+
+	struct haste_ast_cast *cast_node = alloc(alloc, sizeof(struct haste_ast_cast));
+	*cast_node = (struct haste_ast_cast){
+		.base.kind = ND_CAST,
+		.base.type = to,
+		.to = NULL,
+		.expr = value.runtime,
+	};
+	struct haste_value result = VAL_RUNTIME((struct haste_ast_node*)cast_node);
+	result.type_id = AS_TYPEID(to);
+	return result;
+}
+
 struct haste_value value_cast(
 	struct Allocator alloc,
 	const struct haste_type to,
@@ -420,12 +460,11 @@ struct haste_value value_cast(
 {
 	const struct haste_type value_type = typeof_value(value);
 
-	if (IS_BAD(value))                     return VAL_BAD;
-	if (IS_BAD(into_value(to)))            return VAL_BAD;
+	if (IS_BAD(value))                     return value;
+	if (IS_BAD(into_value(to)))            return into_value(to);
 
 	if (type_is_untyped(to))               unreachable();
-	if (IS_RUNTIME(value))                 unimplemented();
-
+	if (IS_RUNTIME(value))                 return value_cast_runtime(alloc, to, value);
 	if (type_equal(to, ty_auto))           return value;
 	if (type_equal(to, value_type))        return value;
 
@@ -437,53 +476,24 @@ struct haste_value value_cast(
 	if (value_equal(value, VAL_UNINIT))    return default_for_type(alloc, to);
 	if (IS_ZERO(value))                    return zero_for_type(alloc, to);
 
-	if (type_equal(to, ty_string) and IS_OBJ(value) and value.obj->kind == HASTE_OBJ_STRING) {
-		struct haste_string_object *s = (struct haste_string_object*)value.obj;
-		struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(to);
-		struct haste_value so = make_value(alloc, to);
-		struct_set_field(alloc, &so, (size_t)0, value_cast(alloc, st->items[0].type, value));
-		struct_set_field(alloc, &so, (size_t)1, VAL_SCALAR(AS_TYPEID(ty_usize), .integer = (int64_t)s->len));
-		return so;
-	}
+	if (type_equal(to, ty_string) and IS_OBJ(value) and value.obj->kind == HASTE_OBJ_STRING)
+		return value_cast_string_to_struct(alloc, to, value);
 
 	if (type_equal(to, ty_cstr) and IS_STRUCT(value)) {
-		struct haste_struct_object *so = AS_STRUCT(value);
 		ssize_t idx = find_named_field(typeof_value(value), "ptr");
 		assert(idx >= 0);
-		return so->fields[idx];
+		return AS_STRUCT(value)->fields[(size_t)idx];
 	}
 
-	if (type_is_any_string(to) and IS_OBJ(value) and value.obj->kind == HASTE_OBJ_STRING) {
+	if (type_is_any_string(to) and IS_OBJ(value) and value.obj->kind == HASTE_OBJ_STRING)
 		return VAL_OBJ(AS_TYPEID(to), value.obj);
-	}
 
-	if (IS_STRUCT_TYPE(to) and IS_AUTO_STRUCT_TYPE(value_type)) {
-		const struct haste_struct_type_info *to_st = AS_STRUCT_TYPE_INFO(to);
-		const struct haste_struct_type_info *val_st = AS_STRUCT_TYPE_INFO(value_type);
+	if (IS_STRUCT_TYPE(to) and IS_AUTO_STRUCT_TYPE(value_type))
+		return value_cast_auto_struct(alloc, to, value, value_type);
 
-		const struct haste_struct_object *val_so = AS_STRUCT(value);
-
-		struct haste_value result = default_for_type(alloc, to);
-		struct haste_struct_object *so = AS_STRUCT(result);
-
-		for (size_t i=0; i < to_st->len; i += 1) {
-			struct haste_struct_field ass_field = to_st->items[i];
-
-			for (size_t j=0; j < val_st->len; j += 1) {
-				struct haste_struct_field val_field = val_st->items[j];
-				if (strcmp(ass_field.name, val_field.name) == 0) {
-					so->fields[i] = value_cast(alloc, ass_field.type, val_so->fields[j]);
-					break;
-				}
-			}
-		}
-
-		return result;
-	}
-
-	if (not type_is_number(to) or not type_is_number(value_type)) {
+	if (not type_is_number(to) or not type_is_number(value_type))
 		return VAL_BAD_ERROR(ERR_INVALID_CAST);
-	}
+
 	return construct_from_raw(to, extract_raw(value));
 }
 
@@ -504,7 +514,7 @@ struct haste_value value_assign(struct Allocator alloc, struct haste_value *lval
 			result = value_cast(alloc, lhs_type, rvalue);
 		}
 	}
-	if (IS_BAD(result)) return VAL_BAD_ERROR(ERR_INVALID_ASSIGNMET);
+	if (IS_BAD(result)) return result;
 
 	if (IS_STRUCT(*lvalue) and IS_STRUCT(result)) {
 		struct haste_struct_object *lso = AS_STRUCT(*lvalue);
@@ -626,39 +636,48 @@ bool is_comptime_known(const struct haste_value v)
 
 bool struct_has_field_name(const struct haste_value value, const char *name)
 {
-	return find_named_field(typeof_value(value), name) > 0;
+	return find_named_field(typeof_value(value), name) >= 0;
 }
 
-struct haste_value struct_get_field_by_name(const struct haste_value value,
-											const char *name)
+static struct haste_value require_struct_value(
+	const struct haste_value *value,
+	struct haste_struct_type_info **st,
+	struct haste_struct_object **so)
 {
-	if (not IS_STRUCT(value)) {
+	if (not IS_STRUCT(*value))
 		return VAL_BAD_ERROR(ERR_NOT_A_STRUCT);
-	}
+	struct haste_type type = typeof_value(*value);
+	*st = AS_STRUCT_TYPE_INFO(type);
+	*so = AS_STRUCT(*value);
+	return VAL_NONE;
+}
 
-	struct haste_type type = typeof_value(value);
-	const ssize_t idx = find_named_field(type, name);
-	if (idx < 0) {
+struct haste_value struct_get_field_by_name(
+	const struct haste_value value,
+	const char *name)
+{
+	struct haste_struct_type_info *st;
+	struct haste_struct_object *so;
+	struct haste_value req = require_struct_value(&value, &st, &so);
+	if (IS_BAD(req)) return req;
+
+	const ssize_t idx = find_named_field(typeof_value(value), name);
+	if (idx < 0)
 		return VAL_BAD_ERROR(ERR_FIELD_DOESNT_EXIST);
-	}
 
-	return struct_get_field_by_index(value, idx);
+	return struct_get_field_by_index(value, (size_t)idx);
 }
 
 struct haste_value struct_get_field_by_index(const struct haste_value value,
 											 const size_t idx)
 {
-	if (not IS_STRUCT(value)) {
-		return VAL_BAD_ERROR(ERR_NOT_A_STRUCT);
-	}
+	struct haste_struct_type_info *st;
+	struct haste_struct_object *so;
+	struct haste_value req = require_struct_value(&value, &st, &so);
+	if (IS_BAD(req)) return req;
 
-	struct haste_type type = typeof_value(value);
-	struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(type);
-	if (idx >= st->len) {
+	if (idx >= st->len)
 		return VAL_BAD_ERROR(ERR_FIELD_DOESNT_EXIST);
-	}
-
-	struct haste_struct_object *so = AS_STRUCT(value);
 
 	return so->fields[idx];
 }
@@ -669,17 +688,11 @@ struct haste_value struct_set_field_by_name(struct Allocator allocator,
 											const char *name,
 											const struct haste_value new_value)
 {
-	if (not IS_STRUCT(*value)) {
-		return VAL_BAD_ERROR(ERR_NOT_A_STRUCT);
-	}
-
-	struct haste_type type = typeof_value(*value);
-	const ssize_t idx = find_named_field(type, name);
-	if (idx < 0) {
+	const ssize_t idx = find_named_field(typeof_value(*value), name);
+	if (idx < 0)
 		return VAL_BAD_ERROR(ERR_FIELD_DOESNT_EXIST);
-	}
 
-	return struct_set_field_by_index(allocator, value, idx, new_value);
+	return struct_set_field_by_index(allocator, value, (size_t)idx, new_value);
 }
 
 struct haste_value struct_set_field_by_index(struct Allocator allocator,
@@ -687,21 +700,18 @@ struct haste_value struct_set_field_by_index(struct Allocator allocator,
 											 const size_t idx,
 											 const struct haste_value new_value)
 {
-	if (not IS_STRUCT(*value)) {
-		return VAL_BAD_ERROR(ERR_NOT_A_STRUCT);
-	}
+	struct haste_struct_type_info *st;
+	struct haste_struct_object *so;
+	struct haste_value req = require_struct_value(value, &st, &so);
+	if (IS_BAD(req)) return req;
 
-	struct haste_type type = typeof_value(*value);
-	struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(type);
-	if (idx >= st->len) {
+	if (idx >= st->len)
 		return VAL_BAD_ERROR(ERR_FIELD_DOESNT_EXIST);
-	}
 
-	struct haste_struct_object *so = AS_STRUCT(*value);
 	struct haste_value casted = value_cast(allocator, st->items[idx].type, new_value);
-	if (IS_BAD(casted)) {
+	if (IS_BAD(casted))
 		return VAL_BAD_ERROR(ERR_INVALID_ASSIGNMET);
-	}
+
 	so->fields[idx] = casted;
 	return *value;
 }

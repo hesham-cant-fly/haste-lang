@@ -2,6 +2,7 @@
 
 #ifdef _WIN32
 #  include <direct.h>
+#  include <windows.h>
 #  define GETCWD _getcwd
 #else
 #  include <unistd.h>

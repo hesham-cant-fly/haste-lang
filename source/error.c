@@ -81,7 +81,7 @@ void f_vreport_at(const source_file_id src, const char *kind, const char *start,
 
 void f_report_at_token(const char *kind, struct token token, const char *fmt, ...)
 {
-	auto content = get_source_file_content(token.src);
+	const char *content = get_source_file_content(token.src);
 	va_list args;
 	va_start(args, fmt);
 	report_at_with_src(token.src, kind, content + token.start, fmt, args);
@@ -90,13 +90,13 @@ void f_report_at_token(const char *kind, struct token token, const char *fmt, ..
 
 void f_vreport_at_token(const char *kind, struct token token, const char *fmt, va_list args)
 {
-	auto content = get_source_file_content(token.src);
+	const char *content = get_source_file_content(token.src);
 	report_at_with_src(token.src, kind, content + token.start, fmt, args);
 }
 
 void f_report_at_location(const char *kind, struct location location, const char *fmt, ...)
 {
-	auto content = get_source_file_content(location.src);
+	const char *content = get_source_file_content(location.src);
 	va_list args;
 	va_start(args, fmt);
 	report_at_with_src(location.src, kind, content + location.start, fmt, args);
@@ -105,6 +105,6 @@ void f_report_at_location(const char *kind, struct location location, const char
 
 void f_vreport_at_location(const char *kind, struct location location, const char *fmt, va_list args)
 {
-	auto content = get_source_file_content(location.src);
+	const char *content = get_source_file_content(location.src);
 	report_at_with_src(location.src, kind, content + location.start, fmt, args);
 }

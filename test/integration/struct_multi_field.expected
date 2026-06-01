@@ -1,5 +1,5 @@
-; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/struct_multi_field.haste'
-source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/struct_multi_field.haste"
+; ModuleID = 'test/integration/struct_multi_field.haste'
+source_filename = "test/integration/struct_multi_field.haste"
 
 %struct.type.Point.0 = type { i32, i32, i32 }
 

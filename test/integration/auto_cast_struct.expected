@@ -1,12 +1,12 @@
-; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/auto_cast_struct.haste'
-source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/auto_cast_struct.haste"
+; ModuleID = 'test/integration/auto_cast_struct.haste'
+source_filename = "test/integration/auto_cast_struct.haste"
 
 %struct.type.Job.0 = type { %struct.type.string.1 }
 %struct.type.string.1 = type { ptr, i64 }
 %struct.type.Person.2 = type { %struct.type.string.1, %struct.type.Job.0 }
 
-@my_job = constant %struct.type.Job.0 { %struct.type.string.1 { ptr @.str.0, i64 8 } }
 @.str.0 = private unnamed_addr constant [9 x i8] c"Engineer\00"
-@me = constant %struct.type.Person.2 { %struct.type.string.1 { ptr @.str.1, i64 6 }, %struct.type.Job.0 { %struct.type.string.1 { ptr @.str.2, i64 5 } } }
+@my_job = constant %struct.type.Job.0 { %struct.type.string.1 { ptr @.str.0, i64 8 } }
 @.str.1 = private unnamed_addr constant [7 x i8] c"Hesham\00"
 @.str.2 = private unnamed_addr constant [6 x i8] c"Coder\00"
+@me = constant %struct.type.Person.2 { %struct.type.string.1 { ptr @.str.1, i64 6 }, %struct.type.Job.0 { %struct.type.string.1 { ptr @.str.2, i64 5 } } }

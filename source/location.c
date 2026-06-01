@@ -33,7 +33,7 @@ struct string cstr_as_string(const char *cstr)
 
 struct string location_as_string(struct location location)
 {
-	auto source = get_source_file_content(location.len);
+	const char *source = get_source_file_content(location.len);
 	return string(
 		.chars = source + location.start,
 		.len = location.len);
@@ -41,7 +41,7 @@ struct string location_as_string(struct location location)
 
 struct string token_as_string(struct token token)
 {
-	auto source = get_source_file_content(token.src);
+	const char *source = get_source_file_content(token.src);
 	return string(
 		.chars = source + token.start,
 		.len = token.len);

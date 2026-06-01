@@ -1,5 +1,5 @@
-; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/auto_field_types.haste'
-source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/auto_field_types.haste"
+; ModuleID = 'test/integration/auto_field_types.haste'
+source_filename = "test/integration/auto_field_types.haste"
 
 %struct.type.Vec2.0 = type { float, float }
 %struct.type.Point.1 = type { float, float }
@@ -8,9 +8,9 @@ source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/au
 
 @a = constant %struct.type.Vec2.0 { float 6.000000e+00, float 7.000000e+00 }
 @b = constant %struct.type.Point.1 { float 6.000000e+00, float 7.000000e+00 }
-@c = constant %struct.type.Mixed.2 { i32 1, float 2.500000e+00, %struct.type.string.3 { ptr @.str.0, i64 5 } }
 @.str.0 = private unnamed_addr constant [6 x i8] c"hello\00"
-@d = constant %struct.type.Mixed.2 { i32 1, float 2.500000e+00, %struct.type.string.3 { ptr @.str.1, i64 5 } }
+@c = constant %struct.type.Mixed.2 { i32 1, float 2.500000e+00, %struct.type.string.3 { ptr @.str.0, i64 5 } }
 @.str.1 = private unnamed_addr constant [6 x i8] c"hello\00"
-@e = constant %struct.type.Mixed.2 { i32 10, float 2.500000e+00, %struct.type.string.3 { ptr @.str.2, i64 5 } }
+@d = constant %struct.type.Mixed.2 { i32 1, float 2.500000e+00, %struct.type.string.3 { ptr @.str.1, i64 5 } }
 @.str.2 = private unnamed_addr constant [6 x i8] c"hello\00"
+@e = constant %struct.type.Mixed.2 { i32 10, float 2.500000e+00, %struct.type.string.3 { ptr @.str.2, i64 5 } }

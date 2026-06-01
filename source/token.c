@@ -21,6 +21,13 @@ static const char *TOKEN_KIND_LIT[] =
 	[TK_KW_VAR]       = "kw_var",       // "var"
 	[TK_KW_STRUCT]    = "kw_struct",    // "struct"
 	[TK_KW_DISTINCT]  = "kw_distinct",  // "distinct"
+	[TK_KW_FUNC]      = "kw_func",      // "func"
+	[TK_KW_DO]        = "kw_do",        // "do"
+	[TK_KW_END]       = "kw_end",       // "end"
+	[TK_KW_RETURN]    = "kw_return",    // "return"
+	[TK_KW_IF]        = "kw_if",        // "if"
+	[TK_KW_THEN]      = "kw_then",      // "then"
+	[TK_KW_ELSE]      = "kw_else",      // "else"
 
 	[TK_SEMI_COLON]   = "semi_colon",   // ";"
 

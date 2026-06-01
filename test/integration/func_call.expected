@@ -1,0 +1,24 @@
+; ModuleID = 'test/integration/func_call.haste'
+source_filename = "test/integration/func_call.haste"
+
+define i32 @add(i32 %0, i32 %1) {
+entry:
+  %x = alloca i32, align 4
+  store i32 %0, ptr %x, align 4
+  %y = alloca i32, align 4
+  store i32 %1, ptr %y, align 4
+  %x1 = load i32, ptr %x, align 4
+  %y2 = load i32, ptr %y, align 4
+  %addtmp = add i32 %x1, %y2
+  ret i32 %addtmp
+}
+
+define i32 @call_add(i32 %0) {
+entry:
+  %a = alloca i32, align 4
+  store i32 %0, ptr %a, align 4
+  %a1 = load i32, ptr %a, align 4
+  %a2 = load i32, ptr %a, align 4
+  %calltmp = call i32 @add(i32 %a1, i32 %a2)
+  ret i32 %calltmp
+}

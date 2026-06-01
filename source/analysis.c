@@ -3,7 +3,7 @@
 #include "my_common.h"
 #include "my_stream.h"
 #include "my_termcolor.h"
-#include <unistd.h>
+#include <stdio.h>
 
 // symbols has three levels
 // -1: ahhhhh:    not even defined, its local for sure tho
@@ -44,6 +44,7 @@ struct analyzer {
 	struct scope *global, *local;
 	source_file_id src;
 	bool had_error;
+	struct haste_type current_return_type;
 };
 
 /* 🗣️: Stop using macros they are bad
@@ -125,6 +126,10 @@ DEFINE_REPORT_FN(warning, ANSI_CODE_YELLOW, "Warning", false)
 		struct location: _report_warning_location)(self_, node_, __VA_ARGS__)
 
 // ── Scope management ─────────────────────────────────────────────
+static Error prepare_scope(
+	struct analyzer *self,
+	struct haste_ast_node *nodes,
+	bool top_level);
 
 static struct scope *begin_scope(struct analyzer *self)
 {
@@ -293,10 +298,27 @@ static struct haste_value analyze_binary(struct analyzer *self, struct haste_ast
 {
 	try (lhs, analyze_node(self, node->lhs, expected_type))
 	try (rhs, analyze_node(self, node->rhs, expected_type))
-	try (result, resolve_binary_op(self, lhs, rhs, node->op, node->op_loc))
 	{
-		inject(self->arena_allocator, node, result);
-		return result;
+		if (not is_comptime_known(lhs) or not is_comptime_known(rhs)) {
+			struct haste_type lt = typeof_value(lhs);
+			struct haste_type rt = typeof_value(rhs);
+			if (not (type_is_number(lt) or type_is_untyped_number(lt))
+			    or not (type_is_number(rt) or type_is_untyped_number(rt))) {
+				return bail(self, node->op_loc,
+					"Cannot perform binary operation on types '{value}' and '{value}'",
+					lt, rt);
+			}
+			struct haste_type result_type = type_is_untyped(lt) then rt otherwise lt;
+			struct haste_value result = VAL_RUNTIME((struct haste_ast_node*)node);
+			node->base.type = result_type;
+			return result;
+		}
+
+		try (result, resolve_binary_op(self, lhs, rhs, node->op, node->op_loc))
+		{
+			inject(self->arena_allocator, node, result);
+			return result;
+		}
 	}
 
 	return VAL_NONE;
@@ -364,8 +386,17 @@ static struct haste_value resolve_binary_op(struct analyzer *self, struct haste_
 
 static struct haste_value analyze_unary(struct analyzer *self, struct haste_ast_unary *node, struct haste_type expected_type)
 {
-	// TODO: This needs some refactoring
 	try (value, analyze_node(self, node->rhs, expected_type)) {
+		if (not is_comptime_known(value)) {
+			if (node->op == TK_MINUS or node->op == TK_PLUS) {
+				struct haste_value result = VAL_RUNTIME((struct haste_ast_node*)node);
+				node->base.type = typeof_value(value);
+				return result;
+			}
+			return bail(self, node->op_loc,
+				"Unary operation not supported on runtime value.");
+		}
+
 		switch (node->op) {
 		case TK_MINUS:
 			if (IS_ZERO(value)) {
@@ -402,6 +433,23 @@ static struct haste_value analyze_unary(struct analyzer *self, struct haste_ast_
 static struct haste_value analyze_access(struct analyzer *self, struct haste_ast_access *node, struct haste_type expected_type)
 {
 	try (lhs_value, analyze_node(self, node->lhs, expected_type)) {
+		if (IS_RUNTIME(lhs_value)) {
+			struct haste_type lhs_type = typeof_value(lhs_value);
+			ssize_t idx = find_named_field(lhs_type, node->field.chars);
+			if (idx < 0) {
+				return bail(self, node->field_loc,
+					"Cannot access field '{string}'. no such field inside '{value}'",
+					node->field, lhs_type);
+			}
+			struct haste_struct_type_info *st = AS_STRUCT_TYPE_INFO(lhs_type);
+			struct haste_type field_type = st->items[idx].type;
+			node->field_index = (size_t)idx;
+			node->base.type = field_type;
+			struct haste_value result = VAL_RUNTIME((struct haste_ast_node*)node);
+			result.is_lvalue = lhs_value.is_lvalue;
+			result.type_id = AS_TYPEID(field_type);
+			return result;
+		}
 		catch (result, err, struct_get_field(lhs_value, node->field.chars)) {
 			discard err;
 			return bail(self, node->field_loc,
@@ -468,9 +516,27 @@ static struct haste_value analyze_ident(
 		report_error(self, &node->base, "undefined symbol '{s}'.", name);
 		return VAL_UNINIT;
 	}
+	if (symbol->level == SYM_AHH) {
+		report_error(
+			self, &node->base,
+			"this local symbol has been used before it is even declared.");
+		report_note(
+			self, symbol->node,
+			"Its here.");
+		return VAL_BAD;
+	}
+
 	value = symbol->value;
 	if (not symbol->is_constant) {
 		value.is_lvalue = true;
+	}
+
+	if (not is_comptime_known(value) and not IS_TYPE(value) and not IS_NONE(value) and not IS_BAD(value)) {
+		node->base.type = symbol->type;
+		struct haste_value result = VAL_RUNTIME((struct haste_ast_node*)node);
+		result.is_lvalue = not symbol->is_constant;
+		result.type_id = AS_TYPEID(symbol->type);
+		return result;
 	}
 
 	inject(self->arena_allocator, node, value);
@@ -720,20 +786,7 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 
 	struct haste_value value = VAL_UNINIT;
 	if (node->value != NULL) {
-		/* struct haste_declaration *struct_decl = node->value->kind == ND_STRUCT_TYPE */
-		/* 	then hmget(sources.items[self->src].declarations, name) */
-		/* 	otherwise NULL; */
-
-		/* if (struct_decl != NULL) struct_decl->analyzing = true; */
-
-		/* if (not IS_AUTO(type)) { */
-		/* 	inject_struct_type(self, node->value, type); */
-		/* } */
-
 		value = analyze_node(self, node->value, type);
-
-		/* if (struct_decl != NULL) struct_decl->analyzing = false; */
-
 		if (IS_BAD(value)) {
 			fail_var_decl(symbol, &node->base);
 		}
@@ -770,7 +823,10 @@ static struct haste_value analyze_var_decl(struct analyzer *self, struct haste_a
 
 	node->base.type = type;
 	node->is_explicitly_comptime = is_explicitly_comptime;
-	inject(self->arena_allocator, node->value, value);
+
+	if (not IS_RUNTIME(value)) {
+		inject(self->arena_allocator, node->value, value);
+	}
 
 	run_at_percent (0.67) {
 		if (value_equal(value, VAL_SCALAR(AS_TYPEID(ty_untyped_int), .integer = 67))) {
@@ -968,6 +1024,182 @@ static struct haste_value analyze_struct_literal(struct analyzer *self, struct h
 	return result;
 }
 
+// ── Function analysis ────────────────────────────────────────────
+
+static struct haste_value analyze_func_decl(struct analyzer *self, struct haste_ast_func_decl *node, struct haste_type expected_type)
+{
+	discard expected_type;
+
+	struct haste_type return_type = ty_void;
+	if (node->return_type != NULL) {
+		struct haste_value tp = analyze_node(self, node->return_type, (struct haste_type){0});
+		if (IS_BAD(tp)) return VAL_BAD;
+		if (not IS_TYPE(tp)) {
+			report_error(self, node->return_type,
+				"Expected a type for the return type, got '{value}' instead.", typeof_value(tp));
+			return VAL_BAD;
+		}
+		return_type = into_type(tp);
+	}
+
+	// Save and set current return type
+	struct haste_type saved_return_type = self->current_return_type;
+	self->current_return_type = return_type;
+
+	// Update the function's symbol so callers can resolve the return type
+	struct symbol *func_sym = hmget(*self->local, node->name.chars);
+	if (func_sym) {
+		func_sym->type = return_type;
+		func_sym->value = VAL_UNINIT;
+		func_sym->level = SYM_DECLARED;
+	}
+
+	node->base.type = return_type;
+
+	// Analyze body in a new scope (for params + locals)
+	with_scope(self) {
+		// Register parameters
+		leach (struct haste_ast_func_param, param, node->params) {
+			struct haste_type param_type = ty_auto;
+			if (param->type != NULL) {
+				struct haste_value tp = analyze_node(self, param->type, (struct haste_type){0});
+				if (IS_BAD(tp)) { self->had_error = true; continue; }
+				if (not IS_TYPE(tp)) {
+					report_error(self, param->type,
+						"Expected a type for parameter, got '{value}'.", typeof_value(tp));
+					self->had_error = true;
+					continue;
+				}
+				param_type = into_type(tp);
+			}
+
+			for (size_t i = 0; i < param->name_count; i++) {
+				const char *pname = param->names[i].chars;
+				struct symbol *existing = hmget(*self->local, pname);
+				if (existing) {
+					report_error(self, param->name_locs[i],
+						"Duplicate parameter name '{s}'.", pname);
+					self->had_error = true;
+					continue;
+				}
+				put_local_symbol(self, pname,
+					.level = SYM_DECLARED,
+					.is_constant = false,
+					.type = param_type,
+					.value = VAL_UNINIT,
+					.node = NULL);
+			}
+		}
+
+		if (node->body != NULL) {
+			struct haste_value body_val = analyze_node(self, node->body, return_type);
+			if (IS_BAD(body_val)) {
+				self->had_error = true;
+			} else if (type_equal(typeof_value(body_val), ty_void) and not type_equal(return_type, ty_void)) {
+				report_error(self, node->body,
+					"Function body does not return a value, but return type is '{value}'.", return_type);
+				self->had_error = true;
+			}
+		}
+	}
+
+	self->current_return_type = saved_return_type;
+
+	return VAL_UNINIT;
+}
+
+static struct haste_value analyze_func_call(struct analyzer *self, struct haste_ast_func_call *node, struct haste_type expected_type)
+{
+	// Analyze callee - should resolve to a function name
+	struct haste_value callee_val = analyze_node(self, node->callee, (struct haste_type){0});
+	if (IS_BAD(callee_val)) return VAL_BAD;
+
+	// Resolve return type from callee value
+	struct haste_type return_type = typeof_value(callee_val);
+	// Fallback if the type is uninit/unknown (callee wasn't a function)
+	if (type_equal(return_type, ty_unknown) or type_equal(return_type, ty_zero)) {
+		return_type = IS_AUTO(expected_type) ? ty_void : expected_type;
+	}
+
+	// Analyze arguments
+	leach (struct haste_ast_func_call_arg, arg, node->args) {
+		struct haste_value arg_val = analyze_node(self, arg->value, expected_type);
+		if (IS_BAD(arg_val)) return VAL_BAD;
+		if (not IS_RUNTIME(arg_val)) {
+			inject(self->arena_allocator, arg->value, arg_val);
+		}
+	}
+
+	node->base.type = return_type;
+	return VAL_RUNTIME((struct haste_ast_node*)node);
+}
+
+static struct haste_value analyze_block(struct analyzer *self, struct haste_ast_block *node, struct haste_type expected_type)
+{
+	struct haste_value last_val = VAL_NONE;
+	with_scope(self) {
+		Error err = prepare_scope(self, (void*)node->stmts, false);
+		if (err) return VAL_BAD;
+
+		leach (struct haste_ast_node, stmt, node->stmts) {
+			last_val = analyze_node(self, stmt, expected_type);
+			if (IS_BAD(last_val)) {
+				self->had_error = true;
+				last_val = VAL_NONE;
+			}
+		}
+	}
+
+	if (IS_NONE(last_val)) {
+		node->base.type = ty_void;
+		return VAL_UNINIT;
+	}
+	if (not is_comptime_known(last_val)) {
+		node->base.type = typeof_value(last_val);
+		return last_val;
+	}
+	inject(self->arena_allocator, node, last_val);
+	return last_val;
+}
+
+static struct haste_value analyze_return(struct analyzer *self, struct haste_ast_return *node, struct haste_type expected_type)
+{
+	discard expected_type;
+	struct haste_value val = VAL_NONE;
+	if (node->value != NULL) {
+		val = analyze_node(self, node->value, self->current_return_type);
+		if (IS_BAD(val)) return VAL_BAD;
+
+		if (not IS_AUTO(self->current_return_type)) {
+			struct haste_type val_type = typeof_value(val);
+			if (not type_equal(self->current_return_type, val_type)) {
+				struct haste_value coerced = value_coerce(self->allocator, self->current_return_type, val);
+				if (IS_BAD(coerced)) {
+					report_error(self, node->value,
+						"Cannot return a value of type '{value}' from a function returning '{value}'.",
+						val_type, self->current_return_type);
+					return VAL_BAD;
+				}
+				val = coerced;
+			}
+		}
+	} else {
+		if (not type_equal(self->current_return_type, ty_void)) {
+			report_error(self, &node->base,
+				"Expected a return value of type '{value}', got nothing.",
+				self->current_return_type);
+			return VAL_BAD;
+		}
+	}
+
+	node->base.type = typeof_value(val);
+	if (not is_comptime_known(val)) {
+		return val;
+	}
+	inject(self->arena_allocator, node, val);
+	return val;
+}
+
 // ── Main dispatch ────────────────────────────────────────────────
 
 struct haste_value analyze_node(struct analyzer *self, struct haste_ast_node *node, struct haste_type expected_type)
@@ -980,6 +1212,8 @@ struct haste_value analyze_node(struct analyzer *self, struct haste_ast_node *no
 	switch (node->kind) {
 	case ND_STRUCT_FIELD:     unreachable();
 	case ND_STRUCT_LIT_FIELD: unreachable();
+	case ND_FUNC_PARAM:       unreachable();
+	case ND_FUNC_CALL_ARG:    unreachable();
 	case ND_VALUE:            unreachable();
 	case ND_BINARY:         return analyze_binary         (self, (void*)node, expected_type);
 	case ND_UNARY:          return analyze_unary          (self, (void*)node, expected_type);
@@ -994,6 +1228,10 @@ struct haste_value analyze_node(struct analyzer *self, struct haste_ast_node *no
 	case ND_STRUCT_TYPE:    return analyze_struct_type    (self, (void*)node, expected_type);
 	case ND_STRUCT_LITERAL: return analyze_struct_literal (self, (void*)node, expected_type);
 	case ND_VAR_DECL:       return analyze_var_decl       (self, (void*)node, expected_type);
+	case ND_FUNC_DECL:      return analyze_func_decl      (self, (void*)node, expected_type);
+	case ND_FUNC_CALL:      return analyze_func_call      (self, (void*)node, expected_type);
+	case ND_BLOCK:          return analyze_block          (self, (void*)node, expected_type);
+	case ND_RETURN:         return analyze_return         (self, (void*)node, expected_type);
 	case ND_INT_BITS:       return analyze_int_bits       (self, (void*)node, expected_type);
 	case ND_UINT_BITS:      return analyze_uint_bits      (self, (void*)node, expected_type);
 	case ND_STRING:         return analyze_string         (self, (void*)node, expected_type);
@@ -1018,16 +1256,23 @@ static const char *declaration_name(struct haste_ast_node *node)
 		struct haste_ast_var_decl *var = (void*)node;
 		return var->name.chars;
 	} break;
+	case ND_FUNC_DECL: {
+		struct haste_ast_func_decl *fn = (void*)node;
+		return fn->name.chars;
+	} break;
 	default:
 		unreachable();
 	}
 }
 
-Error prepare_out_of_order_declaration(struct analyzer *self)
+static Error prepare_scope(
+	struct analyzer *self,
+	struct haste_ast_node *nodes,
+	bool top_level)
 {
 	Error result = OK;
 
-	struct haste_ast_node *root = get_source_file_ast(self->src);
+	struct haste_ast_node *root = nodes;
 	leach (struct haste_ast_node, node, root) {
 		if (not node_is_declaration(node)) continue;
 
@@ -1045,7 +1290,7 @@ Error prepare_out_of_order_declaration(struct analyzer *self)
 		}
 		put_local_symbol(
 			self, name,
-			.level = SYM_UNDEFINED,
+			.level = top_level then SYM_UNDEFINED otherwise SYM_AHH,
 			.node = node);
 	}
 
@@ -1062,7 +1307,8 @@ Error analyze(struct Allocator allocator,
 		.src = src,
 	};
 	with_scope(&analyzer) {
-		Error err = prepare_out_of_order_declaration(&analyzer);
+		struct haste_ast_node *nodes = get_source_file_ast(src);
+		Error err = prepare_scope(&analyzer, nodes, true);
 		if (err) return ERROR;
 
 		struct haste_ast_node *root = get_source_file_ast(src);

@@ -1,0 +1,15 @@
+; ModuleID = 'test/integration/func_chained_access.haste'
+source_filename = "test/integration/func_chained_access.haste"
+
+%struct.type.PairOfPair.0 = type { %struct.type.Pair.1, %struct.type.Pair.1 }
+%struct.type.Pair.1 = type { i32, i32 }
+
+define i32 @get_first_b(%struct.type.PairOfPair.0 %0) {
+entry:
+  %p = alloca %struct.type.PairOfPair.0, align 8
+  store %struct.type.PairOfPair.0 %0, ptr %p, align 4
+  %b = getelementptr inbounds nuw %struct.type.PairOfPair.0, ptr %p, i32 0, i32 1
+  %first = getelementptr inbounds nuw %struct.type.Pair.1, ptr %b, i32 0, i32 0
+  %first1 = load i32, ptr %first, align 4
+  ret i32 %first1
+}

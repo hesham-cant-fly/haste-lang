@@ -1,0 +1,13 @@
+; ModuleID = 'test/integration/func_cast.haste'
+source_filename = "test/integration/func_cast.haste"
+
+define float @double_float(i32 %0) {
+entry:
+  %x = alloca i32, align 4
+  store i32 %0, ptr %x, align 4
+  %x1 = load i32, ptr %x, align 4
+  %x2 = load i32, ptr %x, align 4
+  %addtmp = add i32 %x1, %x2
+  %cast = sitofp i32 %addtmp to float
+  ret float %cast
+}

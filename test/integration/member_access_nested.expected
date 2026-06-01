@@ -1,14 +1,14 @@
-; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/member_access_nested.haste'
-source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/member_access_nested.haste"
+; ModuleID = 'test/integration/member_access_nested.haste'
+source_filename = "test/integration/member_access_nested.haste"
 
 %struct.type.Outer.0 = type { %struct.type.string.1, %struct.type.Inner.2 }
 %struct.type.string.1 = type { ptr, i64 }
 %struct.type.Inner.2 = type { %struct.type.string.1 }
 
-@o = constant %struct.type.Outer.0 { %struct.type.string.1 { ptr @.str.0, i64 2 }, %struct.type.Inner.2 { %struct.type.string.1 { ptr @.str.1, i64 5 } } }
 @.str.0 = private unnamed_addr constant [3 x i8] c"hi\00"
 @.str.1 = private unnamed_addr constant [6 x i8] c"world\00"
-@x = constant %struct.type.Inner.2 { %struct.type.string.1 { ptr @.str.2, i64 5 } }
+@o = constant %struct.type.Outer.0 { %struct.type.string.1 { ptr @.str.0, i64 2 }, %struct.type.Inner.2 { %struct.type.string.1 { ptr @.str.1, i64 5 } } }
 @.str.2 = private unnamed_addr constant [6 x i8] c"world\00"
-@y = constant %struct.type.string.1 { ptr @.str.3, i64 5 }
+@x = constant %struct.type.Inner.2 { %struct.type.string.1 { ptr @.str.2, i64 5 } }
 @.str.3 = private unnamed_addr constant [6 x i8] c"world\00"
+@y = constant %struct.type.string.1 { ptr @.str.3, i64 5 }

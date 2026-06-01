@@ -1,4 +1,4 @@
-; ModuleID = ''
-source_filename = ""
+; ModuleID = 'test/integration/untyped_float_literal.haste'
+source_filename = "test/integration/untyped_float_literal.haste"
 
 @a = constant float 0x40091EB860000000

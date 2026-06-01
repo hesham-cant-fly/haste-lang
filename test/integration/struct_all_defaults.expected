@@ -1,10 +1,10 @@
-; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/struct_all_defaults.haste'
-source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/struct_all_defaults.haste"
+; ModuleID = 'test/integration/struct_all_defaults.haste'
+source_filename = "test/integration/struct_all_defaults.haste"
 
 %struct.type.AllDefaults.0 = type { i32, float, %struct.type.string.1 }
 %struct.type.string.1 = type { ptr, i64 }
 
-@x = constant %struct.type.AllDefaults.0 { i32 1, float 2.500000e+00, %struct.type.string.1 { ptr @.str.0, i64 2 } }
 @.str.0 = private unnamed_addr constant [3 x i8] c"hi\00"
-@y = constant %struct.type.AllDefaults.0 { i32 1, float 2.500000e+00, %struct.type.string.1 { ptr @.str.1, i64 2 } }
+@x = constant %struct.type.AllDefaults.0 { i32 1, float 2.500000e+00, %struct.type.string.1 { ptr @.str.0, i64 2 } }
 @.str.1 = private unnamed_addr constant [3 x i8] c"hi\00"
+@y = constant %struct.type.AllDefaults.0 { i32 1, float 2.500000e+00, %struct.type.string.1 { ptr @.str.1, i64 2 } }

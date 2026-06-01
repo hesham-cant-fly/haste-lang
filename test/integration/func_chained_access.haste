@@ -1,0 +1,4 @@
+const Pair = struct { first: int; second: int; };
+const PairOfPair = struct { a: Pair; b: Pair; };
+
+func get_first_b(p: PairOfPair): int = p.b.first;

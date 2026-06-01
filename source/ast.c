@@ -36,6 +36,13 @@ static const char *HASTE_AST_NODE_KIND[] =
 	[ND_STRUCT_LIT_FIELD] = "struct_lit_field",
 
 	[ND_VAR_DECL]   = "var_decl",
+
+	[ND_FUNC_DECL]    = "func_decl",
+	[ND_FUNC_PARAM]   = "func_param",
+	[ND_FUNC_CALL]    = "func_call",
+	[ND_FUNC_CALL_ARG]= "func_call_arg",
+	[ND_BLOCK]        = "block",
+	[ND_RETURN]       = "return",
 };
 
 static int print_haste_ast_node_kind(stream_t file, const enum haste_ast_node_kind kind)
@@ -214,6 +221,69 @@ static int print_haste_ast_node(stream_t file, const struct haste_ast_node *node
 	case ND_AUTO:
 	case ND_TYPE:
 		break;
+	case ND_FUNC_DECL:
+		{
+			const struct haste_ast_func_decl *n = (const struct haste_ast_func_decl*)node;
+			printed_amount += sprint(file, "\"name\": \"{string}\",", as_string(n->name));
+			printed_amount += sprint(file, "\"params\": [");
+			for (const struct haste_ast_func_param *p = n->params; p; p = p->next) {
+				if (p != n->params) printed_amount += sprint(file, ",");
+				printed_amount += sprint(file, "{");
+				printed_amount += sprint(file, "\"names\": [");
+				for (size_t i = 0; i < p->name_count; i++) {
+					if (i > 0) printed_amount += sprint(file, ",");
+					printed_amount += sprint(file, "\"{string}\"", p->names[i]);
+				}
+				printed_amount += sprint(file, "],");
+				printed_amount += sprint(file, "\"type\": ");
+				if (p->type) printed_amount += print_haste_ast_node(file, p->type);
+				else printed_amount += sprint(file, "null");
+				printed_amount += sprint(file, "}");
+			}
+			printed_amount += sprint(file, "],");
+			printed_amount += sprint(file, "\"return_type\": ");
+			if (n->return_type) printed_amount += print_haste_ast_node(file, n->return_type);
+			else printed_amount += sprint(file, "null");
+			printed_amount += sprint(file, ",");
+			printed_amount += sprint(file, "\"body\": ");
+			if (n->body) printed_amount += print_haste_ast_node(file, n->body);
+			else printed_amount += sprint(file, "null");
+		}
+		break;
+	case ND_FUNC_CALL:
+		{
+			const struct haste_ast_func_call *n = (const struct haste_ast_func_call*)node;
+			printed_amount += sprint(file, "\"callee\": ");
+			printed_amount += print_haste_ast_node(file, n->callee);
+			printed_amount += sprint(file, ",");
+			printed_amount += sprint(file, "\"args\": [");
+			for (const struct haste_ast_func_call_arg *a = n->args; a; a = a->next) {
+				if (a != n->args) printed_amount += sprint(file, ",");
+				printed_amount += print_haste_ast_node(file, a->value);
+			}
+			printed_amount += sprint(file, "]");
+		}
+		break;
+	case ND_BLOCK:
+		{
+			const struct haste_ast_block *n = (const struct haste_ast_block*)node;
+			printed_amount += sprint(file, "\"stmts\": ");
+			if (n->stmts) printed_amount += print_haste_ast(file, n->stmts);
+			else printed_amount += sprint(file, "[]");
+		}
+		break;
+	case ND_RETURN:
+		{
+			const struct haste_ast_return *n = (const struct haste_ast_return*)node;
+			printed_amount += sprint(file, "\"value\": ");
+			if (n->value) printed_amount += print_haste_ast_node(file, n->value);
+			else printed_amount += sprint(file, "null");
+		}
+		break;
+	case ND_FUNC_PARAM:
+	case ND_FUNC_CALL_ARG:
+		unreachable();
+		break;
 	}
 	printed_amount += sprint(file, "}");
 	return printed_amount;
@@ -258,5 +328,5 @@ int print_haste_ast(stream_t file, const struct haste_ast_node *root)
 
 bool node_is_declaration(const struct haste_ast_node *node)
 {
-	return node->kind == ND_VAR_DECL;
+	return node->kind == ND_VAR_DECL or node->kind == ND_FUNC_DECL;
 }

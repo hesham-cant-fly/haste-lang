@@ -1,0 +1,14 @@
+; ModuleID = 'test/integration/func_recursive.haste'
+source_filename = "test/integration/func_recursive.haste"
+
+define i32 @fact(i32 %0) {
+entry:
+  %n = alloca i32, align 4
+  store i32 %0, ptr %n, align 4
+  %n1 = load i32, ptr %n, align 4
+  %n2 = load i32, ptr %n, align 4
+  %subtmp = sub i32 %n2, 1
+  %calltmp = call i32 @fact(i32 %subtmp)
+  %multmp = mul i32 %n1, %calltmp
+  ret i32 %multmp
+}

@@ -1,0 +1,11 @@
+// this file is loaded automatically
+
+const string = struct {
+	ptr: cstr;
+	len: usize;
+};
+
+const int: type = #word / 2;
+const uint: type = #unsigned_word / 2;
+const isize: type = #word;
+const usize: type = #unsigned_word;

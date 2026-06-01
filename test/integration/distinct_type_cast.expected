@@ -1,5 +1,5 @@
-; ModuleID = 'home/hesham/Documents/Projects/haste-lang/test/integration/distinct_type_cast.haste'
-source_filename = "home/hesham/Documents/Projects/haste-lang/test/integration/distinct_type_cast.haste"
+; ModuleID = 'test/integration/distinct_type_cast.haste'
+source_filename = "test/integration/distinct_type_cast.haste"
 
 @d = constant i32 100
 @t = constant i32 100

@@ -1,0 +1,1 @@
+func negate(x: int): int = -x;

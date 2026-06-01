@@ -1,5 +1,5 @@
-; ModuleID = ''
-source_filename = ""
+; ModuleID = 'test/integration/untyped_mixed_arith.haste'
+source_filename = "test/integration/untyped_mixed_arith.haste"
 
 @a = constant float 1.350000e+01
 @b = constant float 5.500000e+00

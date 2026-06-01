@@ -1,0 +1,3 @@
+const Vec2 = struct { x: int; y: int; };
+
+func get_x(v: Vec2): int = v.x;

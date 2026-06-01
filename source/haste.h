@@ -17,7 +17,9 @@
 #include <stdarg.h>
 #include <stdnoreturn.h>
 
-#ifdef DEBUG
+#ifdef _MSC_VER
+#  define Break() __debugbreak()
+#elif defined(DEBUG)
 #  define Break() __asm__("int3")
 #else
 #  define Break() do {} while (0)
@@ -179,6 +181,13 @@ enum token_kind {
 	TK_KW_VAR,       // "var"
 	TK_KW_STRUCT,    // "struct"
 	TK_KW_DISTINCT,  // "distinct"
+	TK_KW_FUNC,      // "func"
+	TK_KW_DO,        // "do"
+	TK_KW_END,       // "end"
+	TK_KW_RETURN,    // "return"
+	TK_KW_IF,        // "if"
+	TK_KW_THEN,      // "then"
+	TK_KW_ELSE,      // "else"
 
 	TK_SEMI_COLON,   // ";"
 
@@ -594,8 +603,6 @@ struct haste_type_info {
 	};
 };
 
-void setup_builtin_types(struct Allocator allocator);
-
 /** @brief converts a value to a type. panics when it fails */
 struct haste_type into_type(struct haste_value value);
 
@@ -689,6 +696,14 @@ enum haste_ast_node_kind {
 
 	/* Statements */
 	ND_VAR_DECL,
+
+	/* Functions */
+	ND_FUNC_DECL,
+	ND_FUNC_PARAM,
+	ND_FUNC_CALL,
+	ND_FUNC_CALL_ARG,
+	ND_BLOCK,
+	ND_RETURN,
 };
 
 struct haste_ast_node {
@@ -765,6 +780,7 @@ struct haste_ast_access { // ND_ACCESS
 	struct haste_ast_node *lhs;
 	struct string field;
 	struct location field_loc;
+	size_t field_index;
 };
 
 struct haste_ast_cast { // ND_CAST
@@ -808,6 +824,46 @@ struct haste_ast_var_decl { // ND_VAR_DECL
 	struct string name;
 	struct location name_loc;
 	struct haste_ast_node *type;
+	struct haste_ast_node *value;
+};
+
+struct haste_ast_func_param { // ND_FUNC_PARAM
+	struct haste_ast_node base;
+	size_t name_count;
+	struct string *names;
+	struct location *name_locs;
+	struct haste_ast_node *type;
+	struct haste_ast_func_param *next;
+};
+
+struct haste_ast_func_decl { // ND_FUNC_DECL
+	struct haste_ast_node base;
+	struct string name;
+	struct location name_loc;
+	struct haste_ast_func_param *params;
+	struct haste_ast_node *return_type;
+	struct haste_ast_node *body;
+};
+
+struct haste_ast_func_call_arg { // ND_FUNC_CALL_ARG
+	struct haste_ast_node base;
+	struct haste_ast_node *value;
+	struct haste_ast_func_call_arg *next;
+};
+
+struct haste_ast_func_call { // ND_FUNC_CALL
+	struct haste_ast_node base;
+	struct haste_ast_node *callee;
+	struct haste_ast_func_call_arg *args;
+};
+
+struct haste_ast_block { // ND_BLOCK
+	struct haste_ast_node base;
+	struct haste_ast_node *stmts;
+};
+
+struct haste_ast_return { // ND_RETURN
+	struct haste_ast_node base;
 	struct haste_ast_node *value;
 };
 

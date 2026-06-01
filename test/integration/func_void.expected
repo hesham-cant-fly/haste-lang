@@ -1,0 +1,7 @@
+; ModuleID = 'test/integration/func_void.haste'
+source_filename = "test/integration/func_void.haste"
+
+define void @noop() {
+entry:
+  ret void
+}

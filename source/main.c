@@ -7,7 +7,13 @@
 #define MY_STREAM_IMPL
 #include <errno.h>
 #include <stdio.h>
-#include <locale.h>
+#include <stdlib.h>
+#include <time.h>
+#ifdef _WIN32
+#  include <windows.h>
+#else
+#  include <locale.h>
+#endif
 #include "haste.h"
 #include "my_timing.h"
 #include "cwalk.h"
@@ -103,8 +109,12 @@ int main(int argc, char *argv[argc])
 	define_format_specifier("obj", custom_format_object);
 	define_format_specifier("ast", custom_format_ast);
 
-	srand(time(NULL));
+	srand((unsigned int)time(NULL));
+#ifdef _WIN32
+	SetConsoleOutputCP(CP_UTF8);
+#else
 	setlocale(LC_ALL, "C.UTF-8");
+#endif
 
 	struct Allocator c_allocator = get_c_allocator();
 	set_default_allocator(c_allocator);

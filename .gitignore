@@ -3,6 +3,7 @@
 .build/
 build/
 haste
+haste.exe
 Release/
 Debug/
 secret/
@@ -13,3 +14,11 @@ compile_flags.txt
 test/**/*.ll
 test/**/*.tokens
 test/**/*.json
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+*.cmake
+!CMakeLists.txt
+.vscode/
+.idea/

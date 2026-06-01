@@ -1,0 +1,1 @@
+func double_float(x: int): float = cast[float](x + x);
