@@ -193,6 +193,89 @@ Certain expressions have an "untyped" type. An untyped type can implicitly conve
 
 Variables declared without an explicit initial value are given their zero value: =0= for =int=, =0.0= for =float=, and =""= (empty string) for =string= and =cstr=.
 
+** =distinct=
+
+=distinct= is a keyword that allows for creating a new type based on a former type but its distinct.
+
+#+begin_src haste
+const Foo = distinct int;
+const Bar = distinct int;
+
+const a: Foo = 0;
+const b: Bar = 0;
+// even tho Foo and Bar are just int under the hood. they are distinct
+// so assigning `a` to `c` will result in a compile time error
+const c: Bar = a; // ERROR
+
+// addition between distinct type is not allowed
+const d = a + b;
+
+const e: Foo = cast b;
+#+end_src
+
+** Struct types
+
+A struct type groups several fields under a single name. Each field is declared as =name: type;= with an optional = = default value.
+
+#+BEGIN_SRC haste
+const Vec2 = struct {
+    x: float;
+    y: float = 0;   // defaults to 0.0 when omitted
+};
+#+END_SRC
+
+A struct type is itself a =type= value — =typeof(Vec2)= returns =type=. Struct types are nominally typed, meaning each struct declaration creates a unique type. =S1 = struct { x: int; };= and =S2 = struct { x: int; };= are distinct types, so =const a: S1 = S2{...}= is a type error. Struct type names appear in error messages and LLVM IR instead of generic labels.
+
+*** Multi-name shorthand
+Instead of defining each field on a different line like this
+#+begin_src haste
+const Vec3 = struct {
+	x: float = 1;
+	y: float = 1;
+	z: float = 1;
+};
+#+end_src
+
+You can use the short hand syntax instead
+#+begin_src haste
+const Vec3 = struct {
+	x, y, z: float = 1;
+};
+#+end_src
+
+*** Auto-typed fields
+
+A field type can be inferred from its default value using =auto=:
+
+#+BEGIN_SRC haste
+const Vec2 = struct {
+    x: auto = 6.0;   // infers x: float
+    y: auto = 7.0;   // infers y: float
+};
+#+END_SRC
+
+The =:= shorthand is equivalent:
+
+#+BEGIN_SRC haste
+const Point = struct {
+    x := 6.0;         // same as x: auto = 6.0
+    y := 7.0;         // same as y: auto = 7.0
+};
+#+END_SRC
+
+Inference follows the literal types — =0= becomes =int=, =0.0= becomes =float=, and ="hi"= becomes =string=. A field declared as =name: auto;= without a default value is rejected with "Cannot infer type for field".
+
+that also works with the multi-name shorthand
+#+begin_src haste
+const Point = struct {
+	x, y: auto = 6.7;
+};
+
+const Point2 = struct {
+	x, y := 6.7;
+};
+#+end_src
+
 * Type conversion
 
 The =cast= operator converts a value from one type to another:
@@ -289,89 +372,6 @@ When both operands are typed but of different types, the compiler rejects the ex
 | =string= | =string=, =untyped_string= |
 | =cstr= | =cstr=, =untyped_string= |
 | =auto= | anything |
-
-
-* =distinct=
-=distinct= is a keyword that allows for creating a new type based on a former type but its distinct.
-
-#+begin_src haste
-const Foo = distinct int;
-const Bar = distinct int;
-
-const a: Foo = 0;
-const b: Bar = 0;
-// even tho Foo and Bar are just int under the hood. they are distinct
-// so assigning `a` to `c` will result in a compile time error
-const c: Bar = a; // ERROR
-
-// addition between distinct type is not allowed
-const d = a + b;
-
-const e: Foo = cast b;
-#+end_src
-
-* Struct types
-
-A struct type groups several fields under a single name. Each field is declared as =name: type;= with an optional = = default value.
-
-#+BEGIN_SRC haste
-const Vec2 = struct {
-    x: float;
-    y: float = 0;   // defaults to 0.0 when omitted
-};
-#+END_SRC
-
-A struct type is itself a =type= value — =typeof(Vec2)= returns =type=. Struct types are nominally typed, meaning each struct declaration creates a unique type. =S1 = struct { x: int; };= and =S2 = struct { x: int; };= are distinct types, so =const a: S1 = S2{...}= is a type error. Struct type names appear in error messages and LLVM IR instead of generic labels.
-
-** Multi-name shorthand
-Instead of defining each field on a different line like this
-#+begin_src haste
-const Vec3 = struct {
-	x: float = 1;
-	y: float = 1;
-	z: float = 1;
-};
-#+end_src
-
-You can use the short hand syntax instead
-#+begin_src haste
-const Vec3 = struct {
-	x, y, z: float = 1;
-};
-#+end_src
-
-** Auto-typed fields
-
-A field type can be inferred from its default value using =auto=:
-
-#+BEGIN_SRC haste
-const Vec2 = struct {
-    x: auto = 6.0;   // infers x: float
-    y: auto = 7.0;   // infers y: float
-};
-#+END_SRC
-
-The =:= shorthand is equivalent:
-
-#+BEGIN_SRC haste
-const Point = struct {
-    x := 6.0;         // same as x: auto = 6.0
-    y := 7.0;         // same as y: auto = 7.0
-};
-#+END_SRC
-
-Inference follows the literal types — =0= becomes =int=, =0.0= becomes =float=, and ="hi"= becomes =string=. A field declared as =name: auto;= without a default value is rejected with "Cannot infer type for field".
-
-that also works with the multi-name shorthand
-#+begin_src haste
-const Point = struct {
-	x, y: auto = 6.7;
-};
-
-const Point2 = struct {
-	x, y := 6.7;
-};
-#+end_src
 
 * Struct literals
 Struct values are created with brace syntax:
@@ -509,6 +509,135 @@ const x: int = 5;
 const a = x.foo;  // Error: Cannot access field 'foo'. no such field inside 'int'
 #+END_SRC
 
+* Functions
+
+Functions are declared with the =func= keyword, followed by the function name, parameters, return type, and body.
+
+** Expression body
+
+For simple functions consisting of a single expression, the body is written after =:=:
+
+#+BEGIN_SRC haste
+func add(x: int, y: int): int = x + y;
+#+END_SRC
+
+The expression is evaluated and its result is returned implicitly.
+
+** Do-end block body
+
+For multi-statement functions, use =do= ... =end=:
+
+#+BEGIN_SRC haste
+func add(x: int, y: int): int do
+    x + y
+end
+#+END_SRC
+
+The last expression in the block is returned implicitly.
+
+** =return= statement
+
+Inside a =do=-=end= block, =return= exits the function early with a value:
+
+#+BEGIN_SRC haste
+func double(x: int): int do
+    return x + x;
+end
+#+END_SRC
+
+** Void functions
+
+A function with return type =void= produces no value:
+
+#+BEGIN_SRC haste
+func noop(): void do
+end
+#+END_SRC
+
+Omitting a return value in a non-void function is a compile-time error.
+
+** Local variables
+
+=const= declarations are allowed inside function bodies:
+
+#+BEGIN_SRC haste
+func double(x: int): int do
+    const y = x + x;
+    y
+end
+#+END_SRC
+
+Locals are scoped to the block they are declared in.
+
+** Parameters
+
+A function can have zero or more parameters. Each parameter has a name and a type annotation:
+
+#+BEGIN_SRC haste
+func sum5(a: int, b: int, c: int, d: int, e: int): int = a + b + c + d + e;
+#+END_SRC
+
+Duplicate parameter names are rejected at compile time.
+
+** Calling functions
+
+Functions are called with standard =name(args)= syntax:
+
+#+BEGIN_SRC haste
+func add(x: int, y: int): int = x + y;
+
+func call_add(a: int): int = add(a, a);
+#+END_SRC
+
+** Nested calls
+
+Function calls can be nested arbitrarily:
+
+#+BEGIN_SRC haste
+func add(x: int, y: int): int = x + y;
+
+func nested(a: int): int = add(add(a, a), a);
+#+END_SRC
+
+** Recursion
+
+Functions may call themselves recursively:
+
+#+BEGIN_SRC haste
+func fact(n: int): int do
+    return n * fact(n - 1);
+end
+#+END_SRC
+
+** Operators and casts in functions
+
+All operators (=+=, =-=, =*=, =/=, unary =--=) and casts work inside function bodies:
+
+#+BEGIN_SRC haste
+func negate(x: int): int = -x;
+func double_float(x: int): float = cast[float](x + x);
+#+END_SRC
+
+** Member access in functions
+
+Struct member access with =.= works in function bodies:
+
+#+BEGIN_SRC haste
+const Vec2 = struct { x: int; y: int; };
+func get_x(v: Vec2): int = v.x;
+#+END_SRC
+
+** Chained member access
+
+Multiple levels of member access are supported inside functions:
+
+#+BEGIN_SRC haste
+const Pair = struct { first: int; second: int; };
+const PairOfPair = struct { a: Pair; b: Pair; };
+
+func get_first_b(p: PairOfPair): int = p.b.first;
+#+END_SRC
+
 * Compile-time evaluation
 Haste evaluates =const= declarations at compile time whenever possible. Arithmetic on literal values is constant-folded, forward references across top-level declarations are supported through hoisting, and type aliases resolve at compile time.
 
@@ -549,3 +678,74 @@ const Number = int;
 const s: Number = 42;
 const t = cast[Number]3.14;   // 3
 #+END_SRC
+
+* Compiler internals
+
+** Recent refactoring (value.c / type.c)
+
+The compiler's value and type subsystems have been refactored for
+consistency, safety, and maintainability:
+
+*** value.c
+
+- =ensure_reserved_type=: Replaced =memset= + field-by-field + =memcpy=
+  with a single struct assignment.
+- =value_do_arith=: Combined duplicate / mixed-type checks into single
+  conditions; removed dead commented-out line from =arith_float=.
+- =value_cast=: Extracted three helpers (=value_cast_string_to_struct=,
+  =value_cast_auto_struct=, =value_cast_runtime=) to reduce the main
+  function from ~50 to ~25 lines of linear checks. Error propagation
+  changed from =return VAL_BAD= to =return x= / =return into_value(to)=
+  to preserve error codes.
+- =struct_get_field_by_name= / =struct_get_field_by_index=: Extracted
+  =require_struct_value= helper to remove duplicated =IS_STRUCT= checks
+  across all four get/set field functions.
+- =struct_has_field_name=: Fixed off-by-one bug — =find_named_field=
+  returns 0-based indices, so the check must be =>= 0=, not => 0=.
+- =value_assign=: Error propagation preserves the original error code
+  from =result= instead of creating a new =ERR_INVALID_ASSIGNMET=.
+- =struct_set_field= calls in =value_cast_string_to_struct=: Added
+  explicit =(size_t)= casts for the field index to satisfy =_Generic=.
+
+*** type.c
+
+- Removed empty =setup_builtin_types= function (and its declaration
+  from =haste.h=).
+- Removed 120 lines of commented-out =type_can_assign= and
+  =type_can_cast=.
+- =zero_for_type= / =default_for_type=: Extracted =make_struct_default=
+  helper for the shared struct-creation + field-filling logic,
+  parameterized by =force_all=.
+
+** Windows portability
+
+The compiler can now be built on Windows (MinGW/MSYS2) alongside the
+existing Linux and FreeBSD support.
+
+*** Build system
+
+- Added =config/linux.mk=, =config/freebsd.mk=, =config/windows.mk=
+  — each defines =CC=, =CFLAGS=, =LDFLAGS=, =DEBUG_FLAGS=,
+  =RELEASE_FLAGS=, and =EXE= for its platform.
+- =Makefile= auto-detects the OS via =uname -s= and includes the
+  appropriate config file.
+
+*** Platform-specific fixes
+
+- =source/haste.h=: Made =Break()= macro MSVC-aware (=__debugbreak()=),
+  kept =__asm__("int3")= for Clang/GCC debug builds.
+- =source/source.c=: Added =<windows.h>= include for =GetFullPathNameA=
+  (was already guarded with =_WIN32=).
+- =source/main.c=: Guarded =setlocale(LC_ALL, "C.UTF-8")= with
+  =#ifndef _WIN32= (uses =SetConsoleOutputCP(CP_UTF8)= instead);
+  added explicit =<stdlib.h>= and =<time.h>= includes; cast =time()=
+  to =unsigned int= for =srand=.
+- Removed Clang-specific =<__stddef_unreachable.h>= includes from
+  =analysis.c=, =codegen.c=, =parse.c= (redundant — =my_common.h=
+  already provides a portable =unreachable()= fallback).
+- Removed unused =<signal.h>= from =type.c= and =value.c=.
+- Removed unused =<unistd.h>= from =analysis.c=.
+- Replaced all C23 =auto= keyword usages with explicit types for MSVC
+  compatibility (=const char *=, =struct local_entry=, etc.).
+- =source/cwalk.c=, =include/cwalk.h=: Already cross-platform with
+  =_WIN32= / =__GNUC__= conditionals — no changes needed.
